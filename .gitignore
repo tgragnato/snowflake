@@ -5,6 +5,7 @@
 .DS_Store
 datadir/
 broker/broker
+broker/http-frontend/http-frontend
 client/client
 server/server
 proxy/proxy

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/common/messages"
-	"github.com/prometheus/client_golang/prometheus"
+	// "github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -98,7 +98,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	if offer == nil {
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.proxyIdleCount++
-		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "idle"}).Inc()
+		// i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "idle"}).Inc()
 		i.ctx.metrics.lock.Unlock()
 
 		b, err = messages.EncodePollResponse("", false, "")
@@ -110,7 +110,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		return nil
 	}
 
-	i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "matched"}).Inc()
+	// i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "matched"}).Inc()
 	b, err = messages.EncodePollResponse(string(offer.sdp), true, offer.natType)
 	if err != nil {
 		return messages.ErrInternal
@@ -181,7 +181,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if numSnowflakes <= 0 {
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.clientDeniedCount++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied"}).Inc()
+		// i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied"}).Inc()
 		if offer.natType == NATUnrestricted {
 			i.ctx.metrics.clientUnrestrictedDeniedCount++
 		} else {
@@ -211,7 +211,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	case answer := <-snowflake.answerChannel:
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.clientProxyMatchCount++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched"}).Inc()
+		// i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched"}).Inc()
 		i.ctx.metrics.lock.Unlock()
 		switch version {
 		case v1:
@@ -235,7 +235,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	}
 
 	i.ctx.snowflakeLock.Lock()
-	i.ctx.metrics.promMetrics.AvailableProxies.With(prometheus.Labels{"nat": snowflake.natType, "type": snowflake.proxyType}).Dec()
+	// i.ctx.metrics.promMetrics.AvailableProxies.With(prometheus.Labels{"nat": snowflake.natType, "type": snowflake.proxyType}).Dec()
 	delete(i.ctx.idToSnowflake, snowflake.id)
 	i.ctx.snowflakeLock.Unlock()
 
