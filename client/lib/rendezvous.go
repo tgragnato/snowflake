@@ -9,6 +9,7 @@
 package lib
 
 import (
+	"crypto/tls"
 	"errors"
 	"log"
 	"net/http"
@@ -53,6 +54,18 @@ func CreateBrokerTransport() http.RoundTripper {
 	transport := http.DefaultTransport.(*http.Transport)
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = 15 * time.Second
+	transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		MaxVersion: tls.VersionTLS13,
+		CurvePreferences: []tls.CurveID{
+			tls.X25519,
+			tls.CurveP521,
+		},
+		SessionTicketsDisabled: true,
+	}
+	transport.ForceAttemptHTTP2 = true
+	transport.DisableKeepAlives = false
+	transport.DisableCompression = false
 	return transport
 }
 
