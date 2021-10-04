@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base64"
 	"flag"
 	"fmt"
@@ -25,36 +26,49 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-const defaultBrokerURL = "https://snowflake-broker.bamsoftware.com/"
-const defaultProbeURL = "https://snowflake-broker.torproject.net:8443/probe"
-const defaultRelayURL = "wss://snowflake.bamsoftware.com/"
-const defaultSTUNURL = "stun:stun.stunprotocol.org:3478"
-const pollInterval = 5 * time.Second
 const (
-	NATUnknown      = "unknown"
-	NATRestricted   = "restricted"
-	NATUnrestricted = "unrestricted"
-)
-
-//amount of time after sending an SDP answer before the proxy assumes the
-//client is not going to connect
-const dataChannelTimeout = 20 * time.Second
-
-const readLimit = 100000 //Maximum number of bytes to be read from an HTTP request
-
-var broker *SignalingServer
-var relayURL string
-
-var currentNATType = NATUnknown
-
-const (
-	sessionIDLength = 16
+	defaultBrokerURL   = "https://snowflake-broker.bamsoftware.com/"
+	defaultProbeURL    = "https://snowflake-broker.torproject.net:8443/probe"
+	defaultRelayURL    = "wss://snowflake.bamsoftware.com/"
+	defaultSTUNURL     = "stun:stun.stunprotocol.org:3478"
+	pollInterval       = 5 * time.Second
+	NATUnknown         = "unknown"
+	NATRestricted      = "restricted"
+	NATUnrestricted    = "unrestricted"
+	dataChannelTimeout = 20 * time.Second
+	readLimit          = 100000
+	sessionIDLength    = 16
 )
 
 var (
-	tokens *tokens_t
-	config webrtc.Configuration
-	client http.Client
+	broker          *SignalingServer
+	relayURL        string
+	currentNATType  = NATUnknown
+	tokens          *tokens_t
+	config          webrtc.Configuration
+	customtransport = &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Minute,
+			KeepAlive: time.Millisecond,
+			DualStack: true,
+		}).DialContext,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS13,
+			MaxVersion: tls.VersionTLS13,
+			CurvePreferences: []tls.CurveID{
+				tls.X25519,
+				tls.CurveP521,
+			},
+			SessionTicketsDisabled: true,
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConnsPerHost:   10,
+		MaxConnsPerHost:       20,
+		IdleConnTimeout:       5 * time.Minute,
+		ResponseHeaderTimeout: 30 * time.Second,
+		DisableKeepAlives:     false,
+		DisableCompression:    false,
+	}
 )
 
 // Checks whether an IP address is a remote address for the client
@@ -96,8 +110,7 @@ func newSignalingServer(rawURL string, keepLocalAddresses bool) (*SignalingServe
 		return nil, fmt.Errorf("invalid broker url: %s", err)
 	}
 
-	s.transport = http.DefaultTransport.(*http.Transport)
-	s.transport.(*http.Transport).ResponseHeaderTimeout = 30 * time.Second
+	s.transport = customtransport
 
 	return s, nil
 }
