@@ -1,4 +1,40 @@
-package lib
+/*
+Package snowflake_server implements the functionality necessary to accept Snowflake
+connections from Snowflake clients.
+
+Included in the package is a Transport type that implements the Pluggable Transports v2.1 Go API
+specification. To start a TLS Snowflake server using the golang.org/x/crypto/acme/autocert
+library, configure a certificate manager for the server's domain name and then create a new
+Transport as follows:
+
+	// The snowflake server runs a websocket server. To run this securely, you will
+	// need a valid certificate.
+	certManager := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist("snowflake.yourdomain.com"),
+		Email:      "you@yourdomain.com",
+	}
+
+	transport := snowflake_server.NewSnowflakeServer(certManager.GetCertificate)
+
+
+The Listen function starts a new listener, and Accept will return incoming Snowflake connections:
+
+	ln, err := transport.Listen(addr)
+	if err != nil {
+		// handle error
+	}
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			// handle error
+		}
+		// handle conn
+	}
+
+
+*/
+package snowflake_server
 
 import (
 	"crypto/tls"
@@ -17,7 +53,9 @@ import (
 )
 
 const (
+	// WindowSize is the number of packets in the send and receive window of a KCP connection.
 	WindowSize = 65535
+	// StreamSize controls the maximum amount of in flight data between a client and server.
 	StreamSize = 1048576 //1MB
 )
 
@@ -27,15 +65,18 @@ type Transport struct {
 	getCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 }
 
+// NewSnowflakeServer returns a new server-side Transport for Snowflake.
 func NewSnowflakeServer(getCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)) *Transport {
 
 	return &Transport{getCertificate: getCertificate}
 }
 
+// Listen starts a listener on addr that will accept both turbotunnel
+// and legacy Snowflake connections.
 func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
 	listener := &SnowflakeListener{addr: addr, queue: make(chan net.Conn, 65534)}
 
-	handler := HTTPHandler{
+	handler := httpHandler{
 		// pconn is shared among all connections to this server. It
 		// overlays packet-based client sessions on top of ephemeral
 		// WebSocket connections.
@@ -129,9 +170,9 @@ type SnowflakeListener struct {
 	closeOnce sync.Once
 }
 
-// Allows the caller to accept incoming Snowflake connections
+// Accept allows the caller to accept incoming Snowflake connections.
 // We accept connections from a queue to accommodate both incoming
-// smux Streams and legacy non-turbotunnel connections
+// smux Streams and legacy non-turbotunnel connections.
 func (l *SnowflakeListener) Accept() (net.Conn, error) {
 	select {
 	case <-l.closed:
@@ -142,10 +183,12 @@ func (l *SnowflakeListener) Accept() (net.Conn, error) {
 	}
 }
 
+// Addr returns the address of the SnowflakeListener
 func (l *SnowflakeListener) Addr() net.Addr {
 	return l.addr
 }
 
+// Close closes the Snowflake connection.
 func (l *SnowflakeListener) Close() error {
 	// Close our HTTP server and our KCP listener
 	l.closeOnce.Do(func() {
@@ -187,7 +230,7 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 			}
 			return err
 		}
-		l.QueueConn(&SnowflakeClientConn{Conn: stream, address: addr})
+		l.queueConn(&SnowflakeClientConn{Conn: stream, address: addr})
 	}
 }
 
@@ -226,7 +269,7 @@ func (l *SnowflakeListener) acceptSessions(ln *kcp.Listener) error {
 	}
 }
 
-func (l *SnowflakeListener) QueueConn(conn net.Conn) error {
+func (l *SnowflakeListener) queueConn(conn net.Conn) error {
 	select {
 	case <-l.closed:
 		return fmt.Errorf("accepted connection on closed listener")
@@ -235,14 +278,15 @@ func (l *SnowflakeListener) QueueConn(conn net.Conn) error {
 	}
 }
 
-// A wrapper for the underlying oneshot or turbotunnel conn
-// because we need to reference our mapping to determine the client
-// address
+// SnowflakeClientConn is a wrapper for the underlying oneshot or turbotunnel
+// conn. We need to reference our client address map to determine the
+// remote address
 type SnowflakeClientConn struct {
 	net.Conn
 	address net.Addr
 }
 
+// RemoteAddr returns the mapped client address of the Snowflake connection
 func (conn *SnowflakeClientConn) RemoteAddr() net.Addr {
 	return conn.address
 }

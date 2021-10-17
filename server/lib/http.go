@@ -1,4 +1,4 @@
-package lib
+package snowflake_server
 
 import (
 	"bufio"
@@ -60,14 +60,14 @@ func (conn *overrideReadConn) Read(p []byte) (int, error) {
 	return conn.Reader.Read(p)
 }
 
-type HTTPHandler struct {
+type httpHandler struct {
 	// pconn is the adapter layer between stream-oriented WebSocket
 	// connections and the packet-oriented KCP layer.
 	pconn *turbotunnel.QueuePacketConn
 	ln    *SnowflakeListener
 }
 
-func (handler *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (handler *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
@@ -114,7 +114,7 @@ func (handler *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // of their stream. These clients use the WebSocket as a raw pipe, and expect
 // their session to begin and end when this single WebSocket does.
 func oneshotMode(conn net.Conn, addr net.Addr, ln *SnowflakeListener) error {
-	return ln.QueueConn(&SnowflakeClientConn{Conn: conn, address: addr})
+	return ln.queueConn(&SnowflakeClientConn{Conn: conn, address: addr})
 }
 
 // turbotunnelMode handles clients that sent turbotunnel.Token at the start of
@@ -193,6 +193,7 @@ func turbotunnelMode(conn net.Conn, addr net.Addr, pconn *turbotunnel.QueuePacke
 	return nil
 }
 
+// ClientMapAddr is a string that represents a connecting client.
 type ClientMapAddr string
 
 func (addr ClientMapAddr) Network() string {

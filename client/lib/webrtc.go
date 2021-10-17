@@ -1,4 +1,4 @@
-package lib
+package snowflake_client
 
 import (
 	"crypto/rand"
@@ -12,10 +12,9 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-// Remote WebRTC peer.
+// WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.
 //
-// Handles preparation of go-webrtc PeerConnection. Only ever has
-// one DataChannel.
+// Each WebRTCPeer only ever has one DataChannel that is used as the peer's transport.
 type WebRTCPeer struct {
 	id        string
 	pc        *webrtc.PeerConnection
@@ -32,10 +31,14 @@ type WebRTCPeer struct {
 
 	once sync.Once // Synchronization for PeerConnection destruction
 
-	BytesLogger BytesLogger
+	bytesLogger bytesLogger
 }
 
-// Construct a WebRTC PeerConnection.
+// NewWebRTCPeer constructs a WebRTC PeerConnection to a snowflake proxy.
+//
+// The creation of the peer handles the signaling to the Snowflake broker, including
+// the exchange of SDP information, the creation of a PeerConnection, and the establishment
+// of a DataChannel to the Snowflake proxy.
 func NewWebRTCPeer(config *webrtc.Configuration,
 	broker *BrokerChannel) (*WebRTCPeer, error) {
 	connection := new(WebRTCPeer)
@@ -49,7 +52,7 @@ func NewWebRTCPeer(config *webrtc.Configuration,
 	connection.closed = make(chan struct{})
 
 	// Override with something that's not NullLogger to have real logging.
-	connection.BytesLogger = &BytesNullLogger{}
+	connection.bytesLogger = &bytesNullLogger{}
 
 	// Pipes remain the same even when DataChannel gets switched.
 	connection.recvPipe, connection.writePipe = io.Pipe()
@@ -75,11 +78,11 @@ func (c *WebRTCPeer) Write(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	c.BytesLogger.AddOutbound(len(b))
+	c.bytesLogger.addOutbound(len(b))
 	return len(b), nil
 }
 
-//Returns a boolean indicated whether the peer is closed
+// Closed returns a boolean indicated whether the peer is closed.
 func (c *WebRTCPeer) Closed() bool {
 	select {
 	case <-c.closed:
@@ -89,6 +92,7 @@ func (c *WebRTCPeer) Closed() bool {
 	return false
 }
 
+// Close closes the connection the snowflake proxy.
 func (c *WebRTCPeer) Close() error {
 	c.once.Do(func() {
 		close(c.closed)
@@ -186,7 +190,7 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 			log.Println("0 length message---")
 		}
 		n, err := c.writePipe.Write(msg.Data)
-		c.BytesLogger.AddInbound(n)
+		c.bytesLogger.addInbound(n)
 		if err != nil {
 			// TODO: Maybe shouldn't actually close.
 			log.Println("Error writing to SOCKS pipe")
@@ -225,7 +229,7 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 	return nil
 }
 
-// Close all channels and transports
+// cleanup closes all channels and transports
 func (c *WebRTCPeer) cleanup() {
 	// Close this side of the SOCKS pipe.
 	if c.writePipe != nil { // c.writePipe can be nil in tests.

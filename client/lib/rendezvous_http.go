@@ -1,4 +1,4 @@
-package lib
+package snowflake_client
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"net/url"
 )
 
-// httpRendezvous is a rendezvousMethod that communicates with the .../client
+// httpRendezvous is a RendezvousMethod that communicates with the .../client
 // route of the broker over HTTP or HTTPS, with optional domain fronting.
 type httpRendezvous struct {
 	brokerURL *url.URL
@@ -60,7 +60,7 @@ func (r *httpRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 
 	log.Printf("HTTP rendezvous response: %s", resp.Status)
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(BrokerErrorUnexpected)
+		return nil, errors.New(brokerErrorUnexpected)
 	}
 
 	return limitedRead(resp.Body, readLimit)

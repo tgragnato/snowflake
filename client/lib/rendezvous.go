@@ -1,12 +1,7 @@
 // WebRTC rendezvous requires the exchange of SessionDescriptions between
 // peers in order to establish a PeerConnection.
-//
-// This file contains the one method currently available to Snowflake:
-//
-// - Domain-fronted HTTP signaling. The Broker automatically exchange offers
-//   and answers between this client and some remote WebRTC proxy.
 
-package lib
+package snowflake_client
 
 import (
 	"crypto/tls"
@@ -23,34 +18,33 @@ import (
 )
 
 const (
-	BrokerErrorUnexpected string = "Unexpected error, no answer."
+	brokerErrorUnexpected string = "Unexpected error, no answer."
 	readLimit                    = 100000 //Maximum number of bytes to be read from an HTTP response
 )
 
-// rendezvousMethod represents a way of communicating with the broker: sending
+// RendezvousMethod represents a way of communicating with the broker: sending
 // an encoded client poll request (SDP offer) and receiving an encoded client
-// poll response (SDP answer) in return. rendezvousMethod is used by
+// poll response (SDP answer) in return. RendezvousMethod is used by
 // BrokerChannel, which is in charge of encoding and decoding, and all other
 // tasks that are independent of the rendezvous method.
-type rendezvousMethod interface {
+type RendezvousMethod interface {
 	Exchange([]byte) ([]byte, error)
 }
 
-// BrokerChannel contains a rendezvousMethod, as well as data that is not
-// specific to any rendezvousMethod. BrokerChannel has the responsibility of
-// encoding and decoding SDP offers and answers; rendezvousMethod is responsible
-// for the exchange of encoded information.
+// BrokerChannel uses a RendezvousMethod to communicate with the Snowflake broker.
+// The BrokerChannel is responsible for encoding and decoding SDP offers and answers;
+// RendezvousMethod is responsible for the exchange of encoded information.
 type BrokerChannel struct {
-	rendezvous         rendezvousMethod
+	Rendezvous         RendezvousMethod
 	keepLocalAddresses bool
-	NATType            string
+	natType            string
 	lock               sync.Mutex
 }
 
 // We make a copy of DefaultTransport because we want the default Dial
 // and TLSHandshakeTimeout settings. But we want to disable the default
 // ProxyFromEnvironment setting.
-func CreateBrokerTransport() http.RoundTripper {
+func createBrokerTransport() http.RoundTripper {
 	transport := http.DefaultTransport.(*http.Transport)
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = 15 * time.Second
@@ -69,10 +63,10 @@ func CreateBrokerTransport() http.RoundTripper {
 	return transport
 }
 
-// Construct a new BrokerChannel, where:
+// NewBrokerChannel construct a new BrokerChannel, where:
 // |broker| is the full URL of the facilitating program which assigns proxies
 // to clients, and |front| is the option fronting domain.
-func NewBrokerChannel(broker, ampCache, front string, transport http.RoundTripper, keepLocalAddresses bool) (*BrokerChannel, error) {
+func NewBrokerChannel(broker, ampCache, front string, keepLocalAddresses bool) (*BrokerChannel, error) {
 	log.Println("Rendezvous using Broker at:", broker)
 	if ampCache != "" {
 		log.Println("Through AMP cache at:", ampCache)
@@ -81,28 +75,26 @@ func NewBrokerChannel(broker, ampCache, front string, transport http.RoundTrippe
 		log.Println("Domain fronting using:", front)
 	}
 
-	var rendezvous rendezvousMethod
+	var rendezvous RendezvousMethod
 	var err error
 	if ampCache != "" {
-		rendezvous, err = newAMPCacheRendezvous(broker, ampCache, front, transport)
+		rendezvous, err = newAMPCacheRendezvous(broker, ampCache, front, createBrokerTransport())
 	} else {
-		rendezvous, err = newHTTPRendezvous(broker, front, transport)
+		rendezvous, err = newHTTPRendezvous(broker, front, createBrokerTransport())
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	return &BrokerChannel{
-		rendezvous:         rendezvous,
+		Rendezvous:         rendezvous,
 		keepLocalAddresses: keepLocalAddresses,
-		NATType:            nat.NATUnknown,
+		natType:            nat.NATUnknown,
 	}, nil
 }
 
-// Roundtrip HTTP POST using WebRTC SessionDescriptions.
-//
-// Send an SDP offer to the broker, which assigns a proxy and responds
-// with an SDP answer from a designated remote WebRTC peer.
+// Negotiate uses a RendezvousMethod to send the client's WebRTC SDP offer
+// and receive a snowflake proxy WebRTC SDP answer in return.
 func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	*webrtc.SessionDescription, error) {
 	// Ideally, we could specify an `RTCIceTransportPolicy` that would handle
@@ -123,7 +115,7 @@ func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	bc.lock.Lock()
 	req := &messages.ClientPollRequest{
 		Offer: offerSDP,
-		NAT:   bc.NATType,
+		NAT:   bc.natType,
 	}
 	encReq, err := req.EncodePollRequest()
 	bc.lock.Unlock()
@@ -131,8 +123,8 @@ func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 		return nil, err
 	}
 
-	// Do the exchange using our rendezvousMethod.
-	encResp, err := bc.rendezvous.Exchange(encReq)
+	// Do the exchange using our RendezvousMethod.
+	encResp, err := bc.Rendezvous.Exchange(encReq)
 	if err != nil {
 		return nil, err
 	}
@@ -149,20 +141,22 @@ func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	return util.DeserializeSessionDescription(resp.Answer)
 }
 
+// SetNATType sets the NAT type of the client so we can send it to the WebRTC broker.
 func (bc *BrokerChannel) SetNATType(NATType string) {
 	bc.lock.Lock()
-	bc.NATType = NATType
+	bc.natType = NATType
 	bc.lock.Unlock()
 	log.Printf("NAT Type: %s", NATType)
 }
 
-// Implements the |Tongue| interface to catch snowflakes, using BrokerChannel.
+// WebRTCDialer implements the |Tongue| interface to catch snowflakes, using BrokerChannel.
 type WebRTCDialer struct {
 	*BrokerChannel
 	webrtcConfig *webrtc.Configuration
 	max          int
 }
 
+// NewWebRTCDialer constructs a new WebRTCDialer.
 func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int) *WebRTCDialer {
 	config := webrtc.Configuration{
 		ICEServers: iceServers,
@@ -175,14 +169,14 @@ func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max i
 	}
 }
 
-// Initialize a WebRTC Connection by signaling through the broker.
+// Catch initializes a WebRTC Connection by signaling through the BrokerChannel.
 func (w WebRTCDialer) Catch() (*WebRTCPeer, error) {
 	// TODO: [#25591] Fetch ICE server information from Broker.
 	// TODO: [#25596] Consider TURN servers here too.
 	return NewWebRTCPeer(w.webrtcConfig, w.BrokerChannel)
 }
 
-// Returns the maximum number of snowflakes to collect
+// GetMax returns the maximum number of snowflakes to collect.
 func (w WebRTCDialer) GetMax() int {
 	return w.max
 }

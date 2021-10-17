@@ -27,9 +27,9 @@ import (
 )
 
 const (
-	defaultBrokerURL   = "https://snowflake-broker.bamsoftware.com/"
+	defaultBrokerURL   = "https://snowflake-broker.torproject.net/"
 	defaultProbeURL    = "https://snowflake-broker.torproject.net:8443/probe"
-	defaultRelayURL    = "wss://snowflake.bamsoftware.com/"
+	defaultRelayURL    = "wss://snowflake.torproject.net/"
 	defaultSTUNURL     = "stun:stun.stunprotocol.org:3478"
 	pollInterval       = 5 * time.Second
 	NATUnknown         = "unknown"

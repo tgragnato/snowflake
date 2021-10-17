@@ -1,4 +1,30 @@
-package lib
+/*
+Package snowflake_client implements functionality necessary for a client to establish a connection
+to a server using Snowflake.
+
+Included in the package is a Transport type that implements the Pluggable Transports v2.1 Go API
+specification. To use Snowflake, you must first create a client from a configuration:
+
+	config := snowflake_client.ClientConfig{
+		BrokerURL:   "https://snowflake-broker.example.com",
+		FrontDomain: "https://friendlyfrontdomain.net",
+		// ...
+	}
+	transport, err := snowflake_client.NewSnowflakeClient(config)
+	if err != nil {
+		// handle error
+	}
+
+The Dial function connects to a Snowflake server:
+
+	conn, err := transport.Dial()
+	if err != nil {
+		// handle error
+	}
+	defer conn.Close()
+
+*/
+package snowflake_client
 
 import (
 	"context"
@@ -17,12 +43,21 @@ import (
 )
 
 const (
+	// ReconnectTimeout is the time a Snowflake client will wait before collecting
+	// more snowflakes.
 	ReconnectTimeout = 10 * time.Second
+	// SnowflakeTimeout is the time a Snowflake client will wait before determining that
+	// a remote snowflake has been disconnected. If no new messages are sent or received
+	// in this time period, the client will terminate the connection with the remote
+	// peer and collect a new snowflake.
 	SnowflakeTimeout = 20 * time.Second
-	// How long to wait for the OnOpen callback on a DataChannel.
+	// DataChannelTimeout is how long the client will wait for the OnOpen callback
+	// on a newly created DataChannel.
 	DataChannelTimeout = 10 * time.Second
 
+	// WindowSize is the number of packets in the send and receive window of a KCP connection.
 	WindowSize = 65535
+	// StreamSize controls the maximum amount of in flight data between a client and server.
 	StreamSize = 1048576 //1MB
 )
 
@@ -37,16 +72,31 @@ type Transport struct {
 	dialer *WebRTCDialer
 }
 
+// ClientConfig defines how the SnowflakeClient will connect to the broker and Snowflake proxies.
 type ClientConfig struct {
-	BrokerURL          string
-	AmpCacheURL        string
-	FrontDomain        string
-	ICEAddresses       []string
+	// BrokerURL is the full URL of the Snowflake broker that the client will connect to.
+	BrokerURL string
+	// AmpCacheURL is the full URL of a valid AMP cache. A nonzero value indicates
+	// that AMP cache will be used as the rendezvous method with the broker.
+	AmpCacheURL string
+	// FrontDomain is a the full URL of an optional front domain that can be used with either
+	// the AMP cache or HTTP domain fronting rendezvous method.
+	FrontDomain string
+	// ICEAddresses are a slice of ICE server URLs that will be used for NAT traversal and
+	// the creation of the client's WebRTC SDP offer.
+	ICEAddresses []string
+	// KeepLocalAddresses is an optional setting that will prevent the removal of local or
+	// invalid addresses from the client's SDP offer. This is useful for local deployments
+	// and testing.
 	KeepLocalAddresses bool
-	Max                int
+	// Max is the maximum number of snowflake proxy peers that the client should attempt to
+	// connect to. Defaults to 1.
+	Max int
 }
 
-// Create a new Snowflake transport client that can spawn multiple Snowflake connections.
+// NewSnowflakeClient creates a new Snowflake transport client that can spawn multiple
+// Snowflake connections.
+//
 // brokerURL and frontDomain are the urls for the broker host and domain fronting host
 // iceAddresses are the STUN/TURN urls needed for WebRTC negotiation
 // keepLocalAddresses is a flag to enable sending local network addresses (for testing purposes)
@@ -71,20 +121,25 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 
 	// Rendezvous with broker using the given parameters.
 	broker, err := NewBrokerChannel(
-		config.BrokerURL, config.AmpCacheURL, config.FrontDomain, CreateBrokerTransport(),
-		config.KeepLocalAddresses)
+		config.BrokerURL, config.AmpCacheURL, config.FrontDomain, config.KeepLocalAddresses)
 	if err != nil {
 		return nil, err
 	}
 	go updateNATType(iceServers, broker)
 
-	transport := &Transport{dialer: NewWebRTCDialer(broker, iceServers, config.Max)}
+	max := 1
+	if config.Max > max {
+		max = config.Max
+	}
+	transport := &Transport{dialer: NewWebRTCDialer(broker, iceServers, max)}
 
 	return transport, nil
 }
 
-// Create a new Snowflake connection. Starts the collection of snowflakes and returns a
-// smux Stream.
+// Dial creates a new Snowflake connection.
+// Dial starts the collection of snowflakes and returns a SnowflakeConn that is a
+// wrapper around a smux.Stream that will reliably deliver data to a Snowflake
+// server through one or more snowflake proxies.
 func (t *Transport) Dial() (net.Conn, error) {
 	// Cleanup functions to run before returning, in case of an error.
 	var cleanup []func()
@@ -103,7 +158,7 @@ func (t *Transport) Dial() (net.Conn, error) {
 	cleanup = append(cleanup, func() { snowflakes.End() })
 
 	// Use a real logger to periodically output how much traffic is happening.
-	snowflakes.BytesLogger = NewBytesSyncLogger()
+	snowflakes.bytesLogger = newBytesSyncLogger()
 
 	log.Printf("---- SnowflakeConn: begin collecting snowflakes ---")
 	go connectLoop(snowflakes)
@@ -133,6 +188,12 @@ func (t *Transport) Dial() (net.Conn, error) {
 	return &SnowflakeConn{Stream: stream, sess: sess, pconn: pconn, snowflakes: snowflakes}, nil
 }
 
+// SetRendezvousMethod sets the rendezvous method to the Snowflake broker.
+func (t *Transport) SetRendezvousMethod(r RendezvousMethod) {
+	t.dialer.Rendezvous = r
+}
+
+// SnowflakeConn is a reliable connection to a snowflake server that implements net.Conn.
 type SnowflakeConn struct {
 	*smux.Stream
 	sess       *smux.Session
@@ -140,6 +201,9 @@ type SnowflakeConn struct {
 	snowflakes *Peers
 }
 
+// Close closes the connection.
+//
+// The collection of snowflake proxies for this connection is stopped.
 func (conn *SnowflakeConn) Close() error {
 	log.Printf("---- SnowflakeConn: closed stream %v ---", conn.ID())
 	conn.Stream.Close()
@@ -198,7 +262,7 @@ func newSession(snowflakes SnowflakeCollector) (net.PacketConn, *smux.Session, e
 	// We build a persistent KCP session on a sequence of ephemeral WebRTC
 	// connections. This dialContext tells RedialPacketConn how to get a new
 	// WebRTC connection when the previous one dies. Inside each WebRTC
-	// connection, we use EncapsulationPacketConn to encode packets into a
+	// connection, we use encapsulationPacketConn to encode packets into a
 	// stream.
 	dialContext := func(ctx context.Context) (net.PacketConn, error) {
 		log.Printf("redialing on same connection")
@@ -218,7 +282,7 @@ func newSession(snowflakes SnowflakeCollector) (net.PacketConn, *smux.Session, e
 		if err != nil {
 			return nil, err
 		}
-		return NewEncapsulationPacketConn(dummyAddr{}, dummyAddr{}, conn), nil
+		return newEncapsulationPacketConn(dummyAddr{}, dummyAddr{}, conn), nil
 	}
 	pconn := turbotunnel.NewRedialPacketConn(dummyAddr{}, dummyAddr{}, dialContext)
 
