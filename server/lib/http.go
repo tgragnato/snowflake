@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/common/encapsulation"
-	"git.torproject.org/pluggable-transports/snowflake.git/common/turbotunnel"
-	"git.torproject.org/pluggable-transports/snowflake.git/common/websocketconn"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/encapsulation"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/turbotunnel"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/websocketconn"
 	"github.com/gorilla/websocket"
 )
 
@@ -29,7 +29,7 @@ const clientMapTimeout = 1 * time.Minute
 // How big to make the map of ClientIDs to IP addresses. The map is used in
 // turbotunnelMode to store a reasonable IP address for a client session that
 // may outlive any single WebSocket connection.
-const clientIDAddrMapCapacity = 1024
+const clientIDAddrMapCapacity = 10240
 
 // How long to wait for ListenAndServe or ListenAndServeTLS to return an error
 // before deciding that it's not going to return.

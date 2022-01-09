@@ -1,4 +1,4 @@
-package main
+package snowflake_proxy
 
 import (
 	"testing"

@@ -1,11 +1,35 @@
-package main
+/*
+Package snowflake_proxy provides functionality for creating, starting, and stopping a snowflake
+proxy.
+
+To run a proxy, you must first create a proxy configuration. Unconfigured fields
+will be set to the defined defaults.
+
+	proxy := snowflake_proxy.SnowflakeProxy{
+		BrokerURL: "https://snowflake-broker.example.com",
+		STUNURL: "stun:stun.stunprotocol.org:3478",
+		// ...
+	}
+
+You may then start and stop the proxy. Stopping the proxy will close existing connections and
+the proxy will not poll for more clients.
+
+	go func() {
+		err := proxy.Start()
+		// handle error
+	}
+
+	// ...
+
+	proxy.Stop()
+*/
+package snowflake_proxy
 
 import (
 	"bytes"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,24 +37,24 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/common/messages"
-	"git.torproject.org/pluggable-transports/snowflake.git/common/safelog"
-	"git.torproject.org/pluggable-transports/snowflake.git/common/util"
-	"git.torproject.org/pluggable-transports/snowflake.git/common/websocketconn"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/task"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/websocketconn"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 )
 
 const (
-	defaultBrokerURL   = "https://snowflake-broker.torproject.net/"
-	defaultProbeURL    = "https://snowflake-broker.torproject.net:8443/probe"
-	defaultRelayURL    = "wss://snowflake.torproject.net/"
-	defaultSTUNURL     = "stun:stun.stunprotocol.org:3478"
+	DefaultBrokerURL   = "https://snowflake-broker.torproject.net/"
+	DefaultNATProbeURL = "https://snowflake-broker.torproject.net:8443/probe"
+	DefaultProbeURL    = "https://snowflake-broker.torproject.net:8443/probe"
+	DefaultRelayURL    = "wss://snowflake.torproject.net/"
+	DefaultSTUNURL     = "stun:stun.stunprotocol.org:3478"
 	pollInterval       = 5 * time.Second
 	NATUnknown         = "unknown"
 	NATRestricted      = "restricted"
@@ -41,12 +65,13 @@ const (
 )
 
 var (
-	broker          *SignalingServer
-	relayURL        string
-	currentNATType  = NATUnknown
-	tokens          *tokens_t
-	config          webrtc.Configuration
-	customtransport = &http.Transport{
+	broker               *SignalingServer
+	relayURL             string
+	currentNATType       = NATUnknown
+	currentNATTypeAccess = &sync.RWMutex{}
+	tokens               *tokens_t
+	config               webrtc.Configuration
+	customtransport      = &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   5 * time.Minute,
 			KeepAlive: time.Millisecond,
@@ -70,6 +95,33 @@ var (
 		DisableCompression:    false,
 	}
 )
+
+func getCurrentNATType() string {
+	currentNATTypeAccess.RLock()
+	defer currentNATTypeAccess.RUnlock()
+	return currentNATType
+}
+
+// SnowflakeProxy is used to configure an embedded
+// Snowflake in another Go application.
+type SnowflakeProxy struct {
+	// Capacity is the maximum number of clients a Snowflake will serve.
+	// Proxies with a capacity of 0 will accept an unlimited number of clients.
+	Capacity uint
+	// STUNURL is the URL of the STUN server the proxy will use
+	STUNURL string
+	// BrokerURL is the URL of the Snowflake broker
+	BrokerURL string
+	// KeepLocalAddresses indicates whether local SDP candidates will be sent to the broker
+	KeepLocalAddresses bool
+	// RelayURL is the URL of the Snowflake server that all traffic will be relayed to
+	RelayURL string
+	// NATProbeURL is the URL of the probe service we use for NAT checks
+	NATProbeURL string
+	// NATTypeMeasurementInterval is time before NAT type is retested
+	NATTypeMeasurementInterval time.Duration
+	shutdown                   chan struct{}
+}
 
 // Checks whether an IP address is a remote address for the client
 func isRemoteAddress(ip net.IP) bool {
@@ -95,6 +147,7 @@ func limitedRead(r io.Reader, limit int64) ([]byte, error) {
 	return p, err
 }
 
+// SignalingServer keeps track of the SignalingServer in use by the Snowflake
 type SignalingServer struct {
 	url                *url.URL
 	transport          http.RoundTripper
@@ -115,6 +168,7 @@ func newSignalingServer(rawURL string, keepLocalAddresses bool) (*SignalingServe
 	return s, nil
 }
 
+// Post sends a POST request to the SignalingServer
 func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 
 	req, err := http.NewRequest("POST", path, payload)
@@ -134,7 +188,7 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 	return limitedRead(resp.Body, readLimit)
 }
 
-func (s *SignalingServer) pollOffer(sid string) *webrtc.SessionDescription {
+func (s *SignalingServer) pollOffer(sid string, shutdown chan struct{}) *webrtc.SessionDescription {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
 	ticker := time.NewTicker(pollInterval)
@@ -142,31 +196,37 @@ func (s *SignalingServer) pollOffer(sid string) *webrtc.SessionDescription {
 
 	// Run the loop once before hitting the ticker
 	for ; true; <-ticker.C {
-		numClients := int((tokens.count() / 8) * 8) // Round down to 8
-		body, err := messages.EncodePollRequest(sid, "standalone", currentNATType, numClients)
-		if err != nil {
-			log.Printf("Error encoding poll message: %s", err.Error())
+		select {
+		case <-shutdown:
 			return nil
-		}
-		resp, err := s.Post(brokerPath.String(), bytes.NewBuffer(body))
-		if err != nil {
-			log.Printf("error polling broker: %s", err.Error())
-		}
-
-		offer, _, err := messages.DecodePollResponse(resp)
-		if err != nil {
-			log.Printf("Error reading broker response: %s", err.Error())
-			log.Printf("body: %s", resp)
-			return nil
-		}
-		if offer != "" {
-			offer, err := util.DeserializeSessionDescription(offer)
+		default:
+			numClients := int((tokens.count() / 8) * 8) // Round down to 8
+			currentNATTypeLoaded := getCurrentNATType()
+			body, err := messages.EncodePollRequest(sid, "standalone", currentNATTypeLoaded, numClients)
 			if err != nil {
-				log.Printf("Error processing session description: %s", err.Error())
+				log.Printf("Error encoding poll message: %s", err.Error())
 				return nil
 			}
-			return offer
+			resp, err := s.Post(brokerPath.String(), bytes.NewBuffer(body))
+			if err != nil {
+				log.Printf("error polling broker: %s", err.Error())
+			}
 
+			offer, _, err := messages.DecodePollResponse(resp)
+			if err != nil {
+				log.Printf("Error reading broker response: %s", err.Error())
+				log.Printf("body: %s", resp)
+				return nil
+			}
+			if offer != "" {
+				offer, err := util.DeserializeSessionDescription(offer)
+				if err != nil {
+					log.Printf("Error processing session description: %s", err.Error())
+					return nil
+				}
+				return offer
+
+			}
 		}
 	}
 	return nil
@@ -205,33 +265,41 @@ func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) erro
 	return nil
 }
 
-func CopyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser) {
-	var wg sync.WaitGroup
+func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct{}) {
+	var once sync.Once
+	defer c2.Close()
+	defer c1.Close()
+	done := make(chan struct{})
 	copyer := func(dst io.ReadWriteCloser, src io.ReadWriteCloser) {
-		defer wg.Done()
 		// Ignore io.ErrClosedPipe because it is likely caused by the
 		// termination of copyer in the other direction.
 		if _, err := io.Copy(dst, src); err != nil && err != io.ErrClosedPipe {
 			log.Printf("io.Copy inside CopyLoop generated an error: %v", err)
 		}
-		dst.Close()
-		src.Close()
+		once.Do(func() {
+			close(done)
+		})
 	}
-	wg.Add(2)
+
 	go copyer(c1, c2)
 	go copyer(c2, c1)
-	wg.Wait()
+
+	select {
+	case <-done:
+	case <-shutdown:
+	}
+	log.Println("copy loop ended")
 }
 
 // We pass conn.RemoteAddr() as an additional parameter, rather than calling
 // conn.RemoteAddr() inside this function, as a workaround for a hang that
 // otherwise occurs inside of conn.pc.RemoteDescription() (called by
 // RemoteAddr). https://bugs.torproject.org/18628#comment:8
-func datachannelHandler(conn *webRTCConn, remoteAddr net.Addr) {
+func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr) {
 	defer conn.Close()
 	defer tokens.ret()
 
-	u, err := url.Parse(relayURL)
+	u, err := url.Parse(sf.RelayURL)
 	if err != nil {
 		log.Fatalf("invalid relay url: %s", err)
 	}
@@ -254,7 +322,7 @@ func datachannelHandler(conn *webRTCConn, remoteAddr net.Addr) {
 	wsConn := websocketconn.New(ws)
 	log.Printf("connected to relay")
 	defer wsConn.Close()
-	CopyLoop(conn, wsConn)
+	copyLoop(conn, wsConn, sf.shutdown)
 	log.Printf("datachannelHandler ends")
 }
 
@@ -262,7 +330,7 @@ func datachannelHandler(conn *webRTCConn, remoteAddr net.Addr) {
 // candidates is complete and the answer is available in LocalDescription.
 // Installs an OnDataChannel callback that creates a webRTCConn and passes it to
 // datachannelHandler.
-func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
+func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 	config webrtc.Configuration,
 	dataChan chan struct{},
 	handler func(conn *webRTCConn, remoteAddr net.Addr)) (*webrtc.PeerConnection, error) {
@@ -277,7 +345,7 @@ func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 
 		pr, pw := io.Pipe()
 		conn := &webRTCConn{pc: pc, dc: dc, pr: pr}
-		conn.bytesLogger = NewBytesSyncLogger()
+		conn.bytesLogger = newBytesSyncLogger()
 
 		dc.OnOpen(func() {
 			log.Println("OnOpen channel")
@@ -346,7 +414,7 @@ func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 
 // Create a new PeerConnection. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
-func makeNewPeerConnection(config webrtc.Configuration,
+func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
 	pc, err := webrtc.NewPeerConnection(config)
@@ -396,15 +464,15 @@ func makeNewPeerConnection(config webrtc.Configuration,
 	return pc, nil
 }
 
-func runSession(sid string) {
-	offer := broker.pollOffer(sid)
+func (sf *SnowflakeProxy) runSession(sid string) {
+	offer := broker.pollOffer(sid, sf.shutdown)
 	if offer == nil {
 		log.Printf("bad offer from broker")
 		tokens.ret()
 		return
 	}
 	dataChan := make(chan struct{})
-	pc, err := makePeerConnectionFromOffer(offer, config, dataChan, datachannelHandler)
+	pc, err := sf.makePeerConnectionFromOffer(offer, config, dataChan, sf.datachannelHandler)
 	if err != nil {
 		log.Printf("error making WebRTC connection: %s", err)
 		tokens.ret()
@@ -434,81 +502,93 @@ func runSession(sid string) {
 	}
 }
 
-func main() {
-	var capacity uint
-	var stunURL string
-	var logFilename string
-	var rawBrokerURL string
-	var unsafeLogging bool
-	var keepLocalAddresses bool
-
-	flag.UintVar(&capacity, "capacity", 0, "maximum concurrent clients")
-	flag.StringVar(&rawBrokerURL, "broker", defaultBrokerURL, "broker URL")
-	flag.StringVar(&relayURL, "relay", defaultRelayURL, "websocket relay URL")
-	flag.StringVar(&stunURL, "stun", defaultSTUNURL, "stun URL")
-	flag.StringVar(&logFilename, "log", "", "log filename")
-	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
-	flag.BoolVar(&keepLocalAddresses, "keep-local-addresses", false, "keep local LAN address ICE candidates")
-	flag.Parse()
-
-	var logOutput io.Writer = os.Stderr
-	log.SetFlags(log.LstdFlags | log.LUTC)
-	if logFilename != "" {
-		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-		logOutput = io.MultiWriter(os.Stderr, f)
-	}
-	if unsafeLogging {
-		log.SetOutput(logOutput)
-	} else {
-		// We want to send the log output through our scrubber first
-		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
-	}
+// Start configures and starts a Snowflake, fully formed and special. Configuration
+// values that are unset will default to their corresponding default values.
+func (sf *SnowflakeProxy) Start() error {
+	var err error
 
 	log.Println("starting")
+	sf.shutdown = make(chan struct{})
 
-	var err error
-	broker, err = newSignalingServer(rawBrokerURL, keepLocalAddresses)
-	if err != nil {
-		log.Fatal(err)
+	// blank configurations revert to default
+	if sf.BrokerURL == "" {
+		sf.BrokerURL = DefaultBrokerURL
+	}
+	if sf.RelayURL == "" {
+		sf.RelayURL = DefaultRelayURL
+	}
+	if sf.STUNURL == "" {
+		sf.STUNURL = DefaultSTUNURL
+	}
+	if sf.NATProbeURL == "" {
+		sf.NATProbeURL = DefaultNATProbeURL
 	}
 
-	_, err = url.Parse(stunURL)
+	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
 	if err != nil {
-		log.Fatalf("invalid stun url: %s", err)
+		return fmt.Errorf("error configuring broker: %s", err)
 	}
-	_, err = url.Parse(relayURL)
+
+	_, err = url.Parse(sf.STUNURL)
 	if err != nil {
-		log.Fatalf("invalid relay url: %s", err)
+		return fmt.Errorf("invalid stun url: %s", err)
+	}
+	_, err = url.Parse(sf.RelayURL)
+	if err != nil {
+		return fmt.Errorf("invalid relay url: %s", err)
 	}
 
 	config = webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{stunURL},
+				URLs: []string{sf.STUNURL},
 			},
 		},
 	}
-	tokens = newTokens(capacity)
+	tokens = newTokens(sf.Capacity)
 
 	// use probetest to determine NAT compatability
-	checkNATType(config, defaultProbeURL)
-	log.Printf("NAT type: %s", currentNATType)
+	sf.checkNATType(config, sf.NATProbeURL)
+
+	currentNATTypeLoaded := getCurrentNATType()
+
+	log.Printf("NAT type: %s", currentNATTypeLoaded)
+
+	NatRetestTask := task.Periodic{
+		Interval: sf.NATTypeMeasurementInterval,
+		Execute: func() error {
+			sf.checkNATType(config, sf.NATProbeURL)
+			return nil
+		},
+	}
+
+	if sf.NATTypeMeasurementInterval != 0 {
+		NatRetestTask.Start()
+		defer NatRetestTask.Close()
+	}
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for ; true; <-ticker.C {
-		tokens.get()
-		sessionID := genSessionID()
-		runSession(sessionID)
+		select {
+		case <-sf.shutdown:
+			return nil
+		default:
+			tokens.get()
+			sessionID := genSessionID()
+			sf.runSession(sessionID)
+		}
 	}
+	return nil
 }
 
-func checkNATType(config webrtc.Configuration, probeURL string) {
+// Stop closes all existing connections and shuts down the Snowflake.
+func (sf *SnowflakeProxy) Stop() {
+	close(sf.shutdown)
+}
+
+func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL string) {
 
 	probe, err := newSignalingServer(probeURL, false)
 	if err != nil {
@@ -517,7 +597,7 @@ func checkNATType(config webrtc.Configuration, probeURL string) {
 
 	// create offer
 	dataChan := make(chan struct{})
-	pc, err := makeNewPeerConnection(config, dataChan)
+	pc, err := sf.makeNewPeerConnection(config, dataChan)
 	if err != nil {
 		log.Printf("error making WebRTC connection: %s", err)
 		return
@@ -559,12 +639,34 @@ func checkNATType(config webrtc.Configuration, probeURL string) {
 		return
 	}
 
+	currentNATTypeLoaded := getCurrentNATType()
+
+	currentNATTypeTestResult := NATUnknown
 	select {
 	case <-dataChan:
-		currentNATType = NATUnrestricted
+		currentNATTypeTestResult = NATUnrestricted
 	case <-time.After(dataChannelTimeout):
-		currentNATType = NATRestricted
+		currentNATTypeTestResult = NATRestricted
 	}
+
+	currentNATTypeToStore := NATUnknown
+	switch currentNATTypeLoaded + "->" + currentNATTypeTestResult {
+	case NATUnrestricted + "->" + NATUnknown:
+		currentNATTypeToStore = NATUnrestricted
+
+	case NATRestricted + "->" + NATUnknown:
+		currentNATTypeToStore = NATRestricted
+
+	default:
+		currentNATTypeToStore = currentNATTypeTestResult
+	}
+
+	log.Printf("NAT Type measurement: %v -> %v = %v\n", currentNATTypeLoaded, currentNATTypeTestResult, currentNATTypeToStore)
+
+	currentNATTypeAccess.Lock()
+	currentNATType = currentNATTypeToStore
+	currentNATTypeAccess.Unlock()
+
 	if err := pc.Close(); err != nil {
 		log.Printf("error calling pc.Close: %v", err)
 	}

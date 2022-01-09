@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,11 +18,11 @@ import (
 	"sync"
 	"syscall"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/common/safelog"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
 	"golang.org/x/crypto/acme/autocert"
 
 	pt "git.torproject.org/pluggable-transports/goptlib.git"
-	sf "git.torproject.org/pluggable-transports/snowflake.git/server/lib"
+	sf "git.torproject.org/pluggable-transports/snowflake.git/v2/server/lib"
 )
 
 const ptMethodName = "snowflake"
@@ -47,7 +48,7 @@ func proxy(local *net.TCPConn, conn net.Conn) {
 	wg.Add(2)
 
 	go func() {
-		if _, err := io.Copy(conn, local); err != nil && err != io.ErrClosedPipe {
+		if _, err := io.Copy(conn, local); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 			log.Printf("error copying ORPort to WebSocket %v", err)
 		}
 		local.CloseRead()
@@ -55,7 +56,7 @@ func proxy(local *net.TCPConn, conn net.Conn) {
 		wg.Done()
 	}()
 	go func() {
-		if _, err := io.Copy(local, conn); err != nil && err != io.ErrClosedPipe {
+		if _, err := io.Copy(local, conn); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 			log.Printf("error copying WebSocket to ORPort %v", err)
 		}
 		local.CloseWrite()

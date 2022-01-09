@@ -1,4 +1,4 @@
-package main
+package snowflake_proxy
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/common/messages"
-	"git.torproject.org/pluggable-transports/snowflake.git/common/util"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
 	"github.com/pion/webrtc/v3"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -365,7 +365,7 @@ func TestBrokerInteractions(t *testing.T) {
 				b,
 			}
 
-			sdp := broker.pollOffer(sampleOffer)
+			sdp := broker.pollOffer(sampleOffer, nil)
 			expectedSDP, _ := strconv.Unquote(sampleSDP)
 			So(sdp.SDP, ShouldResemble, expectedSDP)
 		})
@@ -379,7 +379,7 @@ func TestBrokerInteractions(t *testing.T) {
 				b,
 			}
 
-			sdp := broker.pollOffer(sampleOffer)
+			sdp := broker.pollOffer(sampleOffer, nil)
 			So(sdp, ShouldBeNil)
 		})
 		Convey("sends answer to broker", func() {
@@ -478,7 +478,7 @@ func TestUtilityFuncs(t *testing.T) {
 	Convey("CopyLoop", t, func() {
 		c1, s1 := net.Pipe()
 		c2, s2 := net.Pipe()
-		go CopyLoop(s1, s2)
+		go copyLoop(s1, s2, nil)
 		go func() {
 			bytes := []byte("Hello!")
 			c1.Write(bytes)
