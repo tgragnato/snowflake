@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -31,16 +32,26 @@ type WebRTCPeer struct {
 
 	once sync.Once // Synchronization for PeerConnection destruction
 
-	bytesLogger bytesLogger
+	bytesLogger  bytesLogger
+	eventsLogger event.SnowflakeEventReceiver
 }
 
-// NewWebRTCPeer constructs a WebRTC PeerConnection to a snowflake proxy.
+func NewWebRTCPeer(config *webrtc.Configuration,
+	broker *BrokerChannel) (*WebRTCPeer, error) {
+	return NewWebRTCPeerWithEvents(config, broker, nil)
+}
+
+// NewWebRTCPeerWithEvents constructs a WebRTC PeerConnection to a snowflake proxy.
 //
 // The creation of the peer handles the signaling to the Snowflake broker, including
 // the exchange of SDP information, the creation of a PeerConnection, and the establishment
 // of a DataChannel to the Snowflake proxy.
-func NewWebRTCPeer(config *webrtc.Configuration,
-	broker *BrokerChannel) (*WebRTCPeer, error) {
+func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
+	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver) (*WebRTCPeer, error) {
+	if eventsLogger == nil {
+		eventsLogger = event.NewSnowflakeEventDispatcher()
+	}
+
 	connection := new(WebRTCPeer)
 	{
 		var buf [8]byte
@@ -56,6 +67,8 @@ func NewWebRTCPeer(config *webrtc.Configuration,
 
 	// Pipes remain the same even when DataChannel gets switched.
 	connection.recvPipe, connection.writePipe = io.Pipe()
+
+	connection.eventsLogger = eventsLogger
 
 	err := connection.connect(config, broker)
 	if err != nil {
@@ -131,10 +144,21 @@ func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel
 	log.Println(c.id, " connecting...")
 	// TODO: When go-webrtc is more stable, it's possible that a new
 	// PeerConnection won't need to be re-prepared each time.
-	if err := c.preparePeerConnection(config); err != nil {
+	err := c.preparePeerConnection(config)
+	localDescription := c.pc.LocalDescription()
+	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnOfferCreated{
+		WebRTCLocalDescription: localDescription,
+		Error:                  err,
+	})
+	if err != nil {
 		return err
 	}
-	answer, err := broker.Negotiate(c.pc.LocalDescription())
+
+	answer, err := broker.Negotiate(localDescription)
+	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnBrokerRendezvous{
+		WebRTCRemoteDescription: answer,
+		Error:                   err,
+	})
 	if err != nil {
 		return err
 	}
@@ -178,12 +202,16 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 		return err
 	}
 	dc.OnOpen(func() {
+		c.eventsLogger.OnNewSnowflakeEvent(event.EventOnSnowflakeConnected{})
 		log.Println("WebRTC: DataChannel.OnOpen")
 		close(c.open)
 	})
 	dc.OnClose(func() {
 		log.Println("WebRTC: DataChannel.OnClose")
 		c.Close()
+	})
+	dc.OnError(func(err error) {
+		c.eventsLogger.OnNewSnowflakeEvent(event.EventOnSnowflakeConnectionFailed{Error: err})
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if len(msg.Data) <= 0 {

@@ -12,6 +12,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/smartystreets/goconvey v1.6.4
+	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/xtaci/kcp-go/v5 v5.6.1
 	github.com/xtaci/smux v1.5.16
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01

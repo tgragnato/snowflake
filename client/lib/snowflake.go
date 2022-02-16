@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/turbotunnel"
 	"github.com/pion/webrtc/v3"
@@ -70,6 +71,10 @@ func (addr dummyAddr) String() string  { return "dummy" }
 // https://github.com/Pluggable-Transports/Pluggable-Transports-spec/blob/master/releases/PTSpecV2.1/Pluggable%20Transport%20Specification%20v2.1%20-%20Go%20Transport%20API.pdf
 type Transport struct {
 	dialer *WebRTCDialer
+
+	// EventDispatcher is the event bus for snowflake events.
+	// When an important event happens, it will be distributed here.
+	eventDispatcher event.SnowflakeEventDispatcher
 }
 
 // ClientConfig defines how the SnowflakeClient will connect to the broker and Snowflake proxies.
@@ -131,7 +136,8 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 	if config.Max > max {
 		max = config.Max
 	}
-	transport := &Transport{dialer: NewWebRTCDialer(broker, iceServers, max)}
+	eventsLogger := event.NewSnowflakeEventDispatcher()
+	transport := &Transport{dialer: NewWebRTCDialerWithEvents(broker, iceServers, max, eventsLogger), eventDispatcher: eventsLogger}
 
 	return transport, nil
 }
@@ -186,6 +192,13 @@ func (t *Transport) Dial() (net.Conn, error) {
 	// All good, clear the cleanup list.
 	cleanup = nil
 	return &SnowflakeConn{Stream: stream, sess: sess, pconn: pconn, snowflakes: snowflakes}, nil
+}
+func (t *Transport) AddSnowflakeEventListener(receiver event.SnowflakeEventReceiver) {
+	t.eventDispatcher.AddSnowflakeEventListener(receiver)
+}
+
+func (t *Transport) RemoveSnowflakeEventListener(receiver event.SnowflakeEventReceiver) {
+	t.eventDispatcher.RemoveSnowflakeEventListener(receiver)
 }
 
 // SetRendezvousMethod sets the rendezvous method to the Snowflake broker.

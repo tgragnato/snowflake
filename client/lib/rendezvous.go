@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
@@ -154,10 +155,16 @@ type WebRTCDialer struct {
 	*BrokerChannel
 	webrtcConfig *webrtc.Configuration
 	max          int
+
+	eventLogger event.SnowflakeEventReceiver
 }
 
-// NewWebRTCDialer constructs a new WebRTCDialer.
 func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int) *WebRTCDialer {
+	return NewWebRTCDialerWithEvents(broker, iceServers, max, nil)
+}
+
+// NewWebRTCDialerWithEvents constructs a new WebRTCDialer.
+func NewWebRTCDialerWithEvents(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int, eventLogger event.SnowflakeEventReceiver) *WebRTCDialer {
 	config := webrtc.Configuration{
 		ICEServers: iceServers,
 	}
@@ -166,6 +173,8 @@ func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max i
 		BrokerChannel: broker,
 		webrtcConfig:  &config,
 		max:           max,
+
+		eventLogger: eventLogger,
 	}
 }
 
@@ -173,7 +182,7 @@ func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max i
 func (w WebRTCDialer) Catch() (*WebRTCPeer, error) {
 	// TODO: [#25591] Fetch ICE server information from Broker.
 	// TODO: [#25596] Consider TURN servers here too.
-	return NewWebRTCPeer(w.webrtcConfig, w.BrokerChannel)
+	return NewWebRTCPeerWithEvents(w.webrtcConfig, w.BrokerChannel, w.eventLogger)
 }
 
 // GetMax returns the maximum number of snowflakes to collect.

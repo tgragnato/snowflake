@@ -75,7 +75,11 @@ func NewSnowflakeServer(getCertificate func(*tls.ClientHelloInfo) (*tls.Certific
 // Listen starts a listener on addr that will accept both turbotunnel
 // and legacy Snowflake connections.
 func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
-	listener := &SnowflakeListener{addr: addr, queue: make(chan net.Conn, 65534)}
+	listener := &SnowflakeListener{
+		addr:   addr,
+		queue:  make(chan net.Conn, 65534),
+		closed: make(chan struct{}),
+	}
 
 	handler := httpHandler{
 		// pconn is shared among all connections to this server. It
@@ -279,7 +283,7 @@ func (l *SnowflakeListener) queueConn(conn net.Conn) error {
 	}
 }
 
-// SnowflakeClientConn is a wrapper for the underlying oneshot or turbotunnel
+// SnowflakeClientConn is a wrapper for the underlying turbotunnel
 // conn. We need to reference our client address map to determine the
 // remote address
 type SnowflakeClientConn struct {

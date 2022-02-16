@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/task"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
@@ -120,6 +121,7 @@ type SnowflakeProxy struct {
 	NATProbeURL string
 	// NATTypeMeasurementInterval is time before NAT type is retested
 	NATTypeMeasurementInterval time.Duration
+	EventDispatcher            event.SnowflakeEventDispatcher
 	shutdown                   chan struct{}
 }
 
@@ -344,7 +346,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 		close(dataChan)
 
 		pr, pw := io.Pipe()
-		conn := &webRTCConn{pc: pc, dc: dc, pr: pr}
+		conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: sf.EventDispatcher}
 		conn.bytesLogger = newBytesSyncLogger()
 
 		dc.OnOpen(func() {
@@ -355,6 +357,11 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 			defer conn.lock.Unlock()
 			log.Println("OnClose channel")
 			log.Println(conn.bytesLogger.ThroughputSummary())
+			in, out := conn.bytesLogger.GetStat()
+			conn.eventLogger.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{
+				InboundTraffic:  in,
+				OutboundTraffic: out,
+			})
 			conn.dc = nil
 			dc.Close()
 			pw.Close()
@@ -522,6 +529,9 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 	if sf.NATProbeURL == "" {
 		sf.NATProbeURL = DefaultNATProbeURL
+	}
+	if sf.EventDispatcher == nil {
+		sf.EventDispatcher = event.NewSnowflakeEventDispatcher()
 	}
 
 	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
