@@ -1,8 +1,12 @@
 # Snowflake
 
-[![Build Status](https://travis-ci.org/keroserene/snowflake.svg?branch=master)](https://travis-ci.org/keroserene/snowflake)
-
 Pluggable Transport using WebRTC, inspired by Flashproxy.
+
+### Custom fork
+
+- golang 1.17+ & bumped dependencies
+- custom transport for broker negotiation (TLS 1.3 with selected ciphersuites & groups)
+- custom DTLS fingerprint, different from any popular WebRTC implementation
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
