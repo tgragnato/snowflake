@@ -1,22 +1,6 @@
-<h1 align="center">
-  <br>
-  Pion DTLS
-  <br>
-</h1>
-<h4 align="center">A Go implementation of DTLS</h4>
-<p align="center">
-  <a href="https://pion.ly"><img src="https://img.shields.io/badge/pion-dtls-gray.svg?longCache=true&colorB=brightgreen" alt="Pion DTLS"></a>
-  <a href="https://sourcegraph.com/github.com/pion/dtls"><img src="https://sourcegraph.com/github.com/pion/dtls/-/badge.svg" alt="Sourcegraph Widget"></a>
-  <a href="https://pion.ly/slack"><img src="https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=brightgreen" alt="Slack Widget"></a>
-  <br>
-  <a href="https://travis-ci.org/pion/dtls"><img src="https://travis-ci.org/pion/dtls.svg?branch=master" alt="Build Status"></a>
-  <a href="https://pkg.go.dev/github.com/pion/dtls/v2"><img src="https://godoc.org/github.com/pion/dtls?status.svg" alt="GoDoc"></a>
-  <a href="https://codecov.io/gh/pion/dtls"><img src="https://codecov.io/gh/pion/dtls/branch/master/graph/badge.svg" alt="Coverage Status"></a>
-  <a href="https://goreportcard.com/report/github.com/pion/dtls"><img src="https://goreportcard.com/badge/github.com/pion/dtls" alt="Go Report Card"></a>
-  <a href="https://www.codacy.com/app/Sean-Der/dtls"><img src="https://api.codacy.com/project/badge/Grade/18f4aec384894e6aac0b94effe51961d" alt="Codacy Badge"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-</p>
-<br>
+# Pion DTLS
+
+## A Go implementation of DTLS
 
 Native [DTLS 1.2][rfc6347] implementation in the Go programming language.
 
@@ -44,25 +28,12 @@ We would love contributions that fall under the 'Planned Features' and any bug f
 #### Supported ciphers
 
 ##### ECDHE
-* TLS_ECDHE_ECDSA_WITH_AES_128_CCM ([RFC 6655][rfc6655])
-* TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 ([RFC 6655][rfc6655])
-* TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 ([RFC 5289][rfc5289])
-* TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 ([RFC 5289][rfc5289])
 * TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 ([RFC 5289][rfc5289])
-* TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 ([RFC 5289][rfc5289])
-* TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA ([RFC 8422][rfc8422])
-* TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA ([RFC 8422][rfc8422])
 
 ##### PSK
-* TLS_PSK_WITH_AES_128_CCM ([RFC 6655][rfc6655])
-* TLS_PSK_WITH_AES_128_CCM_8 ([RFC 6655][rfc6655])
-* TLS_PSK_WITH_AES_256_CCM_8 ([RFC 6655][rfc6655])
 * TLS_PSK_WITH_AES_128_GCM_SHA256 ([RFC 5487][rfc5487])
-* TLS_PSK_WITH_AES_128_CBC_SHA256 ([RFC 5487][rfc5487])
 
 [rfc5289]: https://tools.ietf.org/html/rfc5289
-[rfc8422]: https://tools.ietf.org/html/rfc8422
-[rfc6655]: https://tools.ietf.org/html/rfc6655
 [rfc5487]: https://tools.ietf.org/html/rfc5487
 
 #### Planned Features
@@ -75,8 +46,7 @@ We would love contributions that fall under the 'Planned Features' and any bug f
 
 ### Using
 
-This library needs at least Go 1.13, and you should have [Go modules
-enabled](https://github.com/golang/go/wiki/Modules).
+This library needs at least Go 1.17.
 
 #### Pion DTLS
 For a DTLS 1.2 Server that listens on 127.0.0.1:4444

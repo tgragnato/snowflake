@@ -24,7 +24,7 @@ func TestValidateConfig(t *testing.T) {
 		return
 	}
 	config := &Config{
-		CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		PSK: func(hint []byte) ([]byte, error) {
 			return nil, nil
 		},
@@ -36,7 +36,7 @@ func TestValidateConfig(t *testing.T) {
 
 	// PSK and Certificate, no PSK cipher suite
 	config = &Config{
-		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		PSK: func(hint []byte) ([]byte, error) {
 			return nil, nil
 		},
@@ -48,7 +48,7 @@ func TestValidateConfig(t *testing.T) {
 
 	// PSK and Certificate, no non-PSK cipher suite
 	config = &Config{
-		CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
+		CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
 		PSK: func(hint []byte) ([]byte, error) {
 			return nil, nil
 		},
@@ -60,7 +60,7 @@ func TestValidateConfig(t *testing.T) {
 
 	// PSK identity hint with not PSK
 	config = &Config{
-		CipherSuites:    []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites:    []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		PSK:             nil,
 		PSKIdentityHint: []byte{},
 	}
@@ -81,7 +81,7 @@ func TestValidateConfig(t *testing.T) {
 		return
 	}
 	config = &Config{
-		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		Certificates: []tls.Certificate{{Certificate: cert.Certificate, PrivateKey: dsaPrivateKey}},
 	}
 	if err = validateConfig(config); !errors.Is(err, errInvalidPrivateKey) {
@@ -90,7 +90,7 @@ func TestValidateConfig(t *testing.T) {
 
 	// PrivateKey without Certificate
 	config = &Config{
-		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		Certificates: []tls.Certificate{{PrivateKey: cert.PrivateKey}},
 	}
 	if err = validateConfig(config); !errors.Is(err, errInvalidCertificate) {
@@ -110,7 +110,7 @@ func TestValidateConfig(t *testing.T) {
 		return
 	}
 	config = &Config{
-		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		Certificates: []tls.Certificate{cert, {Certificate: cert.Certificate, PrivateKey: rsaPrivateKey}},
 	}
 	if err = validateConfig(config); err != nil {

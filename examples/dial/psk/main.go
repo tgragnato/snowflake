@@ -25,7 +25,7 @@ func main() {
 			return []byte{0xAB, 0xC1, 0x23}, nil
 		},
 		PSKIdentityHint:      []byte("Pion DTLS Server"),
-		CipherSuites:         []dtls.CipherSuiteID{dtls.TLS_PSK_WITH_AES_128_CCM_8},
+		CipherSuites:         []dtls.CipherSuiteID{dtls.TLS_PSK_WITH_AES_128_GCM_SHA256},
 		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
 	}
 

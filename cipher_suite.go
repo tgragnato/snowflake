@@ -18,26 +18,8 @@ type CipherSuiteID = ciphersuite.ID
 
 // Supported Cipher Suites
 const (
-	// AES-128-CCM
-	TLS_ECDHE_ECDSA_WITH_AES_128_CCM   CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_128_CCM   //nolint:golint,stylecheck
-	TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 //nolint:golint,stylecheck
-
-	// AES-128-GCM-SHA256
-	TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 //nolint:golint,stylecheck
-	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256   CipherSuiteID = ciphersuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256   //nolint:golint,stylecheck
-
-	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 //nolint:golint,stylecheck
-	TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384   CipherSuiteID = ciphersuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384   //nolint:golint,stylecheck
-
-	// AES-256-CBC-SHA
-	TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA //nolint:golint,stylecheck
-	TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA   CipherSuiteID = ciphersuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA   //nolint:golint,stylecheck
-
-	TLS_PSK_WITH_AES_128_CCM        CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_CCM        //nolint:golint,stylecheck
-	TLS_PSK_WITH_AES_128_CCM_8      CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_CCM_8      //nolint:golint,stylecheck
-	TLS_PSK_WITH_AES_256_CCM_8      CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_256_CCM_8      //nolint:golint,stylecheck
-	TLS_PSK_WITH_AES_128_GCM_SHA256 CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_GCM_SHA256 //nolint:golint,stylecheck
-	TLS_PSK_WITH_AES_128_CBC_SHA256 CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_CBC_SHA256 //nolint:golint,stylecheck
+	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+	TLS_PSK_WITH_AES_128_GCM_SHA256         CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_GCM_SHA256
 )
 
 // CipherSuiteAuthenticationType controls what authentication method is using during the handshake for a CipherSuite
@@ -93,33 +75,11 @@ func CipherSuiteName(id CipherSuiteID) string {
 // A cipherSuite is a specific combination of key agreement, cipher and MAC
 // function.
 func cipherSuiteForID(id CipherSuiteID, customCiphers func() []CipherSuite) CipherSuite {
-	switch id { //nolint:exhaustive
-	case TLS_ECDHE_ECDSA_WITH_AES_128_CCM:
-		return ciphersuite.NewTLSEcdheEcdsaWithAes128Ccm()
-	case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8:
-		return ciphersuite.NewTLSEcdheEcdsaWithAes128Ccm8()
-	case TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:
-		return &ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{}
-	case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:
-		return &ciphersuite.TLSEcdheRsaWithAes128GcmSha256{}
-	case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
-		return &ciphersuite.TLSEcdheEcdsaWithAes256CbcSha{}
-	case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
-		return &ciphersuite.TLSEcdheRsaWithAes256CbcSha{}
-	case TLS_PSK_WITH_AES_128_CCM:
-		return ciphersuite.NewTLSPskWithAes128Ccm()
-	case TLS_PSK_WITH_AES_128_CCM_8:
-		return ciphersuite.NewTLSPskWithAes128Ccm8()
-	case TLS_PSK_WITH_AES_256_CCM_8:
-		return ciphersuite.NewTLSPskWithAes256Ccm8()
+	switch id {
 	case TLS_PSK_WITH_AES_128_GCM_SHA256:
 		return &ciphersuite.TLSPskWithAes128GcmSha256{}
-	case TLS_PSK_WITH_AES_128_CBC_SHA256:
-		return &ciphersuite.TLSPskWithAes128CbcSha256{}
 	case TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:
 		return &ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{}
-	case TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:
-		return &ciphersuite.TLSEcdheRsaWithAes256GcmSha384{}
 	}
 
 	if customCiphers != nil {

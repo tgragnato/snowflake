@@ -76,19 +76,19 @@ func TestPionE2ELossy(t *testing.T) {
 		},
 		{
 			LossChanceRange: 0,
-			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		},
 		{
 			LossChanceRange: 10,
-			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		},
 		{
 			LossChanceRange: 20,
-			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		},
 		{
 			LossChanceRange: 50,
-			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			CipherSuites:    []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		},
 		{
 			LossChanceRange: 10,
