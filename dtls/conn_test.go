@@ -1436,7 +1436,6 @@ func TestServerTimeout(t *testing.T) {
 
 	cipherSuites := []CipherSuite{
 		&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{},
-		&ciphersuite.TLSEcdheRsaWithAes128GcmSha256{},
 	}
 
 	extensions := []extension.Extension{

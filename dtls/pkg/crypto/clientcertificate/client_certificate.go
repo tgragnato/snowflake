@@ -9,14 +9,12 @@ type Type byte
 
 // ClientCertificateType enums
 const (
-	RSASign   Type = 1
 	ECDSASign Type = 64
 )
 
 // Types returns all valid ClientCertificate Types
 func Types() map[Type]bool {
 	return map[Type]bool{
-		RSASign:   true,
 		ECDSASign: true,
 	}
 }

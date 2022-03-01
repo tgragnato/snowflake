@@ -312,7 +312,7 @@ func flight4Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 					},
 					Content: &handshake.Handshake{
 						Message: &handshake.MessageCertificateRequest{
-							CertificateTypes:        []clientcertificate.Type{clientcertificate.RSASign, clientcertificate.ECDSASign},
+							CertificateTypes:        []clientcertificate.Type{clientcertificate.ECDSASign},
 							SignatureHashAlgorithms: cfg.localSignatureSchemes,
 						},
 					},

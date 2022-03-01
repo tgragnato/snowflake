@@ -3,7 +3,6 @@ package dtls
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/tls"
 	"fmt"
 	"hash"
@@ -96,29 +95,14 @@ func cipherSuiteForID(id CipherSuiteID, customCiphers func() []CipherSuite) Ciph
 // CipherSuites we support in order of preference
 func defaultCipherSuites() []CipherSuite {
 	return []CipherSuite{
-		&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{},
-		&ciphersuite.TLSEcdheRsaWithAes128GcmSha256{},
-		&ciphersuite.TLSEcdheEcdsaWithAes256CbcSha{},
-		&ciphersuite.TLSEcdheRsaWithAes256CbcSha{},
 		&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
-		&ciphersuite.TLSEcdheRsaWithAes256GcmSha384{},
 	}
 }
 
 func allCipherSuites() []CipherSuite {
 	return []CipherSuite{
-		ciphersuite.NewTLSEcdheEcdsaWithAes128Ccm(),
-		ciphersuite.NewTLSEcdheEcdsaWithAes128Ccm8(),
-		&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{},
-		&ciphersuite.TLSEcdheRsaWithAes128GcmSha256{},
-		&ciphersuite.TLSEcdheEcdsaWithAes256CbcSha{},
-		&ciphersuite.TLSEcdheRsaWithAes256CbcSha{},
-		ciphersuite.NewTLSPskWithAes128Ccm(),
-		ciphersuite.NewTLSPskWithAes128Ccm8(),
-		ciphersuite.NewTLSPskWithAes256Ccm8(),
 		&ciphersuite.TLSPskWithAes128GcmSha256{},
 		&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
-		&ciphersuite.TLSEcdheRsaWithAes256GcmSha384{},
 	}
 }
 
@@ -198,8 +182,6 @@ func filterCipherSuitesForCertificate(cert *tls.Certificate, cipherSuites []Ciph
 	switch cert.PrivateKey.(type) {
 	case ed25519.PrivateKey, *ecdsa.PrivateKey:
 		certType = clientcertificate.ECDSASign
-	case *rsa.PrivateKey:
-		certType = clientcertificate.RSASign
 	}
 
 	filtered := []CipherSuite{}
