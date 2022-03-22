@@ -4,6 +4,7 @@
 package messages
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -28,10 +29,13 @@ each encoded in JSON format
 {
   offer: <sdp offer>
   [nat: (unknown|restricted|unrestricted)]
+  [fingerprint: <fingerprint string>]
 }
 
 The NAT field is optional, and if it is missing a
-value of "unknown" will be assumed.
+value of "unknown" will be assumed.  The fingerprint
+is also optional and, if absent, will be assigned the
+fingerprint of the default bridge.
 
 == ClientPollResponse ==
 <poll response> :=
@@ -48,13 +52,25 @@ for the error.
 
 */
 
+// The bridge fingerprint to assume, for client poll requests that do not
+// specify a fingerprint.  Before #28651, there was only one bridge with one
+// fingerprint, which all clients expected to be connected to implicitly.
+// If a client is old enough that it does not specify a fingerprint, this is
+// the fingerprint it expects.  Clients that do set a fingerprint in the
+// SOCKS params will also be assumed to want to connect to the default bridge.
+const defaultBridgeFingerprint = "2B280B23E1107BB62ABFC40DDCC8824814F80A72"
+
 type ClientPollRequest struct {
-	Offer string `json:"offer"`
-	NAT   string `json:"nat"`
+	Offer       string `json:"offer"`
+	NAT         string `json:"nat"`
+	Fingerprint string `json:"fingerprint"`
 }
 
 // Encodes a poll message from a snowflake client
-func (req *ClientPollRequest) EncodePollRequest() ([]byte, error) {
+func (req *ClientPollRequest) EncodeClientPollRequest() ([]byte, error) {
+	if req.Fingerprint == "" {
+		req.Fingerprint = defaultBridgeFingerprint
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -64,15 +80,30 @@ func (req *ClientPollRequest) EncodePollRequest() ([]byte, error) {
 
 // Decodes a poll message from a snowflake client
 func DecodeClientPollRequest(data []byte) (*ClientPollRequest, error) {
+	parts := bytes.SplitN(data, []byte("\n"), 2)
+
+	if len(parts) < 2 {
+		// no version number found
+		return nil, fmt.Errorf("unsupported message version")
+	}
+
 	var message ClientPollRequest
 
-	err := json.Unmarshal(data, &message)
+	if string(parts[0]) != ClientVersion {
+		return nil, fmt.Errorf("unsupported message version")
+	}
+
+	err := json.Unmarshal(parts[1], &message)
 	if err != nil {
 		return nil, err
 	}
 
 	if message.Offer == "" {
 		return nil, fmt.Errorf("no supplied offer")
+	}
+
+	if message.Fingerprint == "" {
+		message.Fingerprint = defaultBridgeFingerprint
 	}
 
 	switch message.NAT {

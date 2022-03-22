@@ -12,13 +12,16 @@ import (
 )
 
 const (
-	version = "1.2"
-
-	ProxyStandalone = "standalone"
-	ProxyWebext     = "webext"
-	ProxyBadge      = "badge"
-	ProxyUnknown    = "unknown"
+	version      = "1.2"
+	ProxyUnknown = "unknown"
 )
+
+var KnownProxyTypes = map[string]bool{
+	"standalone": true,
+	"webext":     true,
+	"badge":      true,
+	"iptproxy":   true,
+}
 
 /* Version 1.2 specification:
 
@@ -92,7 +95,7 @@ type ProxyPollRequest struct {
 	Clients int
 }
 
-func EncodePollRequest(sid string, proxyType string, natType string, clients int) ([]byte, error) {
+func EncodeProxyPollRequest(sid string, proxyType string, natType string, clients int) ([]byte, error) {
 	return json.Marshal(ProxyPollRequest{
 		Sid:     sid,
 		Version: version,
@@ -105,7 +108,7 @@ func EncodePollRequest(sid string, proxyType string, natType string, clients int
 // Decodes a poll message from a snowflake proxy and returns the
 // sid, proxy type, nat type and clients of the proxy on success
 // and an error if it failed
-func DecodePollRequest(data []byte) (sid string, proxyType string, natType string, clients int, err error) {
+func DecodeProxyPollRequest(data []byte) (sid string, proxyType string, natType string, clients int, err error) {
 	var message ProxyPollRequest
 
 	err = json.Unmarshal(data, &message)
@@ -138,11 +141,7 @@ func DecodePollRequest(data []byte) (sid string, proxyType string, natType strin
 
 	// we don't reject polls with an unknown proxy type because we encourage
 	// projects that embed proxy code to include their own type
-	switch message.Type {
-	case ProxyStandalone:
-	case ProxyWebext:
-	case ProxyBadge:
-	default:
+	if !KnownProxyTypes[message.Type] {
 		message.Type = ProxyUnknown
 	}
 

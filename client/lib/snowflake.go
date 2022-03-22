@@ -97,6 +97,15 @@ type ClientConfig struct {
 	// Max is the maximum number of snowflake proxy peers that the client should attempt to
 	// connect to. Defaults to 1.
 	Max int
+	// UTLSClientID is the type of user application that snowflake should imitate.
+	// If an empty value is provided, it will use Go's default TLS implementation
+	UTLSClientID string
+	// UTLSRemoveSNI is the flag to control whether SNI should be removed from Client Hello
+	// when uTLS is used.
+	UTLSRemoveSNI bool
+	// BridgeFingerprint is the fingerprint of the bridge that the client will eventually
+	// connect to, as specified in the Bridge line of the torrc.
+	BridgeFingerprint string
 }
 
 // NewSnowflakeClient creates a new Snowflake transport client that can spawn multiple
@@ -125,8 +134,7 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 	}
 
 	// Rendezvous with broker using the given parameters.
-	broker, err := NewBrokerChannel(
-		config.BrokerURL, config.AmpCacheURL, config.FrontDomain, config.KeepLocalAddresses)
+	broker, err := newBrokerChannelFromConfig(config)
 	if err != nil {
 		return nil, err
 	}

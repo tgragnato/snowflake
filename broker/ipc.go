@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"container/heap"
 	"fmt"
 	"log"
@@ -21,29 +20,20 @@ const (
 	NATUnrestricted = "unrestricted"
 )
 
-type clientVersion int
-
-const (
-	v1 clientVersion = iota
-)
-
 type IPC struct {
 	ctx *BrokerContext
 }
 
 func (i *IPC) Debug(_ interface{}, response *string) error {
-	var webexts, browsers, standalones, unknowns int
+	var unknowns int
 	var natRestricted, natUnrestricted, natUnknown int
+	proxyTypes := make(map[string]int)
 
 	i.ctx.snowflakeLock.Lock()
 	s := fmt.Sprintf("current snowflakes available: %d\n", len(i.ctx.idToSnowflake))
 	for _, snowflake := range i.ctx.idToSnowflake {
-		if snowflake.proxyType == "badge" {
-			browsers++
-		} else if snowflake.proxyType == "webext" {
-			webexts++
-		} else if snowflake.proxyType == "standalone" {
-			standalones++
+		if messages.KnownProxyTypes[snowflake.proxyType] {
+			proxyTypes[snowflake.proxyType]++
 		} else {
 			unknowns++
 		}
@@ -60,10 +50,10 @@ func (i *IPC) Debug(_ interface{}, response *string) error {
 	}
 	i.ctx.snowflakeLock.Unlock()
 
-	s += fmt.Sprintf("\tstandalone proxies: %d", standalones)
-	s += fmt.Sprintf("\n\tbrowser proxies: %d", browsers)
-	s += fmt.Sprintf("\n\twebext proxies: %d", webexts)
-	s += fmt.Sprintf("\n\tunknown proxies: %d", unknowns)
+	for pType, num := range proxyTypes {
+		s += fmt.Sprintf("\t%s proxies: %d\n", pType, num)
+	}
+	s += fmt.Sprintf("\tunknown proxies: %d", unknowns)
 
 	s += fmt.Sprintf("\nNAT Types available:")
 	s += fmt.Sprintf("\n\trestricted: %d", natRestricted)
@@ -75,7 +65,7 @@ func (i *IPC) Debug(_ interface{}, response *string) error {
 }
 
 func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
-	sid, proxyType, natType, clients, err := messages.DecodePollRequest(arg.Body)
+	sid, proxyType, natType, clients, err := messages.DecodeProxyPollRequest(arg.Body)
 	if err != nil {
 		return messages.ErrBadRequest
 	}
@@ -132,38 +122,17 @@ func sendClientResponse(resp *messages.ClientPollResponse, response *[]byte) err
 }
 
 func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
-	var version clientVersion
-
 	startTime := time.Now()
-	body := arg.Body
 
-	parts := bytes.SplitN(body, []byte("\n"), 2)
-	if len(parts) < 2 {
-		// no version number found
-		err := fmt.Errorf("unsupported message version")
-		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
-	}
-	body = parts[1]
-	if string(parts[0]) == "1.0" {
-		version = v1
-	} else {
-		err := fmt.Errorf("unsupported message version")
+	req, err := messages.DecodeClientPollRequest(arg.Body)
+	if err != nil {
 		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
 	}
 
-	var offer *ClientOffer
-	switch version {
-	case v1:
-		req, err := messages.DecodeClientPollRequest(body)
-		if err != nil {
-			return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
-		}
-		offer = &ClientOffer{
-			natType: req.NAT,
-			sdp:     []byte(req.Offer),
-		}
-	default:
-		panic("unknown version")
+	offer := &ClientOffer{
+		natType:     req.NAT,
+		sdp:         []byte(req.Offer),
+		fingerprint: req.Fingerprint,
 	}
 
 	// Only hand out known restricted snowflakes to unrestricted clients
@@ -188,13 +157,8 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 			i.ctx.metrics.clientRestrictedDeniedCount++
 		}
 		i.ctx.metrics.lock.Unlock()
-		switch version {
-		case v1:
-			resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
-			return sendClientResponse(resp, response)
-		default:
-			panic("unknown version")
-		}
+		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
+		return sendClientResponse(resp, response)
 	}
 
 	// Otherwise, find the most available snowflake proxy, and pass the offer to it.
@@ -204,8 +168,6 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	i.ctx.snowflakeLock.Unlock()
 	snowflake.offerChannel <- offer
 
-	var err error
-
 	// Wait for the answer to be returned on the channel or timeout.
 	select {
 	case answer := <-snowflake.answerChannel:
@@ -213,24 +175,14 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		i.ctx.metrics.clientProxyMatchCount++
 		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched"}).Inc()
 		i.ctx.metrics.lock.Unlock()
-		switch version {
-		case v1:
-			resp := &messages.ClientPollResponse{Answer: answer}
-			err = sendClientResponse(resp, response)
-		default:
-			panic("unknown version")
-		}
+		resp := &messages.ClientPollResponse{Answer: answer}
+		err = sendClientResponse(resp, response)
 		// Initial tracking of elapsed time.
 		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
 	case <-time.After(time.Second * ClientTimeout):
 		log.Println("Client: Timed out.")
-		switch version {
-		case v1:
-			resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
-			err = sendClientResponse(resp, response)
-		default:
-			panic("unknown version")
-		}
+		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
+		err = sendClientResponse(resp, response)
 	}
 
 	i.ctx.snowflakeLock.Lock()

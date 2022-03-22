@@ -84,6 +84,20 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			if arg, ok := conn.Req.Args.Get("url"); ok {
 				config.BrokerURL = arg
 			}
+			if arg, ok := conn.Req.Args.Get("utls-nosni"); ok {
+				switch strings.ToLower(arg) {
+				case "true":
+					fallthrough
+				case "yes":
+					config.UTLSRemoveSNI = true
+				}
+			}
+			if arg, ok := conn.Req.Args.Get("utls-imitate"); ok {
+				config.UTLSClientID = arg
+			}
+			if arg, ok := conn.Req.Args.Get("fingerprint"); ok {
+				config.BridgeFingerprint = arg
+			}
 			transport, err := sf.NewSnowflakeClient(config)
 			if err != nil {
 				conn.Reject()

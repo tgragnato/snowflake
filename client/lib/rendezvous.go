@@ -6,6 +6,8 @@ package snowflake_client
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
+
 	"log"
 	"net/http"
 	"sync"
@@ -15,7 +17,9 @@ import (
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
+	utlsutil "git.torproject.org/pluggable-transports/snowflake.git/v2/common/utls"
 	"github.com/pion/webrtc/v3"
+	utls "github.com/refraction-networking/utls"
 )
 
 const (
@@ -40,6 +44,7 @@ type BrokerChannel struct {
 	keepLocalAddresses bool
 	natType            string
 	lock               sync.Mutex
+	BridgeFingerprint  string
 }
 
 // We make a copy of DefaultTransport because we want the default Dial
@@ -64,24 +69,34 @@ func createBrokerTransport() http.RoundTripper {
 	return transport
 }
 
-// NewBrokerChannel construct a new BrokerChannel, where:
-// |broker| is the full URL of the facilitating program which assigns proxies
-// to clients, and |front| is the option fronting domain.
-func NewBrokerChannel(broker, ampCache, front string, keepLocalAddresses bool) (*BrokerChannel, error) {
-	log.Println("Rendezvous using Broker at:", broker)
-	if ampCache != "" {
-		log.Println("Through AMP cache at:", ampCache)
+func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
+	log.Println("Rendezvous using Broker at:", config.BrokerURL)
+
+	if config.FrontDomain != "" {
+		log.Println("Domain fronting using:", config.FrontDomain)
 	}
-	if front != "" {
-		log.Println("Domain fronting using:", front)
+
+	brokerTransport := createBrokerTransport()
+
+	if config.UTLSClientID != "" {
+		utlsClientHelloID, err := utlsutil.NameToUTLSID(config.UTLSClientID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create broker channel: %v", err)
+		}
+		utlsConfig := &utls.Config{}
+		brokerTransport = utlsutil.NewUTLSHTTPRoundTripper(utlsClientHelloID, utlsConfig, brokerTransport, config.UTLSRemoveSNI)
 	}
 
 	var rendezvous RendezvousMethod
 	var err error
-	if ampCache != "" {
-		rendezvous, err = newAMPCacheRendezvous(broker, ampCache, front, createBrokerTransport())
+	if config.AmpCacheURL != "" {
+		log.Println("Through AMP cache at:", config.AmpCacheURL)
+		rendezvous, err = newAMPCacheRendezvous(
+			config.BrokerURL, config.AmpCacheURL, config.FrontDomain,
+			brokerTransport)
 	} else {
-		rendezvous, err = newHTTPRendezvous(broker, front, createBrokerTransport())
+		rendezvous, err = newHTTPRendezvous(
+			config.BrokerURL, config.FrontDomain, brokerTransport)
 	}
 	if err != nil {
 		return nil, err
@@ -89,8 +104,9 @@ func NewBrokerChannel(broker, ampCache, front string, keepLocalAddresses bool) (
 
 	return &BrokerChannel{
 		Rendezvous:         rendezvous,
-		keepLocalAddresses: keepLocalAddresses,
+		keepLocalAddresses: config.KeepLocalAddresses,
 		natType:            nat.NATUnknown,
+		BridgeFingerprint:  config.BridgeFingerprint,
 	}, nil
 }
 
@@ -115,10 +131,11 @@ func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	// Encode the client poll request.
 	bc.lock.Lock()
 	req := &messages.ClientPollRequest{
-		Offer: offerSDP,
-		NAT:   bc.natType,
+		Offer:       offerSDP,
+		NAT:         bc.natType,
+		Fingerprint: bc.BridgeFingerprint,
 	}
-	encReq, err := req.EncodePollRequest()
+	encReq, err := req.EncodeClientPollRequest()
 	bc.lock.Unlock()
 	if err != nil {
 		return nil, err
