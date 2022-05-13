@@ -259,7 +259,6 @@ func testPionE2ESimplePSK(t *testing.T, server, client func(*comm)) {
 
 	for _, cipherSuite := range []dtls.CipherSuiteID{
 		dtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
-		dtls.TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256,
 	} {
 		cipherSuite := cipherSuite
 		t.Run(cipherSuite.String(), func(t *testing.T) {
