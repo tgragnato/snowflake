@@ -31,6 +31,16 @@ const (
 	CipherSuiteAuthenticationTypeAnonymous    CipherSuiteAuthenticationType = ciphersuite.AuthenticationTypeAnonymous
 )
 
+// CipherSuiteKeyExchangeAlgorithm controls what exchange algorithm is using during the handshake for a CipherSuite
+type CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithm
+
+// CipherSuiteKeyExchangeAlgorithm Bitmask
+const (
+	CipherSuiteKeyExchangeAlgorithmNone  CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithmNone
+	CipherSuiteKeyExchangeAlgorithmPsk   CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithmPsk
+	CipherSuiteKeyExchangeAlgorithmEcdhe CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithmEcdhe
+)
+
 var _ = allCipherSuites() // Necessary until this function isn't only used by Go 1.14
 
 // CipherSuite is an interface that all DTLS CipherSuites must satisfy
@@ -49,6 +59,13 @@ type CipherSuite interface {
 
 	// AuthenticationType controls what authentication method is using during the handshake
 	AuthenticationType() CipherSuiteAuthenticationType
+
+	// KeyExchangeAlgorithm controls what exchange algorithm is using during the handshake
+	KeyExchangeAlgorithm() CipherSuiteKeyExchangeAlgorithm
+
+	// ECC (Elliptic Curve Cryptography) determines whether ECC extesions will be send during handshake.
+	// https://datatracker.ietf.org/doc/html/rfc4492#page-10
+	ECC() bool
 
 	// Called when keying material has been generated, should initialize the internal cipher
 	Init(masterSecret, clientRandom, serverRandom []byte, isClient bool) error
@@ -120,7 +137,7 @@ func parseCipherSuites(userSelectedSuites []CipherSuiteID, customCipherSuites fu
 		for _, id := range ids {
 			c := cipherSuiteForID(id, nil)
 			if c == nil {
-				return nil, &invalidCipherSuite{id}
+				return nil, &invalidCipherSuiteError{id}
 			}
 			cipherSuites = append(cipherSuites, c)
 		}

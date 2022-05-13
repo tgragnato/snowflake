@@ -116,6 +116,8 @@ func TestReadWriteDeadline(t *testing.T) {
 	report := test.CheckRoutines(t)
 	defer report()
 
+	var e net.Error
+
 	ca, cb, err := pipeMemory()
 	if err != nil {
 		t.Fatal(err)
@@ -125,22 +127,22 @@ func TestReadWriteDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, werr := ca.Write(make([]byte, 100))
-	if e, ok := werr.(net.Error); ok {
+	if errors.As(werr, &e) {
 		if !e.Timeout() {
 			t.Error("Deadline exceeded Write must return Timeout error")
 		}
-		if !e.Temporary() {
+		if !e.Temporary() { //nolint:staticcheck
 			t.Error("Deadline exceeded Write must return Temporary error")
 		}
 	} else {
 		t.Error("Write must return net.Error error")
 	}
 	_, rerr := ca.Read(make([]byte, 100))
-	if e, ok := rerr.(net.Error); ok {
+	if errors.As(rerr, &e) {
 		if !e.Timeout() {
 			t.Error("Deadline exceeded Read must return Timeout error")
 		}
-		if !e.Temporary() {
+		if !e.Temporary() { //nolint:staticcheck
 			t.Error("Deadline exceeded Read must return Temporary error")
 		}
 	} else {
@@ -350,7 +352,7 @@ func TestHandshakeWithAlert(t *testing.T) {
 				CipherSuites: []CipherSuiteID{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
 			},
 			errServer: errCipherSuiteNoIntersection,
-			errClient: &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			errClient: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 		},
 		"SignatureSchemesNoIntersection": {
 			configServer: &Config{
@@ -361,7 +363,7 @@ func TestHandshakeWithAlert(t *testing.T) {
 				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP521AndSHA512},
 			},
-			errServer: &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			errServer: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 			errClient: errNoAvailableSignatureSchemes,
 		},
 	}
@@ -471,6 +473,11 @@ func TestPSK(t *testing.T) {
 			ServerIdentity: nil,
 			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
 		},
+		{
+			Name:           "TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256",
+			ServerIdentity: nil,
+			CipherSuites:   []CipherSuiteID{TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256},
+		},
 	} {
 		test := test
 		t.Run(test.Name, func(t *testing.T) {
@@ -488,8 +495,8 @@ func TestPSK(t *testing.T) {
 			go func() {
 				conf := &Config{
 					PSK: func(hint []byte) ([]byte, error) {
-						if !bytes.Equal(test.ServerIdentity, hint) { // nolint
-							return nil, fmt.Errorf("TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)", test.ServerIdentity, hint) // nolint
+						if !bytes.Equal(test.ServerIdentity, hint) {
+							return nil, fmt.Errorf("TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)", test.ServerIdentity, hint) //nolint:goerr113
 						}
 
 						return []byte{0xAB, 0xC1, 0x23}, nil
@@ -541,7 +548,7 @@ func TestPSKHintFail(t *testing.T) {
 	report := test.CheckRoutines(t)
 	defer report()
 
-	serverAlertError := &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InternalError}}
+	serverAlertError := &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InternalError}}
 	pskRejected := errPSKRejected
 
 	// Limit runtime in case of deadlocks
@@ -603,14 +610,15 @@ func TestClientTimeout(t *testing.T) {
 
 		c, err := testClient(ctx, ca, conf, true)
 		if err == nil {
-			_ = c.Close()
+			_ = c.Close() //nolint:contextcheck
 		}
 		clientErr <- err
 	}()
 
 	// no server!
 	err := <-clientErr
-	if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
 		t.Fatalf("Client error exp(Temporary network error) failed(%v)", err)
 	}
 }
@@ -649,7 +657,7 @@ func TestSRTPConfiguration(t *testing.T) {
 			ClientSRTP:      []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
 			ServerSRTP:      nil,
 			ExpectedProfile: 0,
-			WantClientError: &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			WantClientError: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 			WantServerError: errServerNoMatchingSRTPProfile,
 		},
 		{
@@ -841,8 +849,6 @@ func TestClientCertificate(t *testing.T) {
 		for name, tt := range tests {
 			tt := tt
 			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-
 				ca, cb := dpipe.Pipe()
 				type result struct {
 					c   *Conn
@@ -979,7 +985,7 @@ func TestExtendedMasterSecret(t *testing.T) {
 				ExtendedMasterSecret: DisableExtendedMasterSecret,
 			},
 			expectedClientErr: errClientRequiredButNoServerEMS,
-			expectedServerErr: &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			expectedServerErr: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 		},
 		"Disable_Request_ExtendedMasterSecret": {
 			clientCfg: &Config{
@@ -998,7 +1004,7 @@ func TestExtendedMasterSecret(t *testing.T) {
 			serverCfg: &Config{
 				ExtendedMasterSecret: RequireExtendedMasterSecret,
 			},
-			expectedClientErr: &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			expectedClientErr: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 			expectedServerErr: errServerRequiredButNoClientEMS,
 		},
 		"Disable_Disable_ExtendedMasterSecret": {
@@ -1128,8 +1134,6 @@ func TestServerCertificate(t *testing.T) {
 		for name, tt := range tests {
 			tt := tt
 			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-
 				ca, cb := dpipe.Pipe()
 
 				type result struct {
@@ -1186,8 +1190,8 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			Name:               "Invalid CipherSuite",
 			ClientCipherSuites: []CipherSuiteID{0x00},
 			ServerCipherSuites: []CipherSuiteID{0x00},
-			WantClientError:    &invalidCipherSuite{0x00},
-			WantServerError:    &invalidCipherSuite{0x00},
+			WantClientError:    &invalidCipherSuiteError{0x00},
+			WantServerError:    &invalidCipherSuiteError{0x00},
 		},
 		{
 			Name:                    "Valid CipherSuites specified",
@@ -1201,7 +1205,7 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			Name:               "CipherSuites mismatch",
 			ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 			ServerCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
-			WantClientError:    &errAlert{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			WantClientError:    &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 			WantServerError:    errCipherSuiteNoIntersection,
 		},
 		{
@@ -1530,7 +1534,8 @@ func TestServerTimeout(t *testing.T) {
 	}
 
 	_, serverErr := testServer(ctx, cb, config, true)
-	if netErr, ok := serverErr.(net.Error); !ok || !netErr.Timeout() {
+	var netErr net.Error
+	if !errors.As(serverErr, &netErr) || !netErr.Timeout() {
 		t.Fatalf("Client error exp(Temporary network error) failed(%v)", serverErr)
 	}
 
@@ -1845,7 +1850,11 @@ func TestMultipleHelloVerifyRequest(t *testing.T) {
 		if err := record.Unmarshal(resp[:n]); err != nil {
 			t.Fatal(err)
 		}
-		clientHello := record.Content.(*handshake.Handshake).Message.(*handshake.MessageClientHello)
+		clientHello, ok := record.Content.(*handshake.Handshake).Message.(*handshake.MessageClientHello)
+		if !ok {
+			t.Fatal("Failed to cast MessageClientHello")
+		}
+
 		if !bytes.Equal(clientHello.Cookie, cookie) {
 			t.Fatalf("Wrong cookie, expected: %x, got: %x", clientHello.Cookie, cookie)
 		}
@@ -1925,7 +1934,10 @@ func TestRenegotationInfo(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			helloVerifyRequest := r.Content.(*handshake.Handshake).Message.(*handshake.MessageHelloVerifyRequest)
+			helloVerifyRequest, ok := r.Content.(*handshake.Handshake).Message.(*handshake.MessageHelloVerifyRequest)
+			if !ok {
+				t.Fatal("Failed to cast MessageHelloVerifyRequest")
+			}
 
 			err = sendClientHello(helloVerifyRequest.Cookie, ca, 1, extensions)
 			if err != nil {
@@ -1944,7 +1956,11 @@ func TestRenegotationInfo(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			serverHello := r.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
+			serverHello, ok := r.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
+			if !ok {
+				t.Fatal("Failed to cast MessageServerHello")
+			}
+
 			gotNegotationInfo := false
 			for _, v := range serverHello.Extensions {
 				if _, ok := v.(*extension.RenegotiationInfo); ok {
@@ -2018,13 +2034,22 @@ func TestServerNameIndicationExtension(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			clientHello := r.Content.(*handshake.Handshake).Message.(*handshake.MessageClientHello)
+			clientHello, ok := r.Content.(*handshake.Handshake).Message.(*handshake.MessageClientHello)
+			if !ok {
+				t.Fatal("Failed to cast MessageClientHello")
+			}
+
 			gotSNI := false
 			var actualServerName string
 			for _, v := range clientHello.Extensions {
 				if _, ok := v.(*extension.ServerName); ok {
 					gotSNI = true
-					actualServerName = v.(*extension.ServerName).ServerName
+					extensionServerName, ok := v.(*extension.ServerName)
+					if !ok {
+						t.Fatal("Failed to cast extension.ServerName")
+					}
+
+					actualServerName = extensionServerName.ServerName
 				}
 			}
 
@@ -2189,17 +2214,28 @@ func TestALPNExtension(t *testing.T) {
 			}
 
 			if test.ExpectAlertFromServer {
-				a := r.Content.(*alert.Alert)
+				a, ok := r.Content.(*alert.Alert)
+				if !ok {
+					t.Fatal("Failed to cast alert.Alert")
+				}
+
 				if a.Description != test.Alert {
 					t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.Alert, a.Description)
 				}
 			} else {
-				serverHello := r.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
+				serverHello, ok := r.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
+				if !ok {
+					t.Fatal("Failed to cast handshake.MessageServerHello")
+				}
 
 				var negotiatedProtocol string
 				for _, v := range serverHello.Extensions {
 					if _, ok := v.(*extension.ALPN); ok {
-						e := v.(*extension.ALPN)
+						e, ok := v.(*extension.ALPN)
+						if !ok {
+							t.Fatal("Failed to cast extension.ALPN")
+						}
+
 						negotiatedProtocol = e.ProtocolNameList[0]
 
 						// Manipulate ServerHello
@@ -2235,7 +2271,11 @@ func TestALPNExtension(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					a := r2.Content.(*alert.Alert)
+					a, ok := r2.Content.(*alert.Alert)
+					if !ok {
+						t.Fatal("Failed to cast alert.Alert")
+					}
+
 					if a.Description != test.Alert {
 						t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.Alert, a.Description)
 					}
@@ -2294,7 +2334,10 @@ func TestSupportedGroupsExtension(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		helloVerifyRequest := r.Content.(*handshake.Handshake).Message.(*handshake.MessageHelloVerifyRequest)
+		helloVerifyRequest, ok := r.Content.(*handshake.Handshake).Message.(*handshake.MessageHelloVerifyRequest)
+		if !ok {
+			t.Fatal("Failed to cast MessageHelloVerifyRequest")
+		}
 
 		err = sendClientHello(helloVerifyRequest.Cookie, ca, 1, extensions)
 		if err != nil {
@@ -2313,7 +2356,11 @@ func TestSupportedGroupsExtension(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		serverHello := r.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
+		serverHello, ok := r.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
+		if !ok {
+			t.Fatal("Failed to cast MessageServerHello")
+		}
+
 		gotGroups := false
 		for _, v := range serverHello.Extensions {
 			if _, ok := v.(*extension.SupportedEllipticCurves); ok {
@@ -2473,7 +2520,12 @@ func (ms *memSessStore) Get(key []byte) (Session, error) {
 		return Session{}, nil
 	}
 
-	return v.(Session), nil
+	s, ok := v.(Session)
+	if !ok {
+		return Session{}, nil
+	}
+
+	return s, nil
 }
 
 func (ms *memSessStore) Del(key []byte) error {
