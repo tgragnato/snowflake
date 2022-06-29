@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"encoding/hex"
 	"fmt"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
 	"log"
 	"net"
 	"time"
@@ -66,9 +67,36 @@ func (i *IPC) Debug(_ interface{}, response *string) error {
 }
 
 func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
-	sid, proxyType, natType, clients, err := messages.DecodeProxyPollRequest(arg.Body)
+	sid, proxyType, natType, clients, relayPattern, relayPatternSupported, err := messages.DecodeProxyPollRequestWithRelayPrefix(arg.Body)
 	if err != nil {
 		return messages.ErrBadRequest
+	}
+
+	if !relayPatternSupported {
+		i.ctx.metrics.lock.Lock()
+		i.ctx.metrics.proxyPollWithoutRelayURLExtension++
+		i.ctx.metrics.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType}).Inc()
+		i.ctx.metrics.lock.Unlock()
+	} else {
+		i.ctx.metrics.lock.Lock()
+		i.ctx.metrics.proxyPollWithRelayURLExtension++
+		i.ctx.metrics.promMetrics.ProxyPollWithRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType}).Inc()
+		i.ctx.metrics.lock.Unlock()
+	}
+
+	if !i.ctx.CheckProxyRelayPattern(relayPattern, !relayPatternSupported) {
+		i.ctx.metrics.lock.Lock()
+		i.ctx.metrics.proxyPollRejectedWithRelayURLExtension++
+		i.ctx.metrics.promMetrics.ProxyPollRejectedForRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType}).Inc()
+		i.ctx.metrics.lock.Unlock()
+
+		log.Printf("bad request: rejected relay pattern from proxy = %v", messages.ErrBadRequest)
+		b, err := messages.EncodePollResponseWithRelayURL("", false, "", "", "incorrect relay pattern")
+		*response = b
+		if err != nil {
+			return messages.ErrInternal
+		}
+		return nil
 	}
 
 	// Log geoip stats
@@ -78,6 +106,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	} else {
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateCountryStats(remoteIP, proxyType, natType)
+		i.ctx.metrics.RecordIPAddress(remoteIP)
 		i.ctx.metrics.lock.Unlock()
 	}
 
@@ -102,7 +131,17 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	}
 
 	i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "matched"}).Inc()
-	b, err = messages.EncodePollResponse(string(offer.sdp), true, offer.natType)
+	var relayURL string
+	bridgeFingerprint, err := bridgefingerprint.FingerprintFromBytes(offer.fingerprint)
+	if err != nil {
+		return messages.ErrBadRequest
+	}
+	if info, err := i.ctx.bridgeList.GetBridgeInfo(bridgeFingerprint); err != nil {
+		return err
+	} else {
+		relayURL = info.WebSocketAddress
+	}
+	b, err = messages.EncodePollResponseWithRelayURL(string(offer.sdp), true, offer.natType, relayURL, "")
 	if err != nil {
 		return messages.ErrInternal
 	}
@@ -139,7 +178,17 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if err != nil {
 		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
 	}
-	copy(offer.fingerprint[:], fingerprint)
+
+	BridgeFingerprint, err := bridgefingerprint.FingerprintFromBytes(fingerprint)
+	if err != nil {
+		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
+	}
+
+	if _, err := i.ctx.GetBridgeInfo(BridgeFingerprint); err != nil {
+		return err
+	}
+
+	offer.fingerprint = BridgeFingerprint.ToBytes()
 
 	// Only hand out known restricted snowflakes to unrestricted clients
 	var snowflakeHeap *SnowflakeHeap

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/ipsetsink/sinkcluster"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
@@ -41,6 +42,8 @@ type Metrics struct {
 	logger  *log.Logger
 	geoipdb *geoip.Geoip
 
+	distinctIPWriter *sinkcluster.ClusterWriter
+
 	countryStats                  CountryStats
 	clientRoundtripEstimate       time.Duration
 	proxyIdleCount                uint
@@ -48,6 +51,10 @@ type Metrics struct {
 	clientRestrictedDeniedCount   uint
 	clientUnrestrictedDeniedCount uint
 	clientProxyMatchCount         uint
+
+	proxyPollWithRelayURLExtension         uint
+	proxyPollWithoutRelayURLExtension      uint
+	proxyPollRejectedWithRelayURLExtension uint
 
 	// synchronization for access to snowflake metrics
 	lock sync.Mutex
@@ -163,7 +170,7 @@ func NewMetrics(metricsLogger *log.Logger) (*Metrics, error) {
 	m.logger = metricsLogger
 	m.promMetrics = initPrometheus()
 
-	// Write to log file every hour with updated metrics
+	// Write to log file every day with updated metrics
 	go m.logMetrics()
 
 	return m, nil
@@ -189,6 +196,9 @@ func (m *Metrics) printMetrics() {
 	}
 	m.logger.Println("snowflake-ips-total", total)
 	m.logger.Println("snowflake-idle-count", binCount(m.proxyIdleCount))
+	m.logger.Println("snowflake-proxy-poll-with-relay-url-count", binCount(m.proxyPollWithRelayURLExtension))
+	m.logger.Println("snowflake-proxy-poll-without-relay-url-count", binCount(m.proxyPollWithoutRelayURLExtension))
+	m.logger.Println("snowflake-proxy-rejected-for-relay-url-count", binCount(m.proxyPollRejectedWithRelayURLExtension))
 	m.logger.Println("client-denied-count", binCount(m.clientDeniedCount))
 	m.logger.Println("client-restricted-denied-count", binCount(m.clientRestrictedDeniedCount))
 	m.logger.Println("client-unrestricted-denied-count", binCount(m.clientUnrestrictedDeniedCount))
@@ -205,6 +215,9 @@ func (m *Metrics) zeroMetrics() {
 	m.clientDeniedCount = 0
 	m.clientRestrictedDeniedCount = 0
 	m.clientUnrestrictedDeniedCount = 0
+	m.proxyPollRejectedWithRelayURLExtension = 0
+	m.proxyPollWithRelayURLExtension = 0
+	m.proxyPollWithoutRelayURLExtension = 0
 	m.clientProxyMatchCount = 0
 	m.countryStats.counts = make(map[string]int)
 	for pType := range m.countryStats.proxies {
@@ -227,6 +240,11 @@ type PromMetrics struct {
 	ProxyPollTotal   *RoundedCounterVec
 	ClientPollTotal  *RoundedCounterVec
 	AvailableProxies *prometheus.GaugeVec
+
+	ProxyPollWithRelayURLExtensionTotal    *RoundedCounterVec
+	ProxyPollWithoutRelayURLExtensionTotal *RoundedCounterVec
+
+	ProxyPollRejectedForRelayURLExtensionTotal *RoundedCounterVec
 }
 
 // Initialize metrics for prometheus exporter
@@ -262,6 +280,33 @@ func initPrometheus() *PromMetrics {
 		[]string{"nat", "status"},
 	)
 
+	promMetrics.ProxyPollWithRelayURLExtensionTotal = NewRoundedCounterVec(
+		prometheus.CounterOpts{
+			Namespace: prometheusNamespace,
+			Name:      "rounded_proxy_poll_with_relay_url_extension_total",
+			Help:      "The number of snowflake proxy polls with Relay URL Extension, rounded up to a multiple of 8",
+		},
+		[]string{"nat"},
+	)
+
+	promMetrics.ProxyPollWithoutRelayURLExtensionTotal = NewRoundedCounterVec(
+		prometheus.CounterOpts{
+			Namespace: prometheusNamespace,
+			Name:      "rounded_proxy_poll_without_relay_url_extension_total",
+			Help:      "The number of snowflake proxy polls without Relay URL Extension, rounded up to a multiple of 8",
+		},
+		[]string{"nat"},
+	)
+
+	promMetrics.ProxyPollRejectedForRelayURLExtensionTotal = NewRoundedCounterVec(
+		prometheus.CounterOpts{
+			Namespace: prometheusNamespace,
+			Name:      "rounded_proxy_poll_rejected_relay_url_extension_total",
+			Help:      "The number of snowflake proxy polls rejected by Relay URL Extension, rounded up to a multiple of 8",
+		},
+		[]string{"nat"},
+	)
+
 	promMetrics.ClientPollTotal = NewRoundedCounterVec(
 		prometheus.CounterOpts{
 			Namespace: prometheusNamespace,
@@ -275,7 +320,20 @@ func initPrometheus() *PromMetrics {
 	promMetrics.registry.MustRegister(
 		promMetrics.ClientPollTotal, promMetrics.ProxyPollTotal,
 		promMetrics.ProxyTotal, promMetrics.AvailableProxies,
+		promMetrics.ProxyPollWithRelayURLExtensionTotal,
+		promMetrics.ProxyPollWithoutRelayURLExtensionTotal,
+		promMetrics.ProxyPollRejectedForRelayURLExtensionTotal,
 	)
 
 	return promMetrics
+}
+
+func (m *Metrics) RecordIPAddress(ip string) {
+	if m.distinctIPWriter != nil {
+		m.distinctIPWriter.AddIPToSet(ip)
+	}
+}
+
+func (m *Metrics) SetIPAddressRecorder(recorder *sinkcluster.ClusterWriter) {
+	m.distinctIPWriter = recorder
 }

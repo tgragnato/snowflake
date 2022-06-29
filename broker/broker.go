@@ -6,9 +6,13 @@ SessionDescriptions in order to negotiate a WebRTC connection.
 package main
 
 import (
+	"bytes"
 	"container/heap"
 	"crypto/tls"
 	"flag"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/ipsetsink"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/ipsetsink/sinkcluster"
 	"io"
 	"log"
 	"net/http"
@@ -19,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/namematcher"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -36,6 +41,14 @@ type BrokerContext struct {
 	snowflakeLock sync.Mutex
 	proxyPolls    chan *ProxyPoll
 	metrics       *Metrics
+
+	bridgeList                     BridgeListHolderFileBased
+	allowedRelayPattern            string
+	presumedPatternForLegacyClient string
+}
+
+func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprint) (BridgeInfo, error) {
+	return ctx.bridgeList.GetBridgeInfo(fingerprint)
 }
 
 func NewBrokerContext(metricsLogger *log.Logger) *BrokerContext {
@@ -53,12 +66,19 @@ func NewBrokerContext(metricsLogger *log.Logger) *BrokerContext {
 		panic("Failed to create metrics")
 	}
 
+	bridgeListHolder := NewBridgeListHolder()
+
+	const DefaultBridges = `{"displayName":"default", "webSocketAddress":"wss://snowflake.torproject.net/", "fingerprint":"2B280B23E1107BB62ABFC40DDCC8824814F80A72"}
+`
+	bridgeListHolder.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges)))
+
 	return &BrokerContext{
 		snowflakes:           snowflakes,
 		restrictedSnowflakes: rSnowflakes,
 		idToSnowflake:        make(map[string]*Snowflake),
 		proxyPolls:           make(chan *ProxyPoll),
 		metrics:              metrics,
+		bridgeList:           bridgeListHolder,
 	}
 }
 
@@ -139,11 +159,29 @@ func (ctx *BrokerContext) AddSnowflake(id string, proxyType string, natType stri
 	return snowflake
 }
 
+func (ctx *BrokerContext) InstallBridgeListProfile(reader io.Reader, relayPattern, presumedPatternForLegacyClient string) error {
+	if err := ctx.bridgeList.LoadBridgeInfo(reader); err != nil {
+		return err
+	}
+	ctx.allowedRelayPattern = relayPattern
+	ctx.presumedPatternForLegacyClient = presumedPatternForLegacyClient
+	return nil
+}
+
+func (ctx *BrokerContext) CheckProxyRelayPattern(pattern string, nonSupported bool) bool {
+	if nonSupported {
+		pattern = ctx.presumedPatternForLegacyClient
+	}
+	proxyPattern := namematcher.NewNameMatcher(pattern)
+	brokerPattern := namematcher.NewNameMatcher(ctx.allowedRelayPattern)
+	return proxyPattern.IsSupersetOf(brokerPattern)
+}
+
 // Client offer contains an SDP, bridge fingerprint and the NAT type of the client
 type ClientOffer struct {
 	natType     string
 	sdp         []byte
-	fingerprint [20]byte
+	fingerprint []byte
 }
 
 func main() {
@@ -153,10 +191,13 @@ func main() {
 	var addr string
 	var geoipDatabase string
 	var geoip6Database string
+	var bridgeListFilePath, allowedRelayPattern, presumedPatternForLegacyClient string
 	var disableTLS bool
 	var certFilename, keyFilename string
 	var disableGeoip bool
 	var metricsFilename string
+	var ipCountFilename, ipCountMaskingKey string
+	var ipCountInterval time.Duration
 	var unsafeLogging bool
 
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
@@ -167,9 +208,15 @@ func main() {
 	flag.StringVar(&addr, "addr", ":443", "address to listen on")
 	flag.StringVar(&geoipDatabase, "geoipdb", "/usr/share/tor/geoip", "path to correctly formatted geoip database mapping IPv4 address ranges to country codes")
 	flag.StringVar(&geoip6Database, "geoip6db", "/usr/share/tor/geoip6", "path to correctly formatted geoip database mapping IPv6 address ranges to country codes")
+	flag.StringVar(&bridgeListFilePath, "bridge-list-path", "", "file path for bridgeListFile")
+	flag.StringVar(&allowedRelayPattern, "allowed-relay-pattern", "", "allowed pattern for relay host name")
+	flag.StringVar(&presumedPatternForLegacyClient, "default-relay-pattern", "", "presumed pattern for legacy client")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.BoolVar(&disableGeoip, "disable-geoip", false, "don't use geoip for stats collection")
 	flag.StringVar(&metricsFilename, "metrics-log", "", "path to metrics logging output")
+	flag.StringVar(&ipCountFilename, "ip-count-log", "", "path to ip count logging output")
+	flag.StringVar(&ipCountMaskingKey, "ip-count-mask", "", "masking key for ip count logging")
+	flag.DurationVar(&ipCountInterval, "ip-count-interval", time.Hour, "time interval between each chunk")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
 	flag.Parse()
 
@@ -199,11 +246,32 @@ func main() {
 
 	ctx := NewBrokerContext(metricsLogger)
 
+	if bridgeListFilePath != "" {
+		bridgeListFile, err := os.Open(bridgeListFilePath)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		err = ctx.InstallBridgeListProfile(bridgeListFile, allowedRelayPattern, presumedPatternForLegacyClient)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+	}
+
 	if !disableGeoip {
 		err = ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
+	}
+
+	if ipCountFilename != "" {
+		ipCountFile, err := os.OpenFile(ipCountFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		ipSetSink := ipsetsink.NewIPSetSink(ipCountMaskingKey)
+		ctx.metrics.distinctIPWriter = sinkcluster.NewClusterWriter(ipCountFile, ipCountInterval, ipSetSink)
 	}
 
 	go ctx.Broker()
