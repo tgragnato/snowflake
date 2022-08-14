@@ -48,6 +48,7 @@ import (
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/websocketconn"
 	"github.com/gorilla/websocket"
+	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -360,7 +361,10 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 	dataChan chan struct{},
 	handler func(conn *webRTCConn, remoteAddr net.Addr)) (*webrtc.PeerConnection, error) {
 
-	pc, err := webrtc.NewPeerConnection(config)
+	s := webrtc.SettingEngine{}
+	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
@@ -447,7 +451,10 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
-	pc, err := webrtc.NewPeerConnection(config)
+	s := webrtc.SettingEngine{}
+	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
