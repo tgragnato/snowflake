@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -269,6 +270,7 @@ func pipeConn(ca, cb net.Conn) (*Conn, *Conn, error) {
 	// Receive client
 	res := <-c
 	if res.err != nil {
+		_ = server.Close()
 		return nil, nil, res.err
 	}
 
@@ -327,7 +329,6 @@ func sendClientHello(cookie []byte, ca net.Conn, sequenceNumber uint64, extensio
 	return nil
 }
 
-/*
 func TestHandshakeWithAlert(t *testing.T) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
@@ -346,21 +347,21 @@ func TestHandshakeWithAlert(t *testing.T) {
 	}{
 		"CipherSuiteNoIntersection": {
 			configServer: &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 			},
 			configClient: &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+				CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
 			},
 			errServer: errCipherSuiteNoIntersection,
 			errClient: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 		},
 		"SignatureSchemesNoIntersection": {
 			configServer: &Config{
-				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256},
 			},
 			configClient: &Config{
-				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP521AndSHA512},
 			},
 			errServer: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
@@ -391,7 +392,6 @@ func TestHandshakeWithAlert(t *testing.T) {
 		})
 	}
 }
-*/
 
 func TestExportKeyingMaterial(t *testing.T) {
 	// Check for leaking routines
@@ -464,14 +464,56 @@ func TestPSK(t *testing.T) {
 	defer report()
 
 	for _, test := range []struct {
-		Name           string
-		ServerIdentity []byte
-		CipherSuites   []CipherSuiteID
+		Name                   string
+		ServerIdentity         []byte
+		CipherSuites           []CipherSuiteID
+		ClientVerifyConnection func(*State) error
+		ServerVerifyConnection func(*State) error
+		WantFail               bool
+		ExpectedServerErr      string
+		ExpectedClientErr      string
 	}{
+		{
+			Name:           "Server identity specified",
+			ServerIdentity: []byte("Test Identity"),
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+		},
+		{
+			Name:           "Server identity specified - Server verify connection fails",
+			ServerIdentity: []byte("Test Identity"),
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			ServerVerifyConnection: func(s *State) error {
+				return errExample
+			},
+			WantFail:          true,
+			ExpectedServerErr: errExample.Error(),
+			ExpectedClientErr: alert.BadCertificate.String(),
+		},
+		{
+			Name:           "Server identity specified - Client verify connection fails",
+			ServerIdentity: []byte("Test Identity"),
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			ClientVerifyConnection: func(s *State) error {
+				return errExample
+			},
+			WantFail:          true,
+			ExpectedServerErr: alert.BadCertificate.String(),
+			ExpectedClientErr: errExample.Error(),
+		},
+		{
+			Name:           "Server identity nil",
+			ServerIdentity: nil,
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+		},
 		{
 			Name:           "TLS_PSK_WITH_AES_128_GCM_SHA256",
 			ServerIdentity: nil,
 			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+		},
+		{
+			Name:           "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+			ServerIdentity: nil,
+			CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		},
 	} {
 		test := test
@@ -496,8 +538,9 @@ func TestPSK(t *testing.T) {
 
 						return []byte{0xAB, 0xC1, 0x23}, nil
 					},
-					PSKIdentityHint: clientIdentity,
-					CipherSuites:    test.CipherSuites,
+					PSKIdentityHint:  clientIdentity,
+					CipherSuites:     test.CipherSuites,
+					VerifyConnection: test.ClientVerifyConnection,
 				}
 
 				c, err := testClient(ctx, ca, conf, false)
@@ -511,11 +554,22 @@ func TestPSK(t *testing.T) {
 					}
 					return []byte{0xAB, 0xC1, 0x23}, nil
 				},
-				PSKIdentityHint: test.ServerIdentity,
-				CipherSuites:    test.CipherSuites,
+				PSKIdentityHint:  test.ServerIdentity,
+				CipherSuites:     test.CipherSuites,
+				VerifyConnection: test.ServerVerifyConnection,
 			}
 
 			server, err := testServer(ctx, cb, config, false)
+			if test.WantFail {
+				res := <-clientRes
+				if err == nil || !strings.Contains(err.Error(), test.ExpectedServerErr) {
+					t.Fatalf("TestPSK: Server expected(%v) actual(%v)", test.ExpectedServerErr, err)
+				}
+				if res.err == nil || !strings.Contains(res.err.Error(), test.ExpectedClientErr) {
+					t.Fatalf("TestPSK: Client expected(%v) actual(%v)", test.ExpectedClientErr, res.err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("TestPSK: Server failed(%v)", err)
 			}
@@ -771,6 +825,29 @@ func TestClientCertificate(t *testing.T) {
 					ClientCAs:    caPool,
 				},
 			},
+			"NoClientCert_ServerVerifyConnectionFails": {
+				clientCfg: &Config{RootCAs: srvCAPool},
+				serverCfg: &Config{
+					Certificates: []tls.Certificate{srvCert},
+					ClientAuth:   NoClientCert,
+					ClientCAs:    caPool,
+					VerifyConnection: func(s *State) error {
+						return errExample
+					},
+				},
+				wantErr: true,
+			},
+			"NoClientCert_ClientVerifyConnectionFails": {
+				clientCfg: &Config{RootCAs: srvCAPool, VerifyConnection: func(s *State) error {
+					return errExample
+				}},
+				serverCfg: &Config{
+					Certificates: []tls.Certificate{srvCert},
+					ClientAuth:   NoClientCert,
+					ClientCAs:    caPool,
+				},
+				wantErr: true,
+			},
 			"NoClientCert_cert": {
 				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
 				serverCfg: &Config{
@@ -833,11 +910,35 @@ func TestClientCertificate(t *testing.T) {
 				wantErr: true,
 			},
 			"RequireAndVerifyClientCert": {
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
+				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}, VerifyConnection: func(s *State) error {
+					if ok := bytes.Equal(s.PeerCertificates[0], srvCertificate.Raw); !ok {
+						return errExample
+					}
+					return nil
+				}},
 				serverCfg: &Config{
 					Certificates: []tls.Certificate{srvCert},
 					ClientAuth:   RequireAndVerifyClientCert,
 					ClientCAs:    caPool,
+					VerifyConnection: func(s *State) error {
+						if ok := bytes.Equal(s.PeerCertificates[0], certificate.Raw); !ok {
+							return errExample
+						}
+						return nil
+					},
+				},
+			},
+			"RequireAndVerifyClientCert_callbacks": {
+				clientCfg: &Config{
+					RootCAs: srvCAPool,
+					// Certificates:   []tls.Certificate{cert},
+					GetClientCertificate: func(cri *CertificateRequestInfo) (*tls.Certificate, error) { return &cert, nil },
+				},
+				serverCfg: &Config{
+					GetCertificate: func(chi *ClientHelloInfo) (*tls.Certificate, error) { return &srvCert, nil },
+					// Certificates:   []tls.Certificate{srvCert},
+					ClientAuth: RequireAndVerifyClientCert,
+					ClientCAs:  caPool,
 				},
 			},
 		}
@@ -888,7 +989,18 @@ func TestClientCertificate(t *testing.T) {
 						t.Errorf("Client did not provide a certificate")
 					}
 
-					if len(actualClientCert) != len(tt.clientCfg.Certificates[0].Certificate) || !bytes.Equal(tt.clientCfg.Certificates[0].Certificate[0], actualClientCert[0]) {
+					var cfgCert [][]byte
+					if len(tt.clientCfg.Certificates) > 0 {
+						cfgCert = tt.clientCfg.Certificates[0].Certificate
+					}
+					if tt.clientCfg.GetClientCertificate != nil {
+						crt, err := tt.clientCfg.GetClientCertificate(&CertificateRequestInfo{})
+						if err != nil {
+							t.Errorf("Server configuration did not provide a certificate")
+						}
+						cfgCert = crt.Certificate
+					}
+					if len(cfgCert) == 0 || !bytes.Equal(cfgCert[0], actualClientCert[0]) {
 						t.Errorf("Client certificate was not communicated correctly")
 					}
 				}
@@ -902,8 +1014,18 @@ func TestClientCertificate(t *testing.T) {
 				if actualServerCert == nil {
 					t.Errorf("Server did not provide a certificate")
 				}
-
-				if len(actualServerCert) != len(tt.serverCfg.Certificates[0].Certificate) || !bytes.Equal(tt.serverCfg.Certificates[0].Certificate[0], actualServerCert[0]) {
+				var cfgCert [][]byte
+				if len(tt.serverCfg.Certificates) > 0 {
+					cfgCert = tt.serverCfg.Certificates[0].Certificate
+				}
+				if tt.serverCfg.GetCertificate != nil {
+					crt, err := tt.serverCfg.GetCertificate(&ClientHelloInfo{})
+					if err != nil {
+						t.Errorf("Server configuration did not provide a certificate")
+					}
+					cfgCert = crt.Certificate
+				}
+				if len(cfgCert) == 0 || !bytes.Equal(cfgCert[0], actualServerCert[0]) {
 					t.Errorf("Server certificate was not communicated correctly")
 				}
 			})
@@ -1196,21 +1318,21 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			WantServerError:         nil,
 			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 		},
-		/*{
+		{
 			Name:               "CipherSuites mismatch",
-			ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
-			ServerCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			ServerCipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
 			WantClientError:    &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 			WantServerError:    errCipherSuiteNoIntersection,
 		},
 		{
 			Name:                    "Server supports subset of client suites",
-			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
-			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_PSK_WITH_AES_128_GCM_SHA256},
+			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 			WantClientError:         nil,
 			WantServerError:         nil,
-			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		},*/
+			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		},
 	} {
 		test := test
 		t.Run(test.Name, func(t *testing.T) {
@@ -1242,6 +1364,7 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			res := <-c
 			if res.err == nil {
 				_ = server.Close()
+				_ = res.c.Close()
 			}
 			if !errors.Is(res.err, test.WantClientError) {
 				t.Errorf("TestSRTPConfiguration: Client Error Mismatch '%s': expected(%v) actual(%v)", test.Name, test.WantClientError, res.err)
@@ -1316,6 +1439,7 @@ func TestCertificateAndPSKServer(t *testing.T) {
 			res := <-c
 			if res.err == nil {
 				_ = server.Close()
+				_ = res.c.Close()
 			} else {
 				t.Errorf("TestCertificateAndPSKServer: Client Error Mismatch '%s': expected(%v) actual(%v)", test.Name, nil, res.err)
 			}
@@ -2690,5 +2814,84 @@ func TestMultipleServerCertificates(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestEllipticCurveConfiguration(t *testing.T) {
+	// Check for leaking routines
+	report := test.CheckRoutines(t)
+	defer report()
+
+	for _, test := range []struct {
+		Name            string
+		ConfigCurves    []elliptic.Curve
+		HadnshakeCurves []elliptic.Curve
+	}{
+		{
+			Name:            "Curve defaulting",
+			ConfigCurves:    nil,
+			HadnshakeCurves: defaultCurves,
+		},
+		{
+			Name:            "Single curve",
+			ConfigCurves:    []elliptic.Curve{elliptic.X25519},
+			HadnshakeCurves: []elliptic.Curve{elliptic.X25519},
+		},
+		{
+			Name:            "Multiple curves",
+			ConfigCurves:    []elliptic.Curve{elliptic.P384, elliptic.X25519},
+			HadnshakeCurves: []elliptic.Curve{elliptic.P384, elliptic.X25519},
+		},
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		ca, cb := dpipe.Pipe()
+		type result struct {
+			c   *Conn
+			err error
+		}
+		c := make(chan result)
+
+		go func() {
+			client, err := testClient(ctx, ca, &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}, EllipticCurves: test.ConfigCurves}, true)
+			c <- result{client, err}
+		}()
+
+		server, err := testServer(ctx, cb, &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}, EllipticCurves: test.ConfigCurves}, true)
+		if err != nil {
+			t.Fatalf("Server error: %v", err)
+		}
+
+		if len(test.ConfigCurves) == 0 && len(test.HadnshakeCurves) != len(server.fsm.cfg.ellipticCurves) {
+			t.Fatalf("Failed to default Elliptic curves, expected %d, got: %d", len(test.HadnshakeCurves), len(server.fsm.cfg.ellipticCurves))
+		}
+
+		if len(test.ConfigCurves) != 0 {
+			if len(test.HadnshakeCurves) != len(server.fsm.cfg.ellipticCurves) {
+				t.Fatalf("Failed to configure Elliptic curves, expect %d, got %d", len(test.HadnshakeCurves), len(server.fsm.cfg.ellipticCurves))
+			}
+			for i, c := range test.ConfigCurves {
+				if c != server.fsm.cfg.ellipticCurves[i] {
+					t.Fatalf("Failed to maintain Elliptic curve order, expected %s, got %s", c, server.fsm.cfg.ellipticCurves[i])
+				}
+			}
+		}
+
+		res := <-c
+		if res.err != nil {
+			t.Fatalf("Client error; %v", err)
+		}
+
+		defer func() {
+			err = server.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = res.c.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
 	}
 }
