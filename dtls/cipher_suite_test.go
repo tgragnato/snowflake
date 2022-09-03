@@ -36,7 +36,7 @@ func TestAllCipherSuites(t *testing.T) {
 
 // CustomCipher that is just used to assert Custom IDs work
 type testCustomCipherSuite struct {
-	ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256
+	ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384
 	authenticationType CipherSuiteAuthenticationType
 }
 

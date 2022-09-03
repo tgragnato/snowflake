@@ -23,7 +23,7 @@ func (f *flight4TestMockFlightConn) handleQueuedPackets(context.Context) error  
 func (f *flight4TestMockFlightConn) sessionKey() []byte                            { return nil }
 
 type flight4TestMockCipherSuite struct {
-	ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256
+	ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384
 
 	t *testing.T
 }
