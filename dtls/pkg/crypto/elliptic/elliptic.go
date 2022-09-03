@@ -53,15 +53,12 @@ type Curve uint16
 
 // Curve enums
 const (
-	P256   Curve = 0x0017
 	P384   Curve = 0x0018
 	X25519 Curve = 0x001d
 )
 
 func (c Curve) String() string {
 	switch c {
-	case P256:
-		return "P-256"
 	case P384:
 		return "P-384"
 	case X25519:
@@ -74,7 +71,6 @@ func (c Curve) String() string {
 func Curves() map[Curve]bool {
 	return map[Curve]bool{
 		X25519: true,
-		P256:   true,
 		P384:   true,
 	}
 }
@@ -93,8 +89,6 @@ func GenerateKeypair(c Curve) (*Keypair, error) {
 
 		curve25519.ScalarBaseMult(&public, &private)
 		return &Keypair{X25519, public[:], private[:]}, nil
-	case P256:
-		return ellipticCurveKeypair(P256, elliptic.P256(), elliptic.P256())
 	case P384:
 		return ellipticCurveKeypair(P384, elliptic.P384(), elliptic.P384())
 	default:

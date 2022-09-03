@@ -8,7 +8,6 @@ func TestString(t *testing.T) {
 		out string
 	}{
 		{X25519, "X25519"},
-		{P256, "P-256"},
 		{P384, "P-384"},
 		{0, "0x0"},
 	}
