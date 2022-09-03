@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/tls"
 	"fmt"
 
@@ -28,9 +27,6 @@ func Algorithms() []Algorithm {
 		{hash.SHA256, signature.ECDSA},
 		{hash.SHA384, signature.ECDSA},
 		{hash.SHA512, signature.ECDSA},
-		{hash.SHA256, signature.RSA},
-		{hash.SHA384, signature.RSA},
-		{hash.SHA512, signature.RSA},
 		{hash.Ed25519, signature.Ed25519},
 	}
 }
@@ -52,8 +48,6 @@ func (a *Algorithm) isCompatible(privateKey crypto.PrivateKey) bool {
 		return a.Signature == signature.Ed25519
 	case *ecdsa.PrivateKey:
 		return a.Signature == signature.ECDSA
-	case *rsa.PrivateKey:
-		return a.Signature == signature.RSA
 	default:
 		return false
 	}

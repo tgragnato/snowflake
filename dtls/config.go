@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"io"
@@ -187,7 +186,7 @@ func (c *Config) includeCertificateSuites() bool {
 
 const defaultMTU = 1200 // bytes
 
-var defaultCurves = []elliptic.Curve{elliptic.X25519, elliptic.P256, elliptic.P384} //nolint:gochecknoglobals
+var defaultCurves = []elliptic.Curve{elliptic.X25519, elliptic.P384} //nolint:gochecknoglobals
 
 // PSKCallback is called once we have the remote's PSKIdentityHint.
 // If the remote provided none it will be nil
@@ -233,7 +232,6 @@ func validateConfig(config *Config) error {
 			switch cert.PrivateKey.(type) {
 			case ed25519.PrivateKey:
 			case *ecdsa.PrivateKey:
-			case *rsa.PrivateKey:
 			default:
 				return errInvalidPrivateKey
 			}

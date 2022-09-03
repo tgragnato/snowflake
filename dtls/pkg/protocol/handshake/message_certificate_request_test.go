@@ -29,11 +29,7 @@ func TestHandshakeMessageCertificateRequest(t *testing.T) {
 				},
 				SignatureHashAlgorithms: []signaturehash.Algorithm{
 					{Hash: hash.SHA256, Signature: signature.ECDSA},
-					{Hash: hash.SHA256, Signature: signature.RSA},
 					{Hash: hash.SHA384, Signature: signature.ECDSA},
-					{Hash: hash.SHA384, Signature: signature.RSA},
-					{Hash: hash.SHA512, Signature: signature.RSA},
-					{Hash: hash.SHA1, Signature: signature.RSA},
 				},
 				CertificateAuthoritiesNames: [][]byte{[]byte("test")},
 			},
@@ -49,11 +45,7 @@ func TestHandshakeMessageCertificateRequest(t *testing.T) {
 				},
 				SignatureHashAlgorithms: []signaturehash.Algorithm{
 					{Hash: hash.SHA256, Signature: signature.ECDSA},
-					{Hash: hash.SHA256, Signature: signature.RSA},
 					{Hash: hash.SHA384, Signature: signature.ECDSA},
-					{Hash: hash.SHA384, Signature: signature.RSA},
-					{Hash: hash.SHA512, Signature: signature.RSA},
-					{Hash: hash.SHA1, Signature: signature.RSA},
 				},
 			},
 		},

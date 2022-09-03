@@ -7,7 +7,6 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -55,8 +54,6 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 		pubKey = k.Public()
 	case *ecdsa.PrivateKey:
 		pubKey = k.Public()
-	case *rsa.PrivateKey:
-		pubKey = k.Public()
 	default:
 		return tls.Certificate{}, errInvalidPrivateKey
 	}
@@ -73,9 +70,6 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 	names = append(names, sans...)
 
 	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
-	if _, isRSA := key.(*rsa.PrivateKey); isRSA {
-		keyUsage |= x509.KeyUsageKeyEncipherment
-	}
 
 	template := x509.Certificate{
 		ExtKeyUsage: []x509.ExtKeyUsage{

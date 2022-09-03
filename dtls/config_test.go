@@ -3,7 +3,6 @@ package dtls
 import (
 	"crypto/dsa" //nolint:staticcheck
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"errors"
 	"testing"
@@ -26,11 +25,6 @@ func TestValidateConfig(t *testing.T) {
 	err = dsa.GenerateKey(dsaPrivateKey, rand.Reader)
 	if err != nil {
 		t.Fatalf("TestValidateConfig: Config validation error(%v), DSA private key not generated", err)
-		return
-	}
-	rsaPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("TestValidateConfig: Config validation error(%v), RSA private key not generated", err)
 		return
 	}
 	cases := map[string]struct {
@@ -99,14 +93,14 @@ func TestValidateConfig(t *testing.T) {
 		"Valid config": {
 			config: &Config{
 				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-				Certificates: []tls.Certificate{cert, {Certificate: cert.Certificate, PrivateKey: rsaPrivateKey}},
+				Certificates: []tls.Certificate{cert, {Certificate: cert.Certificate, PrivateKey: dsaPrivateKey}},
 			},
 		},
 		"Valid config with get certificate": {
 			config: &Config{
 				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 				GetCertificate: func(chi *ClientHelloInfo) (*tls.Certificate, error) {
-					return &tls.Certificate{Certificate: cert.Certificate, PrivateKey: rsaPrivateKey}, nil
+					return &tls.Certificate{Certificate: cert.Certificate, PrivateKey: dsaPrivateKey}, nil
 				},
 			},
 		},
@@ -114,7 +108,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 				GetClientCertificate: func(cri *CertificateRequestInfo) (*tls.Certificate, error) {
-					return &tls.Certificate{Certificate: cert.Certificate, PrivateKey: rsaPrivateKey}, nil
+					return &tls.Certificate{Certificate: cert.Certificate, PrivateKey: dsaPrivateKey}, nil
 				},
 			},
 		},

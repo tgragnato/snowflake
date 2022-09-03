@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
@@ -50,9 +49,6 @@ func generateKeySignature(clientRandom, serverRandom, publicKey []byte, namedCur
 	case *ecdsa.PrivateKey:
 		hashed := hashAlgorithm.Digest(msg)
 		return p.Sign(rand.Reader, hashed, hashAlgorithm.CryptoHash())
-	case *rsa.PrivateKey:
-		hashed := hashAlgorithm.Digest(msg)
-		return p.Sign(rand.Reader, hashed, hashAlgorithm.CryptoHash())
 	}
 
 	return nil, errKeySignatureGenerateUnimplemented
@@ -86,14 +82,6 @@ func verifyKeySignature(message, remoteKeySignature []byte, hashAlgorithm hash.A
 			return errKeySignatureMismatch
 		}
 		return nil
-	case *rsa.PublicKey:
-		switch certificate.SignatureAlgorithm {
-		case x509.SHA1WithRSA, x509.SHA256WithRSA, x509.SHA384WithRSA, x509.SHA512WithRSA:
-			hashed := hashAlgorithm.Digest(message)
-			return rsa.VerifyPKCS1v15(p, hashAlgorithm.CryptoHash(), hashed, remoteKeySignature)
-		default:
-			return errKeySignatureVerifyUnimplemented
-		}
 	}
 
 	return errKeySignatureVerifyUnimplemented
@@ -123,8 +111,6 @@ func generateCertificateVerify(handshakeBodies []byte, privateKey crypto.Private
 
 	switch p := privateKey.(type) {
 	case *ecdsa.PrivateKey:
-		return p.Sign(rand.Reader, hashed, hashAlgorithm.CryptoHash())
-	case *rsa.PrivateKey:
 		return p.Sign(rand.Reader, hashed, hashAlgorithm.CryptoHash())
 	}
 
@@ -159,14 +145,6 @@ func verifyCertificateVerify(handshakeBodies []byte, hashAlgorithm hash.Algorith
 			return errKeySignatureMismatch
 		}
 		return nil
-	case *rsa.PublicKey:
-		switch certificate.SignatureAlgorithm {
-		case x509.SHA1WithRSA, x509.SHA256WithRSA, x509.SHA384WithRSA, x509.SHA512WithRSA:
-			hash := hashAlgorithm.Digest(handshakeBodies)
-			return rsa.VerifyPKCS1v15(p, hashAlgorithm.CryptoHash(), hash, remoteKeySignature)
-		default:
-			return errKeySignatureVerifyUnimplemented
-		}
 	}
 
 	return errKeySignatureVerifyUnimplemented
