@@ -50,7 +50,8 @@ func readLoop(w io.Writer, ws *websocket.Conn) error {
 		if messageType != websocket.BinaryMessage && messageType != websocket.TextMessage {
 			continue
 		}
-		_, err = io.Copy(w, r)
+		var buf [2048]byte
+		_, err = io.CopyBuffer(w, r, buf[:])
 		if err != nil {
 			return err
 		}
