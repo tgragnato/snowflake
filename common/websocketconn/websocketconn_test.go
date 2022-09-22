@@ -263,3 +263,44 @@ func TestClose(t *testing.T) {
 		t.Fatalf("Write after Close returned %v, expected %v", err, io.ErrClosedPipe)
 	}
 }
+
+// Benchmark read/write in the client←server and server←client directions, with
+// messages of different sizes. Run with -benchmem to see memory allocations.
+func BenchmarkReadWrite(b *testing.B) {
+	trial := func(b *testing.B, readConn, writeConn *Conn, msgSize int) {
+		go func() {
+			io.Copy(ioutil.Discard, readConn)
+		}()
+		data := make([]byte, msgSize)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			n, err := writeConn.Write(data[:])
+			b.SetBytes(int64(n))
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	for _, msgSize := range []int{150, 3000} {
+		s, c, err := connPair()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		b.Run(fmt.Sprintf("c←s %d", msgSize), func(b *testing.B) {
+			trial(b, c, s, msgSize)
+		})
+		b.Run(fmt.Sprintf("s←c %d", msgSize), func(b *testing.B) {
+			trial(b, s, c, msgSize)
+		})
+
+		err = s.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = c.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
