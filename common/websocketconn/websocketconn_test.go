@@ -264,6 +264,73 @@ func TestClose(t *testing.T) {
 	}
 }
 
+// Benchmark creating a server websocket.Conn (without the websocketconn.Conn
+// wrapper) for different read/write buffer sizes.
+func BenchmarkUpgradeBufferSize(b *testing.B) {
+	// Buffer size of 0 would mean the default of 4096:
+	// https://github.com/gorilla/websocket/blob/v1.5.0/conn.go#L37
+	// But a size of zero also has the effect of causing reuse of the HTTP
+	// server's buffers. So we test 4096 separately from 0.
+	// https://github.com/gorilla/websocket/blob/v1.5.0/server.go#L32
+	for _, bufSize := range []int{0, 128, 1024, 2048, 4096, 8192} {
+		upgrader := websocket.Upgrader{
+			CheckOrigin:     func(*http.Request) bool { return true },
+			ReadBufferSize:  bufSize,
+			WriteBufferSize: bufSize,
+		}
+		b.Run(fmt.Sprintf("%d", bufSize), func(b *testing.B) {
+			// Start up a web server to receive the request.
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer ln.Close()
+			wsCh := make(chan *websocket.Conn)
+			errCh := make(chan error)
+			server := http.Server{
+				Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					ws, err := upgrader.Upgrade(rw, req, nil)
+					if err != nil {
+						errCh <- err
+						return
+					}
+					wsCh <- ws
+				}),
+			}
+			defer server.Close()
+			go func() {
+				err := server.Serve(ln)
+				if err != nil && err != http.ErrServerClosed {
+					errCh <- err
+				}
+			}()
+
+			// Make a request to the web server.
+			dialer := &websocket.Dialer{
+				ReadBufferSize:  bufSize,
+				WriteBufferSize: bufSize,
+			}
+			urlStr := (&url.URL{Scheme: "ws", Host: ln.Addr().String()}).String()
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ws, _, err := dialer.Dial(urlStr, nil)
+				if err != nil {
+					b.Fatal(err)
+				}
+				ws.Close()
+
+				select {
+				case <-wsCh:
+				case err := <-errCh:
+					b.Fatal(err)
+				}
+			}
+			b.StopTimer()
+		})
+	}
+}
+
 // Benchmark read/write in the client←server and server←client directions, with
 // messages of different sizes. Run with -benchmem to see memory allocations.
 func BenchmarkReadWrite(b *testing.B) {
