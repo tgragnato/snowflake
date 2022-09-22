@@ -138,7 +138,7 @@ func WriteData(w io.Writer, data []byte) (int, error) {
 	return total, err
 }
 
-var paddingBuffer = make([]byte, 1024)
+var paddingBuffer [1024]byte
 
 // WritePadding encodes padding chunks, whose total size (including their own
 // length prefixes) is n. Returns the total number of bytes written to w, which
