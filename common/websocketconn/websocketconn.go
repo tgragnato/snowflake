@@ -42,6 +42,7 @@ func (conn *Conn) SetDeadline(t time.Time) error {
 }
 
 func readLoop(w io.Writer, ws *websocket.Conn) error {
+	var buf [2048]byte
 	for {
 		messageType, r, err := ws.NextReader()
 		if err != nil {
@@ -50,7 +51,6 @@ func readLoop(w io.Writer, ws *websocket.Conn) error {
 		if messageType != websocket.BinaryMessage && messageType != websocket.TextMessage {
 			continue
 		}
-		var buf [2048]byte
 		_, err = io.CopyBuffer(w, r, buf[:])
 		if err != nil {
 			return err
@@ -59,8 +59,8 @@ func readLoop(w io.Writer, ws *websocket.Conn) error {
 }
 
 func writeLoop(ws *websocket.Conn, r io.Reader) error {
+	var buf [2048]byte
 	for {
-		var buf [2048]byte
 		n, err := r.Read(buf[:])
 		if err != nil {
 			return err
