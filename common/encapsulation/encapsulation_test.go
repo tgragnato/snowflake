@@ -328,3 +328,23 @@ func TestMaxDataForSize(t *testing.T) {
 		}
 	}
 }
+
+// Benchmark the ReadData function when reading from a stream of data packets of
+// different sizes.
+func BenchmarkReadData(b *testing.B) {
+	pr, pw := io.Pipe()
+	go func() {
+		for {
+			for length := 0; length < 128; length++ {
+				WriteData(pw, paddingBuffer[:length])
+			}
+		}
+	}()
+
+	for i := 0; i < b.N; i++ {
+		_, err := ReadData(pr)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
