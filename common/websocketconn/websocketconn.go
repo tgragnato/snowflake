@@ -64,16 +64,7 @@ func writeLoop(ws *websocket.Conn, r io.Reader) error {
 		if err != nil {
 			return err
 		}
-		data := buf[:n]
-		w, err := ws.NextWriter(websocket.BinaryMessage)
-		if err != nil {
-			return err
-		}
-		n, err = w.Write(data)
-		if err != nil {
-			return err
-		}
-		err = w.Close()
+		err = ws.WriteMessage(websocket.BinaryMessage, buf[:n])
 		if err != nil {
 			return err
 		}
@@ -100,10 +91,10 @@ func New(ws *websocket.Conn) *Conn {
 	// https://godoc.org/github.com/gorilla/websocket#hdr-Concurrency
 	// "Connections support one concurrent reader and one concurrent writer.
 	// Applications are responsible for ensuring that no more than one
-	// goroutine calls the write methods (NextWriter, etc.) concurrently and
-	// that no more than one goroutine calls the read methods (NextReader,
-	// etc.) concurrently. The Close and WriteControl methods can be called
-	// concurrently with all other methods."
+	// goroutine calls the write methods (WriteMessage, etc.) concurrently
+	// and that no more than one goroutine calls the read methods
+	// (NextReader, etc.) concurrently. The Close and WriteControl methods
+	// can be called concurrently with all other methods."
 	pr1, pw1 := io.Pipe()
 	go func() {
 		pw1.CloseWithError(closeErrorToEOF(readLoop(pw1, ws)))
