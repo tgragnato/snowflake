@@ -114,6 +114,9 @@ type SnowflakeProxy struct {
 	KeepLocalAddresses bool
 	// RelayURL is the URL of the Snowflake server that all traffic will be relayed to
 	RelayURL string
+	// Ephemeral*Port limits the pool of ports that ICE UDP connections can allocate from
+	EphemeralMinPort uint16
+	EphemeralMaxPort uint16
 	// RelayDomainNamePattern is the pattern specify allowed domain name for relay
 	// If the pattern starts with ^ then an exact match is required.
 	// The rest of pattern is the suffix of domain name.
@@ -349,6 +352,10 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
+
+	if sf.EphemeralMinPort != 0 && sf.EphemeralMaxPort != 0 {
+		settingsEngine.SetEphemeralUDPPortRange(sf.EphemeralMinPort, sf.EphemeralMaxPort)
+	}
 
 	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
