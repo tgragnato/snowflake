@@ -347,6 +347,14 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 	d.sf.datachannelHandler(conn, remoteAddr, d.RelayURL)
 }
 
+func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
+	settingsEngine := webrtc.SettingEngine{}
+
+	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+
+	return webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
+}
+
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
 // Installs an OnDataChannel callback that creates a webRTCConn and passes it to
@@ -356,9 +364,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 	dataChan chan struct{},
 	handler func(conn *webRTCConn, remoteAddr net.Addr)) (*webrtc.PeerConnection, error) {
 
-	s := webrtc.SettingEngine{}
-	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
@@ -446,9 +452,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
-	s := webrtc.SettingEngine{}
-	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
