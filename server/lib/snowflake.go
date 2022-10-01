@@ -55,6 +55,11 @@ const (
 	WindowSize = 65535
 	// StreamSize controls the maximum amount of in flight data between a client and server.
 	StreamSize = 1048576 //1MB
+
+	// numKCPInstances is the number of parallel KCP state machines to run.
+	// Clients are assigned to a particular KCP instance by a hash of their
+	// ClientID.
+	numKCPInstances = 2
 )
 
 // Transport is a structure with methods that conform to the Go PT v2.1 API
@@ -76,17 +81,13 @@ func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
 		addr:   addr,
 		queue:  make(chan net.Conn, 65534),
 		closed: make(chan struct{}),
+		ln:     make([]*kcp.Listener, 0, numKCPInstances),
 	}
 
-	handler := httpHandler{
-		// pconn is shared among all connections to this server. It
-		// overlays packet-based client sessions on top of ephemeral
-		// WebSocket connections.
-		pconn: turbotunnel.NewQueuePacketConn(addr, clientMapTimeout),
-	}
+	handler := newHTTPHandler(addr, numKCPInstances)
 	server := &http.Server{
 		Addr:        addr.String(),
-		Handler:     &handler,
+		Handler:     handler,
 		ReadTimeout: requestTimeout,
 	}
 	// We need to override server.TLSConfig.GetCertificate--but first
@@ -139,25 +140,26 @@ func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
 
 	listener.server = server
 
-	// Start a KCP engine, set up to read and write its packets over the
+	// Start the KCP engines, set up to read and write its packets over the
 	// WebSocket connections that arrive at the web server.
 	// handler.ServeHTTP is responsible for encapsulation/decapsulation of
 	// packets on behalf of KCP. KCP takes those packets and turns them into
 	// sessions which appear in the acceptSessions function.
-	ln, err := kcp.ServeConn(nil, 0, 0, handler.pconn)
-	if err != nil {
-		server.Close()
-		return nil, err
-	}
-	go func() {
-		defer ln.Close()
-		err := listener.acceptSessions(ln)
+	for i, pconn := range handler.pconns {
+		ln, err := kcp.ServeConn(nil, 0, 0, pconn)
 		if err != nil {
-			log.Printf("acceptSessions: %v", err)
+			server.Close()
+			return nil, err
 		}
-	}()
-
-	listener.ln = ln
+		go func() {
+			defer ln.Close()
+			err := listener.acceptSessions(ln)
+			if err != nil {
+				log.Printf("acceptSessions %d: %v", i, err)
+			}
+		}()
+		listener.ln = append(listener.ln, ln)
+	}
 
 	return listener, nil
 
@@ -167,7 +169,7 @@ type SnowflakeListener struct {
 	addr      net.Addr
 	queue     chan net.Conn
 	server    *http.Server
-	ln        *kcp.Listener
+	ln        []*kcp.Listener
 	closed    chan struct{}
 	closeOnce sync.Once
 }
@@ -196,7 +198,9 @@ func (l *SnowflakeListener) Close() error {
 	l.closeOnce.Do(func() {
 		close(l.closed)
 		l.server.Close()
-		l.ln.Close()
+		for _, ln := range l.ln {
+			ln.Close()
+		}
 	})
 	return nil
 }

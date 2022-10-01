@@ -3,6 +3,10 @@ package snowflake_server
 import (
 	"bufio"
 	"bytes"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -49,9 +53,45 @@ var upgrader = websocket.Upgrader{
 var clientIDAddrMap = newClientIDMap(clientIDAddrMapCapacity)
 
 type httpHandler struct {
-	// pconn is the adapter layer between stream-oriented WebSocket
-	// connections and the packet-oriented KCP layer.
-	pconn *turbotunnel.QueuePacketConn
+	// pconns is the adapter layer between stream-oriented WebSocket
+	// connections and the packet-oriented KCP layer. There are multiple of
+	// these, corresponding to the multiple kcp.ServeConn in
+	// Transport.Listen. Clients are assigned to a particular instance by a
+	// hash of ClientID, indexed by a hash of the ClientID, in order to
+	// distribute KCP processing load across CPU cores.
+	pconns []*turbotunnel.QueuePacketConn
+
+	// clientIDLookupKey is a secret key used to tweak the hash-based
+	// assignement of ClientID to pconn, in order to avoid manipulation of
+	// hash assignments.
+	clientIDLookupKey []byte
+}
+
+// newHTTPHandler creates a new http.Handler that exchanges encapsulated packets
+// over incoming WebSocket connections.
+func newHTTPHandler(localAddr net.Addr, numInstances int) *httpHandler {
+	pconns := make([]*turbotunnel.QueuePacketConn, 0, numInstances)
+	for i := 0; i < numInstances; i++ {
+		pconns = append(pconns, turbotunnel.NewQueuePacketConn(localAddr, clientMapTimeout))
+	}
+
+	clientIDLookupKey := make([]byte, 16)
+	_, err := rand.Read(clientIDLookupKey)
+	if err != nil {
+		panic(err)
+	}
+
+	return &httpHandler{
+		pconns:            pconns,
+		clientIDLookupKey: clientIDLookupKey,
+	}
+}
+
+// lookupPacketConn returns the element of pconns that corresponds to client ID,
+// according to the hash-based mapping.
+func (handler *httpHandler) lookupPacketConn(clientID turbotunnel.ClientID) *turbotunnel.QueuePacketConn {
+	s := hmac.New(sha256.New, handler.clientIDLookupKey).Sum(clientID[:])
+	return handler.pconns[binary.LittleEndian.Uint64(s)%uint64(len(handler.pconns))]
 }
 
 func (handler *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +122,7 @@ func (handler *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case bytes.Equal(token[:], turbotunnel.Token[:]):
-		err = turbotunnelMode(conn, addr, handler.pconn)
+		err = handler.turbotunnelMode(conn, addr)
 	default:
 		// We didn't find a matching token, which means that we are
 		// dealing with a client that doesn't know about such things.
@@ -100,7 +140,7 @@ func (handler *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // turbotunnelMode handles clients that sent turbotunnel.Token at the start of
 // their stream. These clients expect to send and receive encapsulated packets,
 // with a long-lived session identified by ClientID.
-func turbotunnelMode(conn net.Conn, addr net.Addr, pconn *turbotunnel.QueuePacketConn) error {
+func (handler *httpHandler) turbotunnelMode(conn net.Conn, addr net.Addr) error {
 	// Read the ClientID prefix. Every packet encapsulated in this WebSocket
 	// connection pertains to the same ClientID.
 	var clientID turbotunnel.ClientID
@@ -119,6 +159,8 @@ func turbotunnelMode(conn net.Conn, addr net.Addr, pconn *turbotunnel.QueuePacke
 	// time the session is established, is the IP address that should be
 	// credited for the entire KCP session.
 	clientIDAddrMap.Set(clientID, addr)
+
+	pconn := handler.lookupPacketConn(clientID)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
