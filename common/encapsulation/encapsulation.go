@@ -6,23 +6,29 @@
 // represents data or padding (1=data, 0=padding). Another bit ("c" for
 // "continuation") is the indicates whether there are more bytes in the length
 // prefix. The remaining 6 bits ("x") encode part of the length value.
-// 	dcxxxxxx
+//
+//	dcxxxxxx
+//
 // If the continuation bit is set, then the next byte is also part of the length
 // prefix. It lacks the "d" bit, has its own "c" bit, and 7 value-carrying bits
 // ("y").
-// 	cyyyyyyy
+//
+//	cyyyyyyy
+//
 // The length is decoded by concatenating value-carrying bits, from left to
 // right, of all value-carrying bits, up to and including the first byte whose
 // "c" bit is 0. Although in principle this encoding would allow for length
 // prefixes of any size, length prefixes are arbitrarily limited to 3 bytes and
 // any attempt to read or write a longer one is an error. These are therefore
 // the only valid formats:
-// 	00xxxxxx			xxxxxx₂ bytes of padding
-// 	10xxxxxx			xxxxxx₂ bytes of data
-// 	01xxxxxx 0yyyyyyy		xxxxxxyyyyyyy₂ bytes of padding
-// 	11xxxxxx 0yyyyyyy		xxxxxxyyyyyyy₂ bytes of data
-// 	01xxxxxx 1yyyyyyy 0zzzzzzz	xxxxxxyyyyyyyzzzzzzz₂ bytes of padding
-// 	11xxxxxx 1yyyyyyy 0zzzzzzz	xxxxxxyyyyyyyzzzzzzz₂ bytes of data
+//
+//	00xxxxxx			xxxxxx₂ bytes of padding
+//	10xxxxxx			xxxxxx₂ bytes of data
+//	01xxxxxx 0yyyyyyy		xxxxxxyyyyyyy₂ bytes of padding
+//	11xxxxxx 0yyyyyyy		xxxxxxyyyyyyy₂ bytes of data
+//	01xxxxxx 1yyyyyyy 0zzzzzzz	xxxxxxyyyyyyyzzzzzzz₂ bytes of padding
+//	11xxxxxx 1yyyyyyy 0zzzzzzz	xxxxxxyyyyyyyzzzzzzz₂ bytes of data
+//
 // The maximum encodable length is 11111111111111111111₂ = 0xfffff = 1048575.
 // There is no requirement to use a length prefix of minimum size; i.e. 00000100
 // and 01000000 00000100 are both valid encodings of the value 4.

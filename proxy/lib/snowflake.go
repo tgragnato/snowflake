@@ -70,8 +70,8 @@ const (
 	NATUnrestricted = "unrestricted"
 )
 
-//amount of time after sending an SDP answer before the proxy assumes the
-//client is not going to connect
+// amount of time after sending an SDP answer before the proxy assumes the
+// client is not going to connect
 const dataChannelTimeout = 20 * time.Second
 
 const readLimit = 100000 //Maximum number of bytes to be read from an HTTP request

@@ -2,7 +2,7 @@
 Package amp provides functions for working with the AMP (Accelerated Mobile
 Pages) subset of HTML, and conveying binary data through an AMP cache.
 
-AMP cache
+# AMP cache
 
 The CacheURL function takes a plain URL and converts it to be accessed through a
 given AMP cache.
@@ -11,7 +11,9 @@ The EncodePath and DecodePath functions provide a way to encode data into the
 suffix of a URL path. AMP caches do not support HTTP POST, but encoding data
 into a URL path with GET is an alternative means of sending data to the server.
 The format of an encoded path is:
+
 	0<0 or more bytes, including slash>/<base64 of data>
+
 That is:
 * "0", a format version number, which controls the interpretation of the rest of
 the path. Only the first byte matters as a version indicator (not the whole
@@ -25,12 +27,13 @@ include slash).
 For example, an encoding of the string "This is path-encoded data." is the
 following. The "lgWHcwhXFjUm" following the format version number is random
 padding that will be ignored on decoding.
+
 	0lgWHcwhXFjUm/VGhpcyBpcyBwYXRoLWVuY29kZWQgZGF0YS4
 
 It is the caller's responsibility to add or remove any directory path prefix
 before calling EncodePath or DecodePath.
 
-AMP armor
+# AMP armor
 
 AMP armor is a data encoding scheme that that satisfies the requirements of the
 AMP (Accelerated Mobile Pages) subset of HTML, and survives modification by an
@@ -63,7 +66,7 @@ limit the amount of text a decoder may have to buffer while parsing the HTML.
 Each pre element may contain at most 64 KB of text. pre elements may not be
 nested.
 
-Example
+# Example
 
 The following is the result of encoding the string
 "This was encoded with AMP armor.":
