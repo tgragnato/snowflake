@@ -1,14 +1,18 @@
 package main
 
 import (
+	"errors"
 	"flag"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
 	sf "git.torproject.org/pluggable-transports/snowflake.git/v2/proxy/lib"
 )
@@ -28,6 +32,27 @@ func main() {
 	SummaryInterval := flag.Duration("summary-interval", time.Hour,
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
+	var ephemeralPortsRange []uint16 = []uint16{0, 0}
+	flag.Func("ephemeral-ports-range", "ICE UDP ephemeral ports range (format: \"[min]:[max]\")", func(s string) error {
+		ephemeralPortsRangeParts := strings.Split(s, ":")
+		if len(ephemeralPortsRangeParts) == 2 {
+			ephemeralMinPort, err := strconv.ParseUint(ephemeralPortsRangeParts[0], 10, 16)
+			if err != nil {
+				return err
+			}
+
+			ephemeralMaxPort, err := strconv.ParseUint(ephemeralPortsRangeParts[1], 10, 16)
+			if err != nil {
+				return err
+			}
+
+			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
+
+			return nil
+		}
+
+		return errors.New(fmt.Sprintf("Bad range port format: %v", s))
+	})
 
 	flag.Parse()
 
@@ -39,6 +64,8 @@ func main() {
 		BrokerURL:          *rawBrokerURL,
 		KeepLocalAddresses: *keepLocalAddresses,
 		RelayURL:           *relayURL,
+		EphemeralMinPort:   ephemeralPortsRange[0],
+		EphemeralMaxPort:   ephemeralPortsRange[1],
 
 		NATTypeMeasurementInterval: *NATTypeMeasurementInterval,
 		EventDispatcher:            eventLogger,
