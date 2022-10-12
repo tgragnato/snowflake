@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,31 +31,32 @@ func main() {
 	SummaryInterval := flag.Duration("summary-interval", time.Hour,
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
+	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "ICE UDP ephemeral ports range (format:\"[min]:[max]\")", "")
+
 	var ephemeralPortsRange []uint16 = []uint16{0, 0}
-	flag.Func("ephemeral-ports-range", "ICE UDP ephemeral ports range (format: \"[min]:[max]\")", func(s string) error {
-		ephemeralPortsRangeParts := strings.Split(s, ":")
-		if len(ephemeralPortsRangeParts) == 2 {
-			ephemeralMinPort, err := strconv.ParseUint(ephemeralPortsRangeParts[0], 10, 16)
-			if err != nil {
-				return err
-			}
-
-			ephemeralMaxPort, err := strconv.ParseUint(ephemeralPortsRangeParts[1], 10, 16)
-			if err != nil {
-				return err
-			}
-
-			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
-
-			return nil
-		}
-
-		return errors.New(fmt.Sprintf("Bad range port format: %v", s))
-	})
 
 	flag.Parse()
 
 	eventLogger := event.NewSnowflakeEventDispatcher()
+
+	if *ephemeralPortsRangeFlag != "" {
+		ephemeralPortsRangeParts := strings.Split(*ephemeralPortsRangeFlag, ":")
+		if len(ephemeralPortsRangeParts) == 2 {
+			ephemeralMinPort, err := strconv.ParseUint(ephemeralPortsRangeParts[0], 10, 16)
+			if err != nil {
+				fmt.Printf("Error parsing range port: %v", err)
+			}
+
+			ephemeralMaxPort, err := strconv.ParseUint(ephemeralPortsRangeParts[1], 10, 16)
+			if err != nil {
+				fmt.Printf("Error parsing range port: %v", err)
+			}
+
+			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
+		}
+
+		fmt.Printf("Bad range port format: %v", ephemeralPortsRangeFlag)
+	}
 
 	proxy := sf.SnowflakeProxy{
 		Capacity:           uint(*capacity),
