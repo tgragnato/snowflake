@@ -1,10 +1,10 @@
 module git.torproject.org/pluggable-transports/snowflake.git/v2
 
-go 1.13
+go 1.15
 
 require (
 	git.torproject.org/pluggable-transports/goptlib.git v1.1.0
-	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004 // indirect
+	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/gorilla/websocket v1.4.1
 	github.com/pion/ice/v2 v2.2.6
 	github.com/pion/sdp/v3 v3.0.5
