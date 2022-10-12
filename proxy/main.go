@@ -44,12 +44,12 @@ func main() {
 		if len(ephemeralPortsRangeParts) == 2 {
 			ephemeralMinPort, err := strconv.ParseUint(ephemeralPortsRangeParts[0], 10, 16)
 			if err != nil {
-				fmt.Printf("Error parsing range port: %v", err)
+				log.Fatal(err)
 			}
 
 			ephemeralMaxPort, err := strconv.ParseUint(ephemeralPortsRangeParts[1], 10, 16)
 			if err != nil {
-				fmt.Printf("Error parsing range port: %v", err)
+				log.Fatal(err)
 			}
 
 			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
