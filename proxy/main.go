@@ -54,6 +54,9 @@ func main() {
 			if ephemeralMinPort == 0 || ephemeralMaxPort == 0 {
 				log.Fatal("Ephemeral port cannot be zero")
 			}
+			if ephemeralMinPort > ephemeralMaxPort {
+				log.Fatal("Invalid port range: min > max")
+			}
 
 			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
 		} else {
