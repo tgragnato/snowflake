@@ -11,7 +11,7 @@ Changes in version v2.2.0 - 2022-05-25
 - Add connection failure events for proxy timeouts
 - Issue 40103: Fix proxy logging verb tense
 - Fix up and downstream metrics output for proxy
-- Issue 40095: uTLS for broker negotiation
+- Issue 40054: uTLS for broker negotiation
 - Forward bridge fingerprint from client to broker (WIP, Issue 28651)
 - Issue 40104: Make it easier to configure proxy type
 - Remove version from ClientPollRequest
