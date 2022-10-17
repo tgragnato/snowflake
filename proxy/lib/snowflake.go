@@ -354,7 +354,10 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
 
 	if sf.EphemeralMinPort != 0 && sf.EphemeralMaxPort != 0 {
-		settingsEngine.SetEphemeralUDPPortRange(sf.EphemeralMinPort, sf.EphemeralMaxPort)
+		err := settingsEngine.SetEphemeralUDPPortRange(sf.EphemeralMinPort, sf.EphemeralMaxPort)
+		if err != nil {
+			log.Fatal("Invalid port range: min > max")
+		}
 	}
 
 	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -31,7 +30,7 @@ func main() {
 	SummaryInterval := flag.Duration("summary-interval", time.Hour,
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
-	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "ICE UDP ephemeral ports range (format:\"[min]:[max]\")", "")
+	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "ICE UDP ephemeral ports range (format:\"<min>:<max>\")")
 
 	var ephemeralPortsRange []uint16 = []uint16{0, 0}
 
@@ -52,10 +51,17 @@ func main() {
 				log.Fatal(err)
 			}
 
-			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
-		}
+			if ephemeralMinPort == 0 || ephemeralMaxPort == 0 {
+				log.Fatal("Ephemeral port cannot be zero")
+			}
+			if ephemeralMinPort > ephemeralMaxPort {
+				log.Fatal("Invalid port range: min > max")
+			}
 
-		fmt.Printf("Bad range port format: %v", ephemeralPortsRangeFlag)
+			ephemeralPortsRange = []uint16{uint16(ephemeralMinPort), uint16(ephemeralMaxPort)}
+		} else {
+			log.Fatalf("Bad range port format: %v", *ephemeralPortsRangeFlag)
+		}
 	}
 
 	proxy := sf.SnowflakeProxy{
