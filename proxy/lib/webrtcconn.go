@@ -32,12 +32,32 @@ type webRTCConn struct {
 
 	bytesLogger bytesLogger
 	eventLogger event.SnowflakeEventReceiver
+
+	inactivityTimeout time.Duration
+	activity          chan struct{}
 }
 
-func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) (*webRTCConn) {
+func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) *webRTCConn {
 	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: eventLogger}
 	conn.bytesLogger = newBytesSyncLogger()
+	conn.activity = make(chan struct{}, 100)
+	conn.inactivityTimeout = 30 * time.Second
+	go conn.timeoutLoop()
 	return conn
+}
+
+func (c *webRTCConn) timeoutLoop() {
+	for {
+		select {
+		case <-time.After(c.inactivityTimeout):
+			c.Close()
+			log.Println("Closed connection due to inactivity")
+			return
+		case <-c.activity:
+			continue
+		}
+	}
+
 }
 
 func (c *webRTCConn) Read(b []byte) (int, error) {
@@ -46,6 +66,7 @@ func (c *webRTCConn) Read(b []byte) (int, error) {
 
 func (c *webRTCConn) Write(b []byte) (int, error) {
 	c.bytesLogger.AddInbound(int64(len(b)))
+	c.activity <- struct{}{}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.dc != nil {
