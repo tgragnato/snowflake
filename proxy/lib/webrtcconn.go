@@ -34,6 +34,12 @@ type webRTCConn struct {
 	eventLogger event.SnowflakeEventReceiver
 }
 
+func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) (*webRTCConn) {
+	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: eventLogger}
+	conn.bytesLogger = newBytesSyncLogger()
+	return conn
+}
+
 func (c *webRTCConn) Read(b []byte) (int, error) {
 	return c.pr.Read(b)
 }
