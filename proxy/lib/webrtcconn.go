@@ -35,12 +35,14 @@ type webRTCConn struct {
 
 	inactivityTimeout time.Duration
 	activity          chan struct{}
+	closed            chan struct{}
 }
 
 func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) *webRTCConn {
 	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: eventLogger}
 	conn.bytesLogger = newBytesSyncLogger()
 	conn.activity = make(chan struct{}, 100)
+	conn.closed = make(chan struct{})
 	conn.inactivityTimeout = 30 * time.Second
 	go conn.timeoutLoop()
 	return conn
@@ -55,9 +57,10 @@ func (c *webRTCConn) timeoutLoop() {
 			return
 		case <-c.activity:
 			continue
+		case <-c.closed:
+			return
 		}
 	}
-
 }
 
 func (c *webRTCConn) Read(b []byte) (int, error) {
@@ -77,6 +80,7 @@ func (c *webRTCConn) Write(b []byte) (int, error) {
 
 func (c *webRTCConn) Close() (err error) {
 	c.once.Do(func() {
+		close(c.closed)
 		err = c.pc.Close()
 	})
 	return
