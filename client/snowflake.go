@@ -4,7 +4,6 @@ package main
 import (
 	"flag"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -171,7 +170,7 @@ func main() {
 	// buffer is full.
 	// https://bugs.torproject.org/26360
 	// https://bugs.torproject.org/25600#comment:14
-	var logOutput = ioutil.Discard
+	var logOutput = io.Discard
 	if *logFilename != "" {
 		if *logToStateDir || *oldLogToStateDir {
 			stateDir, err := pt.MakeStateDir()
@@ -244,8 +243,8 @@ func main() {
 		// This environment variable means we should treat EOF on stdin
 		// just like SIGTERM: https://bugs.torproject.org/15435.
 		go func() {
-			if _, err := io.Copy(ioutil.Discard, os.Stdin); err != nil {
-				log.Printf("calling io.Copy(ioutil.Discard, os.Stdin) returned error: %v", err)
+			if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
+				log.Printf("calling io.Copy(io.Discard, os.Stdin) returned error: %v", err)
 			}
 			log.Printf("synthesizing SIGTERM because of stdin close")
 			sigChan <- syscall.SIGTERM

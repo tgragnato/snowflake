@@ -43,7 +43,6 @@ package encapsulation
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 )
 
 // ErrTooLong is the error returned when an encoded length prefix is longer than
@@ -93,7 +92,7 @@ func ReadData(r io.Reader) ([]byte, error) {
 			}
 			return p, err
 		} else {
-			_, err := io.CopyN(ioutil.Discard, r, int64(n))
+			_, err := io.CopyN(io.Discard, r, int64(n))
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}

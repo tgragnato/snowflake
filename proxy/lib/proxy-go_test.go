@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -25,7 +24,7 @@ type MockTransport struct {
 
 // Just returns a response with fake SDP answer.
 func (m *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	s := ioutil.NopCloser(bytes.NewReader(m.body))
+	s := io.NopCloser(bytes.NewReader(m.body))
 	r := &http.Response{
 		StatusCode: m.statusOverride,
 		Body:       s,

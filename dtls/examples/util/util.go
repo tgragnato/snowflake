@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -67,7 +66,7 @@ func LoadKeyAndCertificate(keyPath string, certificatePath string) (tls.Certific
 
 // LoadCertificate Load/read certificate(s) from file
 func LoadCertificate(path string) (*tls.Certificate, error) {
-	rawData, err := ioutil.ReadFile(filepath.Clean(path))
+	rawData, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}

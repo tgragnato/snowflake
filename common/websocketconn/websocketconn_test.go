@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -87,7 +86,7 @@ func TestWrite(t *testing.T) {
 		// goroutine, reading from the Conn s and writing to the dataCh
 		// and errCh channels, whose ultimate effect in the select loop
 		// below is like
-		//   data, err := ioutil.ReadAll(s)
+		//   data, err := io.ReadAll(s)
 		dataCh := make(chan []byte)
 		errCh := make(chan error)
 		go func() {
@@ -162,7 +161,7 @@ func TestConcurrentRead(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		go func() {
 			defer wg.Done()
-			_, err := io.Copy(ioutil.Discard, s)
+			_, err := io.Copy(io.Discard, s)
 			if err != nil {
 				errCh <- err
 			}
@@ -224,7 +223,7 @@ func TestConcurrentWrite(t *testing.T) {
 	}()
 
 	// Read from the other end.
-	_, err = io.Copy(ioutil.Discard, c)
+	_, err = io.Copy(io.Discard, c)
 	c.Close()
 	if err != nil {
 		t.Fatalf("Read: %v", err)

@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -85,7 +84,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
 	if !*verboseLogging {
-		logOutput = ioutil.Discard
+		logOutput = io.Discard
 	}
 
 	if *logFilename != "" {

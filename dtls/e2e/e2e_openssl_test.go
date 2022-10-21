@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -184,11 +183,11 @@ func ciphersOpenSSL(cfg *dtls.Config) string {
 }
 
 func writeTempPEM(cfg *dtls.Config) (string, string, error) {
-	certOut, err := ioutil.TempFile("", "cert.pem")
+	certOut, err := io.TempFile("", "cert.pem")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
-	keyOut, err := ioutil.TempFile("", "key.pem")
+	keyOut, err := io.TempFile("", "key.pem")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary file: %w", err)
 	}

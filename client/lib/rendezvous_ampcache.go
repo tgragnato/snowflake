@@ -3,7 +3,6 @@ package snowflake_client
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -111,7 +110,7 @@ func (r *ampCacheRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	encPollResp, err := ioutil.ReadAll(dec)
+	encPollResp, err := io.ReadAll(dec)
 	if err != nil {
 		return nil, err
 	}
