@@ -32,7 +32,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -120,6 +119,9 @@ type SnowflakeProxy struct {
 	KeepLocalAddresses bool
 	// RelayURL is the URL of the Snowflake server that all traffic will be relayed to
 	RelayURL string
+	// Ephemeral*Port limits the pool of ports that ICE UDP connections can allocate from
+	EphemeralMinPort uint16
+	EphemeralMaxPort uint16
 	// RelayDomainNamePattern is the pattern specify allowed domain name for relay
 	// If the pattern starts with ^ then an exact match is required.
 	// The rest of pattern is the suffix of domain name.
@@ -152,7 +154,7 @@ func genSessionID() string {
 }
 
 func limitedRead(r io.Reader, limit int64) ([]byte, error) {
-	p, err := ioutil.ReadAll(&io.LimitedReader{R: r, N: limit + 1})
+	p, err := io.ReadAll(&io.LimitedReader{R: r, N: limit + 1})
 	if err != nil {
 		return p, err
 	} else if int64(len(p)) == limit+1 {
@@ -177,7 +179,8 @@ func newSignalingServer(rawURL string, keepLocalAddresses bool) (*SignalingServe
 		return nil, fmt.Errorf("invalid broker url: %s", err)
 	}
 
-	s.transport = customtransport
+	s.transport = http.DefaultTransport.(*http.Transport)
+	s.transport.(*http.Transport).ResponseHeaderTimeout = 30 * time.Second
 
 	return s, nil
 }
@@ -352,6 +355,21 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 	d.sf.datachannelHandler(conn, remoteAddr, d.RelayURL)
 }
 
+func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
+	settingsEngine := webrtc.SettingEngine{}
+
+	if sf.EphemeralMinPort != 0 && sf.EphemeralMaxPort != 0 {
+		err := settingsEngine.SetEphemeralUDPPortRange(sf.EphemeralMinPort, sf.EphemeralMaxPort)
+		if err != nil {
+			log.Fatal("Invalid port range: min > max")
+		}
+	}
+
+	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+
+	return webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
+}
+
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
 // Installs an OnDataChannel callback that creates a webRTCConn and passes it to
@@ -361,9 +379,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 	dataChan chan struct{},
 	handler func(conn *webRTCConn, remoteAddr net.Addr)) (*webrtc.PeerConnection, error) {
 
-	s := webrtc.SettingEngine{}
-	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
@@ -451,9 +467,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
-	s := webrtc.SettingEngine{}
-	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
