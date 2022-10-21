@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-//Check to make sure that addresses split across calls to write are still scrubbed
+// Check to make sure that addresses split across calls to write are still scrubbed
 func TestLogScrubberSplit(t *testing.T) {
 	input := []byte("test\nhttp2: panic serving [2620:101:f000:780:9097:75b1:519f:dbb8]:58344: interface conversion: *http2.responseWriter is not http.Hijacker: missing method Hijack\n")
 
@@ -49,7 +49,7 @@ func TestLogScrubberSplit(t *testing.T) {
 
 }
 
-//Test the log scrubber on known problematic log messages
+// Test the log scrubber on known problematic log messages
 func TestLogScrubberMessages(t *testing.T) {
 	for _, test := range []struct {
 		input, expected string

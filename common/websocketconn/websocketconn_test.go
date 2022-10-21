@@ -146,7 +146,8 @@ func TestWrite(t *testing.T) {
 
 // Test that multiple goroutines may call Read on a Conn simultaneously. Run
 // this with
-//   go test -race
+//
+//	go test -race
 func TestConcurrentRead(t *testing.T) {
 	s, c, err := connPair()
 	if err != nil {
@@ -189,7 +190,8 @@ func TestConcurrentRead(t *testing.T) {
 
 // Test that multiple goroutines may call Write on a Conn simultaneously. Run
 // this with
-//   go test -race
+//
+//	go test -race
 func TestConcurrentWrite(t *testing.T) {
 	s, c, err := connPair()
 	if err != nil {

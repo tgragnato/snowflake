@@ -22,7 +22,6 @@ The Dial function connects to a Snowflake server:
 		// handle error
 	}
 	defer conn.Close()
-
 */
 package snowflake_client
 

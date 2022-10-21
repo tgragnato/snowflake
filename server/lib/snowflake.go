@@ -17,7 +17,6 @@ Transport as follows:
 
 	transport := snowflake_server.NewSnowflakeServer(certManager.GetCertificate)
 
-
 The Listen function starts a new listener, and Accept will return incoming Snowflake connections:
 
 	ln, err := transport.Listen(addr)
@@ -31,8 +30,6 @@ The Listen function starts a new listener, and Accept will return incoming Snowf
 		}
 		// handle conn
 	}
-
-
 */
 package snowflake_server
 

@@ -42,7 +42,7 @@ additional HTTP listener on port 80 to work with ACME.
 	flag.PrintDefaults()
 }
 
-//proxy copies data bidirectionally from one connection to another.
+// proxy copies data bidirectionally from one connection to another.
 func proxy(local *net.TCPConn, conn net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -67,7 +67,7 @@ func proxy(local *net.TCPConn, conn net.Conn) {
 	wg.Wait()
 }
 
-//handleConn bidirectionally connects a client snowflake connection with an ORPort.
+// handleConn bidirectionally connects a client snowflake connection with an ORPort.
 func handleConn(conn net.Conn) error {
 	addr := conn.RemoteAddr().String()
 	statsChannel <- addr != ""
@@ -80,7 +80,7 @@ func handleConn(conn net.Conn) error {
 	return nil
 }
 
-//acceptLoop accepts incoming client snowflake connection and passes them to a handler function.
+// acceptLoop accepts incoming client snowflake connection and passes them to a handler function.
 func acceptLoop(ln net.Listener) {
 	for {
 		conn, err := ln.Accept()
