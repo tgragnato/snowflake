@@ -179,8 +179,7 @@ func newSignalingServer(rawURL string, keepLocalAddresses bool) (*SignalingServe
 		return nil, fmt.Errorf("invalid broker url: %s", err)
 	}
 
-	s.transport = http.DefaultTransport.(*http.Transport)
-	s.transport.(*http.Transport).ResponseHeaderTimeout = 30 * time.Second
+	s.transport = customtransport
 
 	return s, nil
 }
