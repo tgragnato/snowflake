@@ -338,7 +338,7 @@ func TestBrokerInteractions(t *testing.T) {
 		var err error
 		broker, err = newSignalingServer("localhost", false)
 		So(err, ShouldEqual, nil)
-		tokens = newTokens(0)
+		tokens = newTokens()
 
 		//Mock peerConnection
 		config = webrtc.Configuration{

@@ -15,7 +15,6 @@ import (
 )
 
 func main() {
-	capacity := flag.Uint("capacity", 0, "maximum concurrent clients")
 	stunURL := flag.String("stun", sf.DefaultSTUNURL, "STUN URL")
 	logFilename := flag.String("log", "", "log filename")
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "broker URL")
@@ -64,7 +63,6 @@ func main() {
 	}
 
 	proxy := sf.SnowflakeProxy{
-		Capacity:           uint(*capacity),
 		STUNURL:            *stunURL,
 		BrokerURL:          *rawBrokerURL,
 		KeepLocalAddresses: *keepLocalAddresses,

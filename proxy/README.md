@@ -31,8 +31,6 @@ The Snowflake proxy can be run with the following options:
 Usage of ./proxy:
   -broker string
         broker URL (default "https://snowflake-broker.torproject.net/")
-  -capacity uint
-        maximum concurrent clients
   -keep-local-addresses
         keep local LAN address ICE candidates
   -log string

@@ -69,7 +69,6 @@ const (
 
 var (
 	broker               *SignalingServer
-	relayURL             string
 	currentNATType       = NATUnknown
 	currentNATTypeAccess = &sync.RWMutex{}
 	tokens               *tokens_t
@@ -108,9 +107,6 @@ func getCurrentNATType() string {
 // SnowflakeProxy is used to configure an embedded
 // Snowflake in another Go application.
 type SnowflakeProxy struct {
-	// Capacity is the maximum number of clients a Snowflake will serve.
-	// Proxies with a capacity of 0 will accept an unlimited number of clients.
-	Capacity uint
 	// STUNURL is the URL of the STUN server the proxy will use
 	STUNURL string
 	// BrokerURL is the URL of the Snowflake broker
@@ -312,8 +308,11 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 // otherwise occurs inside of conn.pc.RemoteDescription() (called by
 // RemoteAddr). https://bugs.torproject.org/18628#comment:8
 func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr, relayURL string) {
+	go tokens.get()
 	defer conn.Close()
-	defer tokens.ret()
+	defer func() {
+		go tokens.ret()
+	}()
 
 	if relayURL == "" {
 		relayURL = sf.RelayURL
@@ -518,19 +517,16 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern, sf.shutdown)
 	if offer == nil {
 		log.Printf("bad offer from broker")
-		tokens.ret()
 		return
 	}
 	matcher := namematcher.NewNameMatcher(sf.RelayDomainNamePattern)
 	parsedRelayURL, err := url.Parse(relayURL)
 	if err != nil {
 		log.Printf("bad offer from broker: bad Relay URL %v", err.Error())
-		tokens.ret()
 		return
 	}
 	if relayURL != "" && (!matcher.IsMember(parsedRelayURL.Hostname()) || (!sf.AllowNonTLSRelay && parsedRelayURL.Scheme != "wss")) {
 		log.Printf("bad offer from broker: rejected Relay URL")
-		tokens.ret()
 		return
 	}
 	dataChan := make(chan struct{})
@@ -538,7 +534,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	pc, err := sf.makePeerConnectionFromOffer(offer, config, dataChan, dataChannelAdaptor.datachannelHandler)
 	if err != nil {
 		log.Printf("error making WebRTC connection: %s", err)
-		tokens.ret()
 		return
 	}
 	err = broker.sendAnswer(sid, pc)
@@ -547,7 +542,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 		if inerr := pc.Close(); inerr != nil {
 			log.Printf("error calling pc.Close: %v", inerr)
 		}
-		tokens.ret()
 		return
 	}
 	// Set a timeout on peerconnection. If the connection state has not
@@ -561,7 +555,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 		if err := pc.Close(); err != nil {
 			log.Printf("error calling pc.Close: %v", err)
 		}
-		tokens.ret()
 	}
 }
 
@@ -618,7 +611,7 @@ func (sf *SnowflakeProxy) Start() error {
 			},
 		},
 	}
-	tokens = newTokens(sf.Capacity)
+	tokens = newTokens()
 
 	// use probetest to determine NAT compatability
 	sf.checkNATType(config, sf.NATProbeURL)
@@ -648,7 +641,6 @@ func (sf *SnowflakeProxy) Start() error {
 		case <-sf.shutdown:
 			return nil
 		default:
-			tokens.get()
 			sessionID := genSessionID()
 			sf.runSession(sessionID)
 		}

@@ -35,7 +35,7 @@ DevicePolicy=closed
 User=proxy
 Group=proxy
 LimitNOFILE=32768
-ExecStart=/usr/bin/snowflake -capacity 1000 -unsafe-logging
+ExecStart=/usr/bin/snowflake -unsafe-logging
 Restart=on-failure
 
 [Install]
