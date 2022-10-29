@@ -14,7 +14,7 @@ require (
 	github.com/prometheus/client_model v0.3.0
 	github.com/refraction-networking/utls v1.1.5
 	github.com/smartystreets/goconvey v1.7.2
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.1
 	github.com/xtaci/kcp-go/v5 v5.6.1
 	github.com/xtaci/smux v1.5.16
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
@@ -30,13 +30,13 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/gopherjs/gopherjs v0.0.0-20220221023154-0b2280d3ff96 // indirect
+	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
-	github.com/klauspost/compress v1.15.11 // indirect
+	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.1.2 // indirect
 	github.com/klauspost/reedsolomon v1.11.1 // indirect
-	github.com/kr/pretty v0.3.0 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/pion/datachannel v1.5.2 // indirect
 	github.com/pion/dtls/v2 v2.1.5 // indirect
 	github.com/pion/interceptor v0.1.12 // indirect
@@ -54,13 +54,13 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/smartystreets/assertions v1.2.1 // indirect
+	github.com/smartystreets/assertions v1.13.0 // indirect
 	github.com/templexxx/cpu v0.0.9 // indirect
 	github.com/templexxx/xorsimd v0.4.1 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/pion/dtls/v2 => ./dtls
