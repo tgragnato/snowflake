@@ -27,7 +27,7 @@ func (t *tokens_t) ret() {
 	t.Unlock()
 }
 
-func (t tokens_t) count() int64 {
+func (t *tokens_t) count() int64 {
 	t.RLock()
 	clients := t.clients
 	t.RUnlock()
