@@ -316,6 +316,7 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 		go safeCopy(c2, c1, &wg, ctx, cancel)
 		wg.Wait()
 	}
+	log.Println("copy loop ended")
 }
 
 // We pass conn.RemoteAddr() as an additional parameter, rather than calling
