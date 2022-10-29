@@ -27,6 +27,7 @@ package snowflake_proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
@@ -277,30 +278,44 @@ func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) erro
 	return nil
 }
 
+type readerCtx struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r *readerCtx) Read(p []byte) (n int, err error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.r.Read(p)
+}
+
+func safeCopy(dst io.ReadWriteCloser, src io.Reader, wg *sync.WaitGroup, ctx context.Context, cancel context.CancelFunc) {
+	defer wg.Done()
+	r := &readerCtx{ctx: ctx, r: src}
+	_, err := io.Copy(dst, r)
+	dst.Close()
+	if err != nil {
+		cancel()
+	}
+}
+
 func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct{}) {
-	var once sync.Once
 	defer c2.Close()
 	defer c1.Close()
-	done := make(chan struct{})
-	copyer := func(dst io.ReadWriteCloser, src io.ReadWriteCloser) {
-		// Ignore io.ErrClosedPipe because it is likely caused by the
-		// termination of copyer in the other direction.
-		if _, err := io.Copy(dst, src); err != nil && err != io.ErrClosedPipe {
-			log.Printf("io.Copy inside CopyLoop generated an error: %v", err)
-		}
-		once.Do(func() {
-			close(done)
-		})
-	}
 
-	go copyer(c1, c2)
-	go copyer(c2, c1)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	select {
-	case <-done:
 	case <-shutdown:
+		cancel()
+	default:
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go safeCopy(c1, c2, &wg, ctx, cancel)
+		go safeCopy(c2, c1, &wg, ctx, cancel)
+		wg.Wait()
 	}
-	log.Println("copy loop ended")
 }
 
 // We pass conn.RemoteAddr() as an additional parameter, rather than calling
