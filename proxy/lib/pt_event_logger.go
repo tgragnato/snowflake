@@ -41,6 +41,7 @@ func (p *logEventLogger) logTick() error {
 	outbound, outboundUnit := formatTraffic(p.outboundSum)
 	p.logger.Printf("In the last %v, there were %v connections. Traffic Relayed ↑ %v %v, ↓ %v %v.\n",
 		p.logPeriod.String(), p.connectionCount, inbound, inboundUnit, outbound, outboundUnit)
+	p.logger.Printf("Current connections: %d, Reported connections: %d\n", tokens.count(), int((tokens.count()/8)*8))
 	p.outboundSum = 0
 	p.inboundSum = 0
 	p.connectionCount = 0
