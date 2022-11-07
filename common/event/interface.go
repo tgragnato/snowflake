@@ -58,6 +58,14 @@ func (e EventOnSnowflakeConnectionFailed) String() string {
 	return fmt.Sprintf("trying a new proxy: %s", scrubbed)
 }
 
+type EventOnProxyStarting struct {
+	SnowflakeEvent
+}
+
+func (e EventOnProxyStarting) String() string {
+	return "Proxy starting"
+}
+
 type EventOnProxyConnectionOver struct {
 	SnowflakeEvent
 	InboundTraffic  int
@@ -66,6 +74,15 @@ type EventOnProxyConnectionOver struct {
 
 func (e EventOnProxyConnectionOver) String() string {
 	return fmt.Sprintf("Proxy connection closed (↑ %d, ↓ %d)", e.InboundTraffic, e.OutboundTraffic)
+}
+
+type EventOnCurrentNATTypeDetermined struct {
+	SnowflakeEvent
+	CurNATType string
+}
+
+func (e EventOnCurrentNATTypeDetermined) String() string {
+	return fmt.Sprintf("NAT type: %v", e.CurNATType)
 }
 
 type SnowflakeEventReceiver interface {

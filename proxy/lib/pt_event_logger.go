@@ -33,6 +33,8 @@ func (p *logEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 		p.inboundSum += e.InboundTraffic
 		p.outboundSum += e.OutboundTraffic
 		p.connectionCount += 1
+	default:
+		p.logger.Println(e.String())
 	}
 }
 
