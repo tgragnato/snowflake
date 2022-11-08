@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
 	sf "git.torproject.org/pluggable-transports/snowflake.git/v2/proxy/lib"
 )
 
@@ -31,10 +33,16 @@ func main() {
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
 	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "ICE UDP ephemeral ports range (format:\"<min>:<max>\")")
+	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
 
 	var ephemeralPortsRange []uint16 = []uint16{0, 0}
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Fprintf(os.Stderr, "snowflake-proxy %s", version.ConstructResult())
+		os.Exit(0)
+	}
 
 	eventLogger := event.NewSnowflakeEventDispatcher()
 

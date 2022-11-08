@@ -19,6 +19,7 @@ import (
 	"syscall"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
 	"golang.org/x/crypto/acme/autocert"
 
 	pt "git.torproject.org/pluggable-transports/goptlib.git"
@@ -130,6 +131,7 @@ func main() {
 	var disableTLS bool
 	var logFilename string
 	var unsafeLogging bool
+	var versionFlag bool
 
 	flag.Usage = usage
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
@@ -137,7 +139,13 @@ func main() {
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.StringVar(&logFilename, "log", "", "log file to write to")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
+	flag.BoolVar(&versionFlag, "unsafe-logging", false, "display version info to stderr and quit")
 	flag.Parse()
+
+	if versionFlag {
+		fmt.Fprintf(os.Stderr, "snowflake-server %s", version.ConstructResult())
+		os.Exit(0)
+	}
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
