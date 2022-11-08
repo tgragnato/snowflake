@@ -80,12 +80,12 @@ func main() {
 		AllowNonTLSRelay:       *allowNonTLSRelay,
 	}
 
-	var logOutput io.Writer = os.Stderr
+	var logOutput = ioutil.Discard
 	var eventlogOutput io.Writer = os.Stderr
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
-	if !*verboseLogging {
-		logOutput = ioutil.Discard
+	if *verboseLogging {
+		logOutput = os.Stderr
 	}
 
 	if *logFilename != "" {
@@ -94,9 +94,12 @@ func main() {
 			log.Fatal(err)
 		}
 		defer f.Close()
-		logOutput = io.MultiWriter(logOutput, f)
+		if *verboseLogging {
+			logOutput = io.MultiWriter(logOutput, f)
+		}
 		eventlogOutput = io.MultiWriter(eventlogOutput, f)
 	}
+
 	if *unsafeLogging {
 		log.SetOutput(logOutput)
 	} else {
