@@ -84,16 +84,4 @@ func (b *bytesSyncLogger) ThroughputSummary() string {
 
 func (b *bytesSyncLogger) GetStat() (in int, out int) { return b.inbound, b.outbound }
 
-func formatTraffic(amount int) (value int, unit string) {
-	value = amount
-	units := []string{"B", "KB", "MB", "GB"}
-	for i, u := range units {
-		unit = u
-		if (value < 1000) || (i == len(units)-1) {
-			break
-		}
-		value = value / 1000
-	}
-	return
-
-}
+func formatTraffic(amount int) (value int, unit string) { return amount / 1000, "KB" }
