@@ -68,3 +68,22 @@ without having to run as root:
 ```
 setcap 'cap_net_bind_service=+ep' /usr/local/bin/snowflake-server
 ```
+
+
+# Controlling source addresses
+
+Use the `orport-srcaddr` pluggable transport option to control what source addresses
+are used when connecting to the upstream Tor ExtORPort or ORPort.
+The value of the option may be a single IP address (e.g. "127.0.0.2")
+or a CIDR range (e.g. "127.0.2.0/24"). If a range is given,
+an IP address from the range is randomly chosen for each new connection.
+
+Use `ServerTransportOptions` in torrc to set the option:
+```
+ServerTransportOptions snowflake orport-srcaddr=127.0.2.0/24
+```
+
+Specifying a source address range other than the default 127.0.0.1
+can help with conserving localhost ephemeral ports on servers
+that receive a lot of connections:
+https://bugs.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/40198
