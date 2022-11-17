@@ -39,7 +39,7 @@ func (c *webRTCConn) Read(b []byte) (int, error) {
 }
 
 func (c *webRTCConn) Write(b []byte) (int, error) {
-	c.bytesLogger.AddInbound(len(b))
+	c.bytesLogger.AddInbound(int64(len(b)))
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.dc != nil {

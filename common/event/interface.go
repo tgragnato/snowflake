@@ -68,8 +68,8 @@ func (e EventOnProxyStarting) String() string {
 
 type EventOnProxyConnectionOver struct {
 	SnowflakeEvent
-	InboundTraffic  int
-	OutboundTraffic int
+	InboundTraffic  int64
+	OutboundTraffic int64
 }
 
 func (e EventOnProxyConnectionOver) String() string {
