@@ -60,6 +60,7 @@ variables:
         lbzip2
 
 .go-test: &go-test
+  - gofmt -d .
   - test -z "$(go fmt ./...)"
   - go vet ./...
   - go test -v -race ./...
