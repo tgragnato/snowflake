@@ -203,6 +203,8 @@ func main() {
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
 
+	log.Printf("snowflake-client %s\n", version.GetVersion())
+
 	iceAddresses := strings.Split(strings.TrimSpace(*iceServersCommas), ",")
 
 	config := sf.ClientConfig{

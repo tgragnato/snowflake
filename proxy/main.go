@@ -117,6 +117,8 @@ func main() {
 	periodicEventLogger := sf.NewProxyEventLogger(*SummaryInterval, eventlogOutput)
 	eventLogger.AddSnowflakeEventListener(periodicEventLogger)
 
+	log.Printf("snowflake-proxy %s\n", version.GetVersion())
+
 	err := proxy.Start()
 	if err != nil {
 		log.Fatal(err)

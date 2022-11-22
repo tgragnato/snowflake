@@ -165,6 +165,8 @@ func main() {
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
 
+	log.Printf("snowflake-server %s\n", version.GetVersion())
+
 	if !disableTLS && acmeHostnamesCommas == "" {
 		log.Fatal("the --acme-hostnames option is required")
 	}
