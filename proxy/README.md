@@ -29,20 +29,34 @@ go build
 The Snowflake proxy can be run with the following options:
 ```
 Usage of ./proxy:
+  -allow-non-tls-relay
+        allow relay without tls encryption
+  -allowed-relay-hostname-pattern string
+        a pattern to specify allowed hostname pattern for relay URL. (default "snowflake.torproject.net$")
   -broker string
         broker URL (default "https://snowflake-broker.torproject.net/")
   -capacity uint
-        maximum concurrent clients
+        maximum concurrent clients (default is to accept an unlimited number of clients)
+  -ephemeral-ports-range string
+        ICE UDP ephemeral ports range (format:"<min>:<max>")
   -keep-local-addresses
         keep local LAN address ICE candidates
   -log string
         log filename
+  -nat-retest-interval duration
+        the time interval in second before NAT type is retested, 0s disables retest. Valid time units are "s", "m", "h".  (default 24h0m0s)
   -relay string
-        websocket relay URL (default "wss://snowflake.torproject.net/")
+        websocket relay URL (default "wss://snowflake.bamsoftware.com/")
   -stun string
-        stun URL (default "stun:stun.stunprotocol.org:3478")
+        STUN URL (default "stun:stun.stunprotocol.org:3478")
+  -summary-interval duration
+        the time interval to output summary, 0s disables summaries. Valid time units are "s", "m", "h".  (default 1h0m0s)
   -unsafe-logging
         prevent logs from being scrubbed
+  -verbose
+        increase log verbosity
+  -version
+        display version info to stderr and quit
 ```
 
 For more information on how to run a Snowflake proxy in deployment, see our [community documentation](https://community.torproject.org/relay/setup/snowflake/standalone/).
