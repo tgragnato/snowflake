@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	capacity := flag.Uint("capacity", 0, "maximum concurrent clients")
+	capacity := flag.Uint("capacity", 0, "maximum concurrent clients (default is to accept an unlimited number of clients)")
 	stunURL := flag.String("stun", sf.DefaultSTUNURL, "STUN URL")
 	logFilename := flag.String("log", "", "log filename")
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "broker URL")
