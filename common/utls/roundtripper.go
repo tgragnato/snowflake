@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -66,7 +67,11 @@ func (r *uTLSHTTPRoundTripperImpl) RoundTrip(req *http.Request) (*http.Response,
 		return r.backdropTransport.RoundTrip(req)
 	}
 	for retryCount := 0; retryCount < 5; retryCount++ {
-		if r.getShouldConnectWithH1(req.URL.Host) {
+		effectivePort := req.URL.Port()
+		if effectivePort == "" {
+			effectivePort = "443"
+		}
+		if r.getShouldConnectWithH1(fmt.Sprintf("%v:%v", req.URL.Hostname(), effectivePort)) {
 			resp, err := r.httpsH1Transport.RoundTrip(req)
 			if errors.Is(err, errEAGAIN) {
 				continue
