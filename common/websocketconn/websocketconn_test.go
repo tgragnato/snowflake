@@ -335,7 +335,7 @@ func BenchmarkUpgradeBufferSize(b *testing.B) {
 func BenchmarkReadWrite(b *testing.B) {
 	trial := func(b *testing.B, readConn, writeConn *Conn, msgSize int) {
 		go func() {
-			io.Copy(ioutil.Discard, readConn)
+			io.Copy(io.Discard, readConn)
 		}()
 		data := make([]byte, msgSize)
 		b.ResetTimer()

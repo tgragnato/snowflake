@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -86,7 +85,7 @@ func main() {
 		AllowNonTLSRelay:       *allowNonTLSRelay,
 	}
 
-	var logOutput = ioutil.Discard
+	var logOutput = io.Discard
 	var eventlogOutput io.Writer = os.Stderr
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
