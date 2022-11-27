@@ -8,39 +8,40 @@ import (
 // bytesLogger is an interface which is used to allow logging the throughput
 // of the Snowflake. A default bytesLogger(bytesNullLogger) does nothing.
 type bytesLogger interface {
-	AddOutbound(int)
-	AddInbound(int)
+	AddOutbound(int64)
+	AddInbound(int64)
 	ThroughputSummary() string
-	GetStat() (in int, out int)
+	GetStat() (in int64, out int64)
 }
 
 // bytesNullLogger Default bytesLogger does nothing.
 type bytesNullLogger struct{}
 
 // AddOutbound in bytesNullLogger does nothing
-func (b bytesNullLogger) AddOutbound(amount int) {}
+func (b bytesNullLogger) AddOutbound(amount int64) {}
 
 // AddInbound in bytesNullLogger does nothing
-func (b bytesNullLogger) AddInbound(amount int) {}
+func (b bytesNullLogger) AddInbound(amount int64) {}
 
 // ThroughputSummary in bytesNullLogger does nothing
 func (b bytesNullLogger) ThroughputSummary() string { return "" }
 
-func (b bytesNullLogger) GetStat() (in int, out int) { return -1, -1 }
+func (b bytesNullLogger) GetStat() (in int64, out int64) { return -1, -1 }
 
 // bytesSyncLogger uses channels to safely log from multiple sources with output
 // occuring at reasonable intervals.
 type bytesSyncLogger struct {
-	outboundChan, inboundChan              chan int
-	outbound, inbound, outEvents, inEvents int
-	start                                  time.Time
+	outboundChan, inboundChan chan int64
+	outbound, inbound         int64
+	outEvents, inEvents       int
+	start                     time.Time
 }
 
 // newBytesSyncLogger returns a new bytesSyncLogger and starts it loggin.
 func newBytesSyncLogger() *bytesSyncLogger {
 	b := &bytesSyncLogger{
-		outboundChan: make(chan int, 5),
-		inboundChan:  make(chan int, 5),
+		outboundChan: make(chan int64, 5),
+		inboundChan:  make(chan int64, 5),
 	}
 	go b.log()
 	b.start = time.Now()
@@ -61,12 +62,12 @@ func (b *bytesSyncLogger) log() {
 }
 
 // AddOutbound add a number of bytes to the outbound total reported by the logger
-func (b *bytesSyncLogger) AddOutbound(amount int) {
+func (b *bytesSyncLogger) AddOutbound(amount int64) {
 	b.outboundChan <- amount
 }
 
 // AddInbound add a number of bytes to the inbound total reported by the logger
-func (b *bytesSyncLogger) AddInbound(amount int) {
+func (b *bytesSyncLogger) AddInbound(amount int64) {
 	b.inboundChan <- amount
 }
 
@@ -82,18 +83,6 @@ func (b *bytesSyncLogger) ThroughputSummary() string {
 	return fmt.Sprintf("Traffic throughput (up|down): %d %s|%d %s -- (%d OnMessages, %d Sends, over %d seconds)", inbound, inUnit, outbound, outUnit, b.outEvents, b.inEvents, int(t.Sub(b.start).Seconds()))
 }
 
-func (b *bytesSyncLogger) GetStat() (in int, out int) { return b.inbound, b.outbound }
+func (b *bytesSyncLogger) GetStat() (in int64, out int64) { return b.inbound, b.outbound }
 
-func formatTraffic(amount int) (value int, unit string) {
-	value = amount
-	units := []string{"B", "KB", "MB", "GB"}
-	for i, u := range units {
-		unit = u
-		if (value < 1000) || (i == len(units)-1) {
-			break
-		}
-		value = value / 1000
-	}
-	return
-
-}
+func formatTraffic(amount int64) (value int64, unit string) { return amount / 1000, "KB" }

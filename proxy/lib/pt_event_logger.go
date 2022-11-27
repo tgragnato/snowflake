@@ -18,8 +18,8 @@ func NewProxyEventLogger(logPeriod time.Duration, output io.Writer) event.Snowfl
 }
 
 type logEventLogger struct {
-	inboundSum      int
-	outboundSum     int
+	inboundSum      int64
+	outboundSum     int64
 	connectionCount int
 	logPeriod       time.Duration
 	task            *task.Periodic
@@ -33,6 +33,8 @@ func (p *logEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 		p.inboundSum += e.InboundTraffic
 		p.outboundSum += e.OutboundTraffic
 		p.connectionCount += 1
+	default:
+		p.logger.Println(e.String())
 	}
 }
 

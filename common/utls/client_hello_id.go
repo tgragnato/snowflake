@@ -36,3 +36,11 @@ func NameToUTLSID(name string) (utls.ClientHelloID, error) {
 	}
 	return utls.ClientHelloID{}, errNameNotFound
 }
+
+func ListAllNames() []string {
+	var names []string
+	for k, _ := range clientHelloIDMap {
+		names = append(names, k)
+	}
+	return names
+}

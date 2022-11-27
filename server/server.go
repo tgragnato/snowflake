@@ -18,6 +18,7 @@ import (
 	"syscall"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
 	"golang.org/x/crypto/acme/autocert"
 
 	pt "git.torproject.org/pluggable-transports/goptlib.git"
@@ -66,21 +67,36 @@ func proxy(local *net.TCPConn, conn net.Conn) {
 	wg.Wait()
 }
 
-// handleConn bidirectionally connects a client snowflake connection with an ORPort.
-func handleConn(conn net.Conn) error {
+// handleConn bidirectionally connects a client snowflake connection with the
+// ORPort. If orPortSrcAddr is not nil, addresses from the given range are used
+// when dialing the ORPOrt.
+func handleConn(conn net.Conn, orPortSrcAddr *net.IPNet) error {
 	addr := conn.RemoteAddr().String()
 	statsChannel <- addr != ""
-	or, err := pt.DialOr(&ptInfo, addr, ptMethodName)
+
+	dialer := net.Dialer{}
+	if orPortSrcAddr != nil {
+		// Use a random source IP address in the given range.
+		ip, err := randIPAddr(orPortSrcAddr)
+		if err != nil {
+			return err
+		}
+		dialer.LocalAddr = &net.TCPAddr{IP: ip}
+	}
+	or, err := pt.DialOrWithDialer(&dialer, &ptInfo, addr, ptMethodName)
 	if err != nil {
 		return fmt.Errorf("failed to connect to ORPort: %s", err)
 	}
 	defer or.Close()
-	proxy(or, conn)
+
+	proxy(or.(*net.TCPConn), conn)
 	return nil
 }
 
-// acceptLoop accepts incoming client snowflake connection and passes them to a handler function.
-func acceptLoop(ln net.Listener) {
+// acceptLoop accepts incoming client snowflake connections and passes them to
+// handleConn. If orPortSrcAddr is not nil, addresses from the given range are
+// used when dialing the ORPOrt.
+func acceptLoop(ln net.Listener, orPortSrcAddr *net.IPNet) {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -92,7 +108,7 @@ func acceptLoop(ln net.Listener) {
 		}
 		go func() {
 			defer conn.Close()
-			err := handleConn(conn)
+			err := handleConn(conn, orPortSrcAddr)
 			if err != nil {
 				log.Printf("handleConn: %v", err)
 			}
@@ -114,6 +130,7 @@ func main() {
 	var disableTLS bool
 	var logFilename string
 	var unsafeLogging bool
+	var versionFlag bool
 
 	flag.Usage = usage
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
@@ -121,7 +138,13 @@ func main() {
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.StringVar(&logFilename, "log", "", "log file to write to")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
+	flag.BoolVar(&versionFlag, "unsafe-logging", false, "display version info to stderr and quit")
 	flag.Parse()
+
+	if versionFlag {
+		fmt.Fprintf(os.Stderr, "snowflake-server %s", version.ConstructResult())
+		os.Exit(0)
+	}
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
@@ -140,6 +163,8 @@ func main() {
 		// We want to send the log output through our scrubber first
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
+
+	log.Printf("snowflake-server %s\n", version.GetVersion())
 
 	if !disableTLS && acmeHostnamesCommas == "" {
 		log.Fatal("the --acme-hostnames option is required")
@@ -239,6 +264,21 @@ func main() {
 			}
 			transport = sf.NewSnowflakeServer(certManager.GetCertificate)
 		}
+
+		// Are we requested to use source addresses from a particular
+		// range when dialing the ORPort for this transport?
+		var orPortSrcAddr *net.IPNet
+		if orPortSrcAddrCIDR, ok := bindaddr.Options.Get("orport-srcaddr"); ok {
+			ipnet, err := parseIPCIDR(orPortSrcAddrCIDR)
+			if err != nil {
+				err = fmt.Errorf("parsing srcaddr: %w", err)
+				log.Println(err)
+				pt.SmethodError(bindaddr.MethodName, err.Error())
+				continue
+			}
+			orPortSrcAddr = ipnet
+		}
+
 		ln, err := transport.Listen(bindaddr.Addr)
 		if err != nil {
 			log.Printf("error opening listener: %s", err)
@@ -246,7 +286,7 @@ func main() {
 			continue
 		}
 		defer ln.Close()
-		go acceptLoop(ln)
+		go acceptLoop(ln, orPortSrcAddr)
 		pt.SmethodArgs(bindaddr.MethodName, bindaddr.Addr, args)
 		listeners = append(listeners, ln)
 	}

@@ -92,7 +92,7 @@ func (c *WebRTCPeer) Write(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	c.bytesLogger.addOutbound(len(b))
+	c.bytesLogger.addOutbound(int64(len(b)))
 	return len(b), nil
 }
 
@@ -226,7 +226,7 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 			log.Println("0 length message---")
 		}
 		n, err := c.writePipe.Write(msg.Data)
-		c.bytesLogger.addInbound(n)
+		c.bytesLogger.addInbound(int64(n))
 		if err != nil {
 			// TODO: Maybe shouldn't actually close.
 			log.Println("Error writing to SOCKS pipe")

@@ -431,7 +431,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 					log.Printf("close with error generated an error: %v", inerr)
 				}
 			}
-			conn.bytesLogger.AddOutbound(n)
+			conn.bytesLogger.AddOutbound(int64(n))
 			if n != len(msg.Data) {
 				panic("short write")
 			}
@@ -579,7 +579,7 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 func (sf *SnowflakeProxy) Start() error {
 	var err error
 
-	log.Println("starting")
+	sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyStarting{})
 	sf.shutdown = make(chan struct{})
 
 	// blank configurations revert to default
@@ -634,7 +634,7 @@ func (sf *SnowflakeProxy) Start() error {
 
 	currentNATTypeLoaded := getCurrentNATType()
 
-	log.Printf("NAT type: %s", currentNATTypeLoaded)
+	sf.EventDispatcher.OnNewSnowflakeEvent(&event.EventOnCurrentNATTypeDetermined{CurNATType: currentNATTypeLoaded})
 
 	NatRetestTask := task.Periodic{
 		Interval: sf.NATTypeMeasurementInterval,

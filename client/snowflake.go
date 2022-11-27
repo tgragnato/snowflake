@@ -3,6 +3,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -18,6 +19,7 @@ import (
 	sf "git.torproject.org/pluggable-transports/snowflake.git/v2/client/lib"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
 )
 
 const (
@@ -156,12 +158,18 @@ func main() {
 	unsafeLogging := flag.Bool("unsafe-logging", false, "prevent logs from being scrubbed")
 	max := flag.Int("max", DefaultSnowflakeCapacity,
 		"capacity for number of multiplexed WebRTC peers")
+	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
 
 	// Deprecated
 	oldLogToStateDir := flag.Bool("logToStateDir", false, "use -log-to-state-dir instead")
 	oldKeepLocalAddresses := flag.Bool("keepLocalAddresses", false, "use -keep-local-addresses instead")
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Fprintf(os.Stderr, "snowflake-client %s", version.ConstructResult())
+		os.Exit(0)
+	}
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
@@ -193,6 +201,8 @@ func main() {
 		// We want to send the log output through our scrubber first
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
+
+	log.Printf("snowflake-client %s\n", version.GetVersion())
 
 	iceAddresses := strings.Split(strings.TrimSpace(*iceServersCommas), ",")
 
