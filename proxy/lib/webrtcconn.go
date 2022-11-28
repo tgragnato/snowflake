@@ -1,6 +1,7 @@
 package snowflake_proxy
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -35,29 +36,35 @@ type webRTCConn struct {
 
 	inactivityTimeout time.Duration
 	activity          chan struct{}
-	closed            chan struct{}
+	cancelTimeoutLoop context.CancelFunc
 }
 
 func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) *webRTCConn {
 	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: eventLogger}
 	conn.bytesLogger = newBytesSyncLogger()
 	conn.activity = make(chan struct{}, 100)
-	conn.closed = make(chan struct{})
 	conn.inactivityTimeout = 30 * time.Second
-	go conn.timeoutLoop()
+	ctx, cancel := context.WithCancel(context.Background())
+	conn.cancelTimeoutLoop = cancel
+	go conn.timeoutLoop(ctx)
 	return conn
 }
 
-func (c *webRTCConn) timeoutLoop() {
+func (c *webRTCConn) timeoutLoop(ctx context.Context) {
+	timer := time.NewTimer(c.inactivityTimeout)
 	for {
 		select {
-		case <-time.After(c.inactivityTimeout):
+		case <-timer.C:
 			c.Close()
 			log.Println("Closed connection due to inactivity")
 			return
 		case <-c.activity:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(c.inactivityTimeout)
 			continue
-		case <-c.closed:
+		case <-ctx.Done():
 			return
 		}
 	}
@@ -80,7 +87,7 @@ func (c *webRTCConn) Write(b []byte) (int, error) {
 
 func (c *webRTCConn) Close() (err error) {
 	c.once.Do(func() {
-		close(c.closed)
+		c.cancelTimeoutLoop()
 		err = c.pc.Close()
 	})
 	return
