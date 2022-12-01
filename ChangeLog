@@ -1,3 +1,6 @@
+Changes in version v2.4.1 - 2022-12-01
+- Issue 40224: Bug fix in utls roundtripper
+
 Changes in version v2.4.0 - 2022-11-29
 - Fix proxy command line help output
 - Issue 40123: Reduce multicast DNS candidates
