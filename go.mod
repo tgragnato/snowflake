@@ -16,7 +16,7 @@ require (
 	github.com/smartystreets/goconvey v1.7.2
 	github.com/stretchr/testify v1.8.1
 	github.com/xtaci/kcp-go/v5 v5.6.1
-	github.com/xtaci/smux v1.5.16
+	github.com/xtaci/smux v1.5.17
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	golang.org/x/crypto v0.3.0
 	golang.org/x/net v0.2.0
@@ -34,7 +34,7 @@ require (
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.1 // indirect
-	github.com/klauspost/reedsolomon v1.11.2 // indirect
+	github.com/klauspost/reedsolomon v1.11.3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/pion/datachannel v1.5.2 // indirect
@@ -47,8 +47,8 @@ require (
 	github.com/pion/rtp v1.7.13 // indirect
 	github.com/pion/sctp v1.8.3 // indirect
 	github.com/pion/srtp/v2 v2.0.10 // indirect
-	github.com/pion/transport v0.14.0 // indirect
-	github.com/pion/turn/v2 v2.0.8 // indirect
+	github.com/pion/transport v0.14.1 // indirect
+	github.com/pion/turn/v2 v2.0.9 // indirect
 	github.com/pion/udp v0.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
