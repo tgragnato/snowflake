@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"math/rand"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -20,6 +21,24 @@ import (
 )
 
 func TestRoundTripper(t *testing.T) {
+	runRoundTripperTest(t, "127.0.0.1:23802", "127.0.0.1:23801", "https://127.0.0.1:23802/", "https://127.0.0.1:23801/")
+}
+
+func TestRoundTripperOnH1DefaultPort(t *testing.T) {
+	if os.Getuid() != 0 {
+		t.SkipNow()
+	}
+	runRoundTripperTest(t, "127.0.0.1:23802", "127.0.0.1:443", "https://127.0.0.1:23802/", "https://127.0.0.1/")
+}
+
+func TestRoundTripperOnH2DefaultPort(t *testing.T) {
+	if os.Getuid() != 0 {
+		t.SkipNow()
+	}
+	runRoundTripperTest(t, "127.0.0.1:443", "127.0.0.1:23801", "https://127.0.0.1/", "https://127.0.0.1:23801/")
+}
+
+func runRoundTripperTest(t *testing.T, h2listen, h1listen, h2addr, h1addr string) {
 	var selfSignedCert []byte
 	var selfSignedPrivateKey *rsa.PrivateKey
 	httpServerContext, cancel := stdcontext.WithCancel(stdcontext.Background())
@@ -54,7 +73,7 @@ func TestRoundTripper(t *testing.T) {
 			selfSignedCert = derBytes
 		})
 		c.Convey("[Test]Setup http2 server", func(c C) {
-			listener, err := tls.Listen("tcp", "127.0.0.1:23802", &tls.Config{
+			listener, err := tls.Listen("tcp", h2listen, &tls.Config{
 				NextProtos: []string{http2.NextProtoTLS},
 				Certificates: []tls.Certificate{
 					tls.Certificate{Certificate: [][]byte{selfSignedCert}, PrivateKey: selfSignedPrivateKey},
@@ -69,7 +88,7 @@ func TestRoundTripper(t *testing.T) {
 			}()
 		})
 		c.Convey("[Test]Setup http1 server", func(c C) {
-			listener, err := tls.Listen("tcp", "127.0.0.1:23801", &tls.Config{
+			listener, err := tls.Listen("tcp", h1listen, &tls.Config{
 				NextProtos: []string{"http/1.1"},
 				Certificates: []tls.Certificate{
 					tls.Certificate{Certificate: [][]byte{selfSignedCert}, PrivateKey: selfSignedPrivateKey},
@@ -141,7 +160,7 @@ func TestRoundTripper(t *testing.T) {
 			for count := 0; count <= 10; count++ {
 				Convey("HTTP 1.1 Test", t, func(c C) {
 					{
-						req, err := http.NewRequest("GET", "https://127.0.0.1:23801/", nil)
+						req, err := http.NewRequest("GET", h2addr, nil)
 						So(err, ShouldBeNil)
 						_, err = rtter.RoundTrip(req)
 						So(err, ShouldBeNil)
@@ -150,7 +169,7 @@ func TestRoundTripper(t *testing.T) {
 
 				Convey("HTTP 2 Test", t, func(c C) {
 					{
-						req, err := http.NewRequest("GET", "https://127.0.0.1:23802/", nil)
+						req, err := http.NewRequest("GET", h1addr, nil)
 						So(err, ShouldBeNil)
 						_, err = rtter.RoundTrip(req)
 						So(err, ShouldBeNil)

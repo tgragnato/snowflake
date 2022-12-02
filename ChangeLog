@@ -1,3 +1,24 @@
+Changes in version v2.4.1 - 2022-12-01
+- Issue 40224: Bug fix in utls roundtripper
+
+Changes in version v2.4.0 - 2022-11-29
+- Fix proxy command line help output
+- Issue 40123: Reduce multicast DNS candidates
+- Add ICE ephemeral ports range setting
+- Reformat using Go 1.19
+- Update CI tests to include latest and minimum Go versions
+- Issue 40184: Use fixed unit for bandwidth logging
+- Update gorilla/websocket to v1.5.0
+- Issue 40175: Server performance improvements
+- Issue 40183: Change snowflake proxy log verbosity
+- Issue 40117: Display proxy NAT type in logs
+- Issue 40198: Add a `orport-srcaddr` server transport option
+- Add gofmt output to CI test
+- Issue 40185:  Change bandwidth type from int to int64 to prevent overflow
+- Add version output support to snowflake
+- Issue 40229: Change regexes for ipv6 addresses to catch url-encoded addresses
+- Issue 40220: Close stale connections in standalone proxy
+
 Changes in version v2.3.0 - 2022-06-23
 - Issue 40146: Avoid performing two NAT probe tests at startup
 - Issue 40134: Log messages from client NAT check failures are confusing

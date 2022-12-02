@@ -77,6 +77,11 @@ func TestLogScrubberMessages(t *testing.T) {
 			"2019/05/08 15:37:31 starting",
 			"2019/05/08 15:37:31 starting\n",
 		},
+		{
+			//Make sure ipv6 addresses where : are encoded as %3A or %3a are scrubbed
+			"error dialing relay: wss://snowflake.torproject.net/?client_ip=6201%3ac8%3A3004%3A%3A1234",
+			"error dialing relay: wss://snowflake.torproject.net/?client_ip=[scrubbed]\n",
+		},
 	} {
 		var buff bytes.Buffer
 		log.SetFlags(0) //remove all extra log output for test comparisons
