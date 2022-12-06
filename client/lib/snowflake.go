@@ -37,6 +37,7 @@ import (
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/turbotunnel"
+	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
@@ -269,8 +270,16 @@ func parseIceServers(addresses []string) []webrtc.ICEServer {
 	}
 	for _, url := range addresses {
 		url = strings.TrimSpace(url)
+
+		// add default port, other sanity checks
+		parsedURL, err := ice.ParseURL(url)
+		if err != nil {
+			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", url, err)
+			continue
+		}
+
 		servers = append(servers, webrtc.ICEServer{
-			URLs: []string{url},
+			URLs: []string{parsedURL.String()},
 		})
 	}
 	return servers

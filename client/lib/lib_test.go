@@ -195,14 +195,19 @@ func TestICEServerParser(t *testing.T) {
 				1,
 			},
 			{
-				[]string{"stun:stun.l.google.com:19302", "stun.ekiga.net"},
-				[][]string{[]string{"stun:stun.l.google.com:19302"}, []string{"stun.ekiga.net"}},
+				[]string{"stun:stun.l.google.com", "stuns:stun.ekiga.net"},
+				[][]string{[]string{"stun:stun.l.google.com:3478"}, []string{"stuns:stun.ekiga.net:5349"}},
 				2,
 			},
 			{
-				[]string{"stun:stun.l.google.com:19302", "stun.ekiga.net"},
-				[][]string{[]string{"stun:stun.l.google.com:19302"}, []string{"stun.ekiga.net"}},
+				[]string{"stuns:stun.l.google.com:19302", "turn:relay.metered.ca:80"},
+				[][]string{[]string{"stuns:stun.l.google.com:19302"}, []string{"turn:relay.metered.ca:80?transport=udp"}},
 				2,
+			},
+			{
+				[]string{"stun:stun1.l.google.com:19302", "stun.ekiga.net", "stun:stun.example.com:1234/path?query", "https://example.com"},
+				[][]string{[]string{"stun:stun1.l.google.com:19302"}},
+				1,
 			},
 		} {
 			servers := parseIceServers(test.input)
