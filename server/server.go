@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -280,7 +281,24 @@ func main() {
 			orPortSrcAddr = ipnet
 		}
 
-		ln, err := transport.Listen(bindaddr.Addr)
+		numKCPInstances := 1
+		// Are we requested to run a certain number of KCP state
+		// machines?
+		if value, ok := bindaddr.Options.Get("num-turbotunnel"); ok {
+			n, err := strconv.Atoi(value)
+			if err == nil && n < 1 {
+				err = fmt.Errorf("cannot be less than 1")
+			}
+			if err != nil {
+				err = fmt.Errorf("parsing num-turbotunnel: %w", err)
+				log.Println(err)
+				pt.SmethodError(bindaddr.MethodName, err.Error())
+				continue
+			}
+			numKCPInstances = n
+		}
+
+		ln, err := transport.Listen(bindaddr.Addr, numKCPInstances)
 		if err != nil {
 			log.Printf("error opening listener: %s", err)
 			pt.SmethodError(bindaddr.MethodName, err.Error())

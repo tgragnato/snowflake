@@ -55,11 +55,6 @@ const (
 	WindowSize = 65535
 	// StreamSize controls the maximum amount of in flight data between a client and server.
 	StreamSize = 1048576 //1MB
-
-	// numKCPInstances is the number of parallel KCP state machines to run.
-	// Clients are assigned to a particular KCP instance by a hash of their
-	// ClientID.
-	numKCPInstances = 2
 )
 
 // Transport is a structure with methods that conform to the Go PT v2.1 API
@@ -76,7 +71,7 @@ func NewSnowflakeServer(getCertificate func(*tls.ClientHelloInfo) (*tls.Certific
 
 // Listen starts a listener on addr that will accept both turbotunnel
 // and legacy Snowflake connections.
-func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
+func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListener, error) {
 	listener := &SnowflakeListener{
 		addr:   addr,
 		queue:  make(chan net.Conn, 65534),
