@@ -114,6 +114,8 @@ type SnowflakeProxy struct {
 	KeepLocalAddresses bool
 	// RelayURL is the URL of the Snowflake server that all traffic will be relayed to
 	RelayURL string
+	// OutboundAddress specify an IP address to use as SDP host candidate
+	OutboundAddress string
 	// Ephemeral*Port limits the pool of ports that ICE UDP connections can allocate from
 	EphemeralMinPort uint16
 	EphemeralMaxPort uint16
@@ -360,6 +362,11 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 		}
 	}
 
+	if sf.OutboundAddress != "" {
+		// replace SDP host candidates with the given IP without validation
+		// still have server reflexive candidates to fall back on
+		settingsEngine.SetNAT1To1IPs([]string{sf.OutboundAddress}, webrtc.ICECandidateTypeHost)
+	}
 	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
 	return webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
@@ -672,8 +679,8 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	}
 
 	offer := pc.LocalDescription()
+	log.Printf("Offer: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 	sdp, err := util.SerializeSessionDescription(offer)
-	log.Printf("Offer: %s", sdp)
 	if err != nil {
 		log.Printf("Error encoding probe message: %s", err.Error())
 		return

@@ -47,6 +47,8 @@ Usage of ./proxy:
         the time interval in second before NAT type is retested, 0s disables retest. Valid time units are "s", "m", "h".  (default 24h0m0s)
   -relay string
         websocket relay URL (default "wss://snowflake.bamsoftware.com/")
+  -outbound-address string
+        bind a specific outbound address. Replace all host candidates with this address without validation. 
   -stun string
         stun URL (default "stun:stun.l.google.com:19302")
   -summary-interval duration
