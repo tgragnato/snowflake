@@ -10,6 +10,8 @@ Pluggable Transport using WebRTC, inspired by Flashproxy.
 - custom transport for broker negotiation (TLS 1.3 with selected ciphersuites & groups)
 - custom DTLS fingerprint, different from any popular WebRTC implementation
 - use the Setting Engine to reduce MulticastDNS noise
+- use a context aware io.Reader that closes on errors in copyLoop
+- non-performing but simple token handling
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
