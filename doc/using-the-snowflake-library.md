@@ -22,7 +22,7 @@ func main() {
         FrontDomain: "https://friendlyfrontdomain.net",
         ICEAddresses: []string{
             "stun:stun.voip.blackberry.com:3478",
-            "stun:stun.stunprotocol.org:3478"},
+            },
         Max: 1,
     }
     transport, err := sf.NewSnowflakeClient(config)
@@ -73,7 +73,7 @@ func main() {
     config := sf.ClientConfig{
         ICEAddresses:       []string{
             "stun:stun.voip.blackberry.com:3478",
-            "stun:stun.stunprotocol.org:3478"},
+            },
     }
     transport, err := sf.NewSnowflakeClient(config)
     if err != nil {
