@@ -31,6 +31,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -268,13 +269,25 @@ func parseIceServers(addresses []string) []webrtc.ICEServer {
 	if len(addresses) == 0 {
 		return nil
 	}
-	for _, url := range addresses {
-		url = strings.TrimSpace(url)
+	for _, address := range addresses {
+		address = strings.TrimSpace(address)
+
+		// ice.ParseURL recognizes many types of ICE servers,
+		// but we only support stun over UDP currently
+		u, err := url.Parse(address)
+		if err != nil {
+			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", address, err)
+			continue
+		}
+		if u.Scheme != "stun" {
+			log.Printf("Warning: Only stun: (STUN over UDP) servers are supported currently, skipping %v", address)
+			continue
+		}
 
 		// add default port, other sanity checks
-		parsedURL, err := ice.ParseURL(url)
+		parsedURL, err := ice.ParseURL(address)
 		if err != nil {
-			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", url, err)
+			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", address, err)
 			continue
 		}
 
