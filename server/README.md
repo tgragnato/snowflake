@@ -70,6 +70,26 @@ setcap 'cap_net_bind_service=+ep' /usr/local/bin/snowflake-server
 ```
 
 
+# Multiple KCP state machines
+
+The server internally uses a network protocol called KCP
+to manage and persist client sessions.
+Each KCP scheduler runs on a single thread.
+When there are many simultaneous users (thousands),
+a single KCP scheduler can be a bottleneck.
+The `num-turbotunnel` pluggable transport option
+lets you control the number of KCP instances,
+which can help with CPU scaling:
+https://bugs.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/40200
+
+There is currently no way to set this option automatically.
+You have to tune it manually.
+
+```
+ServerTransportOptions snowflake num-turbotunnel=2
+```
+
+
 # Controlling source addresses
 
 Use the `orport-srcaddr` pluggable transport option to control what source addresses
@@ -81,6 +101,11 @@ an IP address from the range is randomly chosen for each new connection.
 Use `ServerTransportOptions` in torrc to set the option:
 ```
 ServerTransportOptions snowflake orport-srcaddr=127.0.2.0/24
+```
+
+You can combine it with other options:
+```
+ServerTransportOptions snowflake num-turbotunnel=2 orport-srcaddr=127.0.2.0/24
 ```
 
 Specifying a source address range other than the default 127.0.0.1

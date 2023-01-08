@@ -57,8 +57,9 @@ func NewClientMap(timeout time.Duration) *ClientMap {
 // necessary.
 func (m *ClientMap) SendQueue(addr net.Addr) chan []byte {
 	m.lock.Lock()
-	defer m.lock.Unlock()
-	return m.inner.SendQueue(addr, time.Now())
+	queue := m.inner.SendQueue(addr, time.Now())
+	m.lock.Unlock()
+	return queue
 }
 
 // clientMapInner is the inner type of ClientMap, implementing heap.Interface.

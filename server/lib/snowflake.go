@@ -71,22 +71,18 @@ func NewSnowflakeServer(getCertificate func(*tls.ClientHelloInfo) (*tls.Certific
 
 // Listen starts a listener on addr that will accept both turbotunnel
 // and legacy Snowflake connections.
-func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
+func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListener, error) {
 	listener := &SnowflakeListener{
 		addr:   addr,
 		queue:  make(chan net.Conn, 65534),
 		closed: make(chan struct{}),
+		ln:     make([]*kcp.Listener, 0, numKCPInstances),
 	}
 
-	handler := httpHandler{
-		// pconn is shared among all connections to this server. It
-		// overlays packet-based client sessions on top of ephemeral
-		// WebSocket connections.
-		pconn: turbotunnel.NewQueuePacketConn(addr, clientMapTimeout),
-	}
+	handler := newHTTPHandler(addr, numKCPInstances)
 	server := &http.Server{
 		Addr:        addr.String(),
-		Handler:     &handler,
+		Handler:     handler,
 		ReadTimeout: requestTimeout,
 	}
 	// We need to override server.TLSConfig.GetCertificate--but first
@@ -139,25 +135,26 @@ func (t *Transport) Listen(addr net.Addr) (*SnowflakeListener, error) {
 
 	listener.server = server
 
-	// Start a KCP engine, set up to read and write its packets over the
+	// Start the KCP engines, set up to read and write its packets over the
 	// WebSocket connections that arrive at the web server.
 	// handler.ServeHTTP is responsible for encapsulation/decapsulation of
 	// packets on behalf of KCP. KCP takes those packets and turns them into
 	// sessions which appear in the acceptSessions function.
-	ln, err := kcp.ServeConn(nil, 0, 0, handler.pconn)
-	if err != nil {
-		server.Close()
-		return nil, err
-	}
-	go func() {
-		defer ln.Close()
-		err := listener.acceptSessions(ln)
+	for i, pconn := range handler.pconns {
+		ln, err := kcp.ServeConn(nil, 0, 0, pconn)
 		if err != nil {
-			log.Printf("acceptSessions: %v", err)
+			server.Close()
+			return nil, err
 		}
-	}()
-
-	listener.ln = ln
+		go func() {
+			defer ln.Close()
+			err := listener.acceptSessions(ln)
+			if err != nil {
+				log.Printf("acceptSessions %d: %v", i, err)
+			}
+		}()
+		listener.ln = append(listener.ln, ln)
+	}
 
 	return listener, nil
 
@@ -167,7 +164,7 @@ type SnowflakeListener struct {
 	addr      net.Addr
 	queue     chan net.Conn
 	server    *http.Server
-	ln        *kcp.Listener
+	ln        []*kcp.Listener
 	closed    chan struct{}
 	closeOnce sync.Once
 }
@@ -196,7 +193,9 @@ func (l *SnowflakeListener) Close() error {
 	l.closeOnce.Do(func() {
 		close(l.closed)
 		l.server.Close()
-		l.ln.Close()
+		for _, ln := range l.ln {
+			ln.Close()
+		}
 	})
 	return nil
 }
@@ -232,7 +231,7 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 			}
 			return err
 		}
-		l.queueConn(&SnowflakeClientConn{Conn: stream, address: addr})
+		l.queueConn(&SnowflakeClientConn{stream: stream, address: addr})
 	}
 }
 
@@ -280,15 +279,35 @@ func (l *SnowflakeListener) queueConn(conn net.Conn) error {
 	}
 }
 
-// SnowflakeClientConn is a wrapper for the underlying turbotunnel
-// conn. We need to reference our client address map to determine the
-// remote address
+// SnowflakeClientConn is a wrapper for the underlying turbotunnel conn
+// (smux.Stream). It implements the net.Conn and io.WriterTo interfaces. The
+// RemoteAddr method is overridden to refer to a real IP address, looked up from
+// the client address map, rather than an abstract client ID.
 type SnowflakeClientConn struct {
-	net.Conn
+	stream  *smux.Stream
 	address net.Addr
 }
 
-// RemoteAddr returns the mapped client address of the Snowflake connection
+// Forward net.Conn methods, other than RemoteAddr, to the inner stream.
+func (conn *SnowflakeClientConn) Read(b []byte) (int, error)    { return conn.stream.Read(b) }
+func (conn *SnowflakeClientConn) Write(b []byte) (int, error)   { return conn.stream.Write(b) }
+func (conn *SnowflakeClientConn) Close() error                  { return conn.stream.Close() }
+func (conn *SnowflakeClientConn) LocalAddr() net.Addr           { return conn.stream.LocalAddr() }
+func (conn *SnowflakeClientConn) SetDeadline(t time.Time) error { return conn.stream.SetDeadline(t) }
+func (conn *SnowflakeClientConn) SetReadDeadline(t time.Time) error {
+	return conn.stream.SetReadDeadline(t)
+}
+func (conn *SnowflakeClientConn) SetWriteDeadline(t time.Time) error {
+	return conn.stream.SetWriteDeadline(t)
+}
+
+// RemoteAddr returns the mapped client address of the Snowflake connection.
 func (conn *SnowflakeClientConn) RemoteAddr() net.Addr {
 	return conn.address
+}
+
+// WriteTo implements the io.WriterTo interface by passing the call to the
+// underlying smux.Stream.
+func (conn *SnowflakeClientConn) WriteTo(w io.Writer) (int64, error) {
+	return conn.stream.WriteTo(w)
 }

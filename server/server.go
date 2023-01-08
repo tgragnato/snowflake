@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -56,7 +57,7 @@ func proxy(local *net.TCPConn, conn net.Conn) {
 		wg.Done()
 	}()
 	go func() {
-		if _, err := io.Copy(local, conn); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+		if _, err := io.Copy(local, conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
 			log.Printf("error copying WebSocket to ORPort %v", err)
 		}
 		local.CloseWrite()
@@ -138,7 +139,7 @@ func main() {
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.StringVar(&logFilename, "log", "", "log file to write to")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
-	flag.BoolVar(&versionFlag, "unsafe-logging", false, "display version info to stderr and quit")
+	flag.BoolVar(&versionFlag, "version", false, "display version info to stderr and quit")
 	flag.Parse()
 
 	if versionFlag {
@@ -279,7 +280,24 @@ func main() {
 			orPortSrcAddr = ipnet
 		}
 
-		ln, err := transport.Listen(bindaddr.Addr)
+		numKCPInstances := 1
+		// Are we requested to run a certain number of KCP state
+		// machines?
+		if value, ok := bindaddr.Options.Get("num-turbotunnel"); ok {
+			n, err := strconv.Atoi(value)
+			if err == nil && n < 1 {
+				err = fmt.Errorf("cannot be less than 1")
+			}
+			if err != nil {
+				err = fmt.Errorf("parsing num-turbotunnel: %w", err)
+				log.Println(err)
+				pt.SmethodError(bindaddr.MethodName, err.Error())
+				continue
+			}
+			numKCPInstances = n
+		}
+
+		ln, err := transport.Listen(bindaddr.Addr, numKCPInstances)
 		if err != nil {
 			log.Printf("error opening listener: %s", err)
 			pt.SmethodError(bindaddr.MethodName, err.Error())
