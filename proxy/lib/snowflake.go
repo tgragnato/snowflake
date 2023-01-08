@@ -295,7 +295,7 @@ func safeCopy(dst io.ReadWriteCloser, src io.Reader, wg *sync.WaitGroup, ctx con
 	r := &readerCtx{ctx: ctx, r: src}
 	_, err := io.Copy(dst, r)
 	dst.Close()
-	if err != nil {
+	if err != nil && err != io.ErrClosedPipe {
 		cancel()
 	}
 }
