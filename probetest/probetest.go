@@ -28,9 +28,9 @@ import (
 )
 
 const (
-	readLimit          = 100000                         //Maximum number of bytes to be read from an HTTP request
-	dataChannelTimeout = 20 * time.Second               //time after which we assume proxy data channel will not open
-	stunUrl            = "stun:stun.l.google.com:19302" //default STUN URL
+	readLimit          = 100000                        //Maximum number of bytes to be read from an HTTP request
+	dataChannelTimeout = 20 * time.Second              //time after which we assume proxy data channel will not open
+	stunUrl            = "stun:stun.tgragnato.it:3478" //default STUN URL
 )
 
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE

@@ -46,7 +46,7 @@ Usage of ./proxy:
   -relay string
         websocket relay URL (default "wss://snowflake.bamsoftware.com/")
   -stun string
-        STUN URL (default "stun:stun.stunprotocol.org:3478")
+        STUN URL (default "stun:stun.tgragnato.it:3478")
   -summary-interval duration
         the time interval to output summary, 0s disables summaries. Valid time units are "s", "m", "h".  (default 1h0m0s)
   -unsafe-logging

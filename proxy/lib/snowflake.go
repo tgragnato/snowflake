@@ -7,7 +7,7 @@ will be set to the defined defaults.
 
 	proxy := snowflake_proxy.SnowflakeProxy{
 		BrokerURL: "https://snowflake-broker.example.com",
-		STUNURL: "stun:stun.stunprotocol.org:3478",
+		STUNURL: "stun:stun.tgragnato.it:3478",
 		// ...
 	}
 
@@ -57,7 +57,7 @@ const (
 	DefaultNATProbeURL = "https://snowflake-broker.torproject.net:8443/probe"
 	DefaultProbeURL    = "https://snowflake-broker.torproject.net:8443/probe"
 	DefaultRelayURL    = "wss://snowflake.bamsoftware.com/"
-	DefaultSTUNURL     = "stun:stun.stunprotocol.org:3478"
+	DefaultSTUNURL     = "stun:stun.tgragnato.it:3478"
 	DefaultProxyType   = "standalone"
 	pollInterval       = 5 * time.Second
 	NATUnknown         = "unknown"
