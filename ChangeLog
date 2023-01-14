@@ -1,3 +1,17 @@
+Changes in version v2.4.2 - 2023-01-13
+- Issue 40208: Enhance help info for capacity flag
+- Issue 40232: Update README and fix help output
+- Issue 40173: Increase clientIDAddrMapCapacity
+- Issue 40177: Manually unlock mutex in ClientMap.SendQueue
+- Issue 40177: Have SnowflakeClientConn implement io.WriterTo
+- Issue 40179: Reduce turbotunnel queueSize from 2048 to 512
+- Issue 40187/40199: Take ownership of buffer in QueuePacketConn QueueIncoming/WriteTo
+- Add more tests for URL encoded IPs (safelog)
+- Fix server flag name
+- Issue 40200: Use multiple parallel KCP state machines in the server
+- Add a num-turbotunnel server transport option
+- Issue: 40241: Switch default proxy STUN server to stun.l.google.com
+
 Changes in version v2.4.1 - 2022-12-01
 - Issue 40224: Bug fix in utls roundtripper
 
