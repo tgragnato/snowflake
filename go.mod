@@ -22,3 +22,6 @@ require (
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
 	google.golang.org/protobuf v1.26.0
 )
+
+replace github.com/pion/webrtc/v3 v3.1.41 => github.com/xiaokangwang/webrtc/v3 v3.0.0-20230117115746-0005cfa4eb9a
+replace github.com/pion/dtls/v2 v2.1.5 => github.com/xiaokangwang/dtls/v2 v2.0.0-20230117114750-ac4a8437468c
