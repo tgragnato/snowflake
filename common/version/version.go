@@ -4,4 +4,4 @@ func GetVersion() string {
 	return version
 }
 
-var version = "2.4.3"
+var version = "2.5.0"
