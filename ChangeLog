@@ -1,3 +1,6 @@
+Changes in version v2.4.3 - 2023-01-16
+- Fix version number in version.go
+
 Changes in version v2.4.2 - 2023-01-13
 - Issue 40208: Enhance help info for capacity flag
 - Issue 40232: Update README and fix help output
