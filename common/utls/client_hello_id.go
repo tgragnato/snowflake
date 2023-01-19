@@ -2,8 +2,9 @@ package utls
 
 import (
 	"errors"
-	utls "github.com/refraction-networking/utls"
 	"strings"
+
+	utls "github.com/refraction-networking/utls"
 )
 
 // ported from https://github.com/max-b/snowflake/commit/9dded063cb74c6941a16ad90b9dd0e06e618e55e
@@ -39,7 +40,7 @@ func NameToUTLSID(name string) (utls.ClientHelloID, error) {
 
 func ListAllNames() []string {
 	var names []string
-	for k, _ := range clientHelloIDMap {
+	for k := range clientHelloIDMap {
 		names = append(names, k)
 	}
 	return names

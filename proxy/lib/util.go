@@ -14,20 +14,6 @@ type bytesLogger interface {
 	GetStat() (in int64, out int64)
 }
 
-// bytesNullLogger Default bytesLogger does nothing.
-type bytesNullLogger struct{}
-
-// AddOutbound in bytesNullLogger does nothing
-func (b bytesNullLogger) AddOutbound(amount int64) {}
-
-// AddInbound in bytesNullLogger does nothing
-func (b bytesNullLogger) AddInbound(amount int64) {}
-
-// ThroughputSummary in bytesNullLogger does nothing
-func (b bytesNullLogger) ThroughputSummary() string { return "" }
-
-func (b bytesNullLogger) GetStat() (in int64, out int64) { return -1, -1 }
-
 // bytesSyncLogger uses channels to safely log from multiple sources with output
 // occuring at reasonable intervals.
 type bytesSyncLogger struct {

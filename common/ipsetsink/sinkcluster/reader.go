@@ -3,9 +3,10 @@ package sinkcluster
 import (
 	"bufio"
 	"encoding/json"
-	"github.com/clarkduvall/hyperloglog"
 	"io"
 	"time"
+
+	"github.com/clarkduvall/hyperloglog"
 )
 
 func NewClusterCounter(from time.Time, to time.Time) *ClusterCounter {

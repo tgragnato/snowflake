@@ -4,10 +4,11 @@ import (
 	"container/heap"
 	"encoding/hex"
 	"fmt"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
 	"log"
 	"net"
 	"time"
+
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,7 +58,7 @@ func (i *IPC) Debug(_ interface{}, response *string) error {
 	}
 	s += fmt.Sprintf("\tunknown proxies: %d", unknowns)
 
-	s += fmt.Sprintf("\nNAT Types available:")
+	s += "\nNAT Types available:"
 	s += fmt.Sprintf("\n\trestricted: %d", natRestricted)
 	s += fmt.Sprintf("\n\tunrestricted: %d", natUnrestricted)
 	s += fmt.Sprintf("\n\tunknown: %d", natUnknown)

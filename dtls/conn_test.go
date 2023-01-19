@@ -2915,9 +2915,8 @@ func TestSkipHelloVerify(t *testing.T) {
 
 	go func() {
 		server, sErr := testServer(ctx, cb, &Config{
-			Certificates:    []tls.Certificate{certificate},
-			LoggerFactory:   logging.NewDefaultLoggerFactory(),
-			SkipHelloVerify: true,
+			Certificates:  []tls.Certificate{certificate},
+			LoggerFactory: logging.NewDefaultLoggerFactory(),
 		}, false)
 		if sErr != nil {
 			t.Error(sErr)

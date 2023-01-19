@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -22,8 +21,6 @@ func NullLogger() *log.Logger {
 	logger.SetOutput(io.Discard)
 	return logger
 }
-
-var promOnce sync.Once
 
 func decodeAMPArmorToString(r io.Reader) (string, error) {
 	dec, err := amp.NewArmorDecoder(r)

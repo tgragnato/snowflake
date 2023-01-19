@@ -127,7 +127,7 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 	}()
 
 	select {
-	case err = <-errChan:
+	case <-errChan:
 		break
 	case <-time.After(listenAndServeErrorTimeout):
 		break

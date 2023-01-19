@@ -109,7 +109,6 @@ type handshakeConfig struct {
 	retransmitInterval          time.Duration
 	customCipherSuites          func() []CipherSuite
 	ellipticCurves              []elliptic.Curve
-	skipHelloVerify             bool
 
 	onFlightState func(flightVal, handshakeState)
 	log           logging.LeveledLogger

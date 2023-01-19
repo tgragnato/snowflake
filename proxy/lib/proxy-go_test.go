@@ -33,10 +33,7 @@ func (m *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // Set up a mock faulty transport
-type FaultyTransport struct {
-	statusOverride int
-	body           []byte
-}
+type FaultyTransport struct{}
 
 // Just returns a response with fake SDP answer.
 func (f *FaultyTransport) RoundTrip(req *http.Request) (*http.Response, error) {

@@ -25,7 +25,7 @@ outer:
 		mustParseCIDR("2001:db8::1234/128"),
 		// Non-canonical masks (that don't consist of 1s followed by 0s)
 		// work too, why not.
-		&net.IPNet{
+		{
 			IP:   net.IP{1, 2, 3, 4},
 			Mask: net.IPMask{0x00, 0x07, 0xff, 0xff},
 		},
@@ -46,19 +46,19 @@ outer:
 
 func TestRandAddrUnequalLengths(t *testing.T) {
 	for _, ipnet := range []*net.IPNet{
-		&net.IPNet{
+		{
 			IP:   net.IP{1, 2, 3, 4},
 			Mask: net.CIDRMask(32, 128),
 		},
-		&net.IPNet{
+		{
 			IP:   net.IP{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 			Mask: net.CIDRMask(24, 32),
 		},
-		&net.IPNet{
+		{
 			IP:   net.IP{1, 2, 3, 4},
 			Mask: net.IPMask{},
 		},
-		&net.IPNet{
+		{
 			IP:   net.IP{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 			Mask: net.IPMask{},
 		},

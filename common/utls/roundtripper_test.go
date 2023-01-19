@@ -76,7 +76,7 @@ func runRoundTripperTest(t *testing.T, h2listen, h1listen, h2addr, h1addr string
 			listener, err := tls.Listen("tcp", h2listen, &tls.Config{
 				NextProtos: []string{http2.NextProtoTLS},
 				Certificates: []tls.Certificate{
-					tls.Certificate{Certificate: [][]byte{selfSignedCert}, PrivateKey: selfSignedPrivateKey},
+					{Certificate: [][]byte{selfSignedCert}, PrivateKey: selfSignedPrivateKey},
 				},
 			})
 			c.So(err, ShouldBeNil)
@@ -91,7 +91,7 @@ func runRoundTripperTest(t *testing.T, h2listen, h1listen, h2addr, h1addr string
 			listener, err := tls.Listen("tcp", h1listen, &tls.Config{
 				NextProtos: []string{"http/1.1"},
 				Certificates: []tls.Certificate{
-					tls.Certificate{Certificate: [][]byte{selfSignedCert}, PrivateKey: selfSignedPrivateKey},
+					{Certificate: [][]byte{selfSignedCert}, PrivateKey: selfSignedPrivateKey},
 				},
 			})
 			c.So(err, ShouldBeNil)

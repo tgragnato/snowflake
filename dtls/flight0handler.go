@@ -2,7 +2,6 @@ package dtls
 
 import (
 	"context"
-	"crypto/rand"
 
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v2/pkg/protocol"
@@ -80,14 +79,7 @@ func flight0Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
 		}
 	}
-
-	nextFlight := flight2
-
-	if cfg.skipHelloVerify {
-		nextFlight = flight4
-	}
-
-	return handleHelloResume(clientHello.SessionID, state, cfg, nextFlight)
+	return handleHelloResume(clientHello.SessionID, state, cfg, flight4)
 }
 
 func handleHelloResume(sessionID []byte, state *State, cfg *handshakeConfig, next flightVal) (flightVal, *alert.Alert, error) {
@@ -114,14 +106,6 @@ func handleHelloResume(sessionID []byte, state *State, cfg *handshakeConfig, nex
 }
 
 func flight0Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
-	// Initialize
-	if !cfg.skipHelloVerify {
-		state.cookie = make([]byte, cookieLength)
-		if _, err := rand.Read(state.cookie); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	var zeroEpoch uint16
 	state.localEpoch.Store(zeroEpoch)
 	state.remoteEpoch.Store(zeroEpoch)

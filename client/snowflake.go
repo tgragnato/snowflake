@@ -142,7 +142,6 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			case <-handler:
 				log.Println("Handler ended")
 			}
-			return
 		}()
 	}
 }

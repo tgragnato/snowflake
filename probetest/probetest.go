@@ -158,8 +158,6 @@ func probeHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error calling pc.Close: %v", err)
 		}
 	}()
-	return
-
 }
 
 func main() {

@@ -35,5 +35,4 @@ func (e *eventBus) RemoveSnowflakeEventListener(receiver SnowflakeEventReceiver)
 		}
 	}
 	e.listeners = newListeners
-	return
 }

@@ -27,9 +27,8 @@ type logEventLogger struct {
 }
 
 func (p *logEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
-	switch e.(type) {
+	switch e := e.(type) {
 	case event.EventOnProxyConnectionOver:
-		e := e.(event.EventOnProxyConnectionOver)
 		p.inboundSum += e.InboundTraffic
 		p.outboundSum += e.OutboundTraffic
 		p.connectionCount += 1
