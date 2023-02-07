@@ -28,11 +28,11 @@ type FakeSocksConn struct {
 	rejected bool
 }
 
-func (f *FakeSocksConn) Reject() error {
+func (f FakeSocksConn) Reject() error {
 	f.rejected = true
 	return nil
 }
-func (f *FakeSocksConn) Grant(addr *net.TCPAddr) error { return nil }
+func (f FakeSocksConn) Grant(addr *net.TCPAddr) error { return nil }
 
 func TestSnowflakeClient(t *testing.T) {
 
@@ -46,16 +46,16 @@ func TestSnowflakeClient(t *testing.T) {
 		})
 
 		Convey("Collecting a Snowflake requires a Tongue.", func() {
-			_, err := NewPeers(nil)
+			p, err := NewPeers(nil)
 			So(err, ShouldNotBeNil)
 			// Set the dialer so that collection is possible.
 			d := &FakeDialer{max: 1}
-			p, _ := NewPeers(d)
+			p, err = NewPeers(d)
 			_, err = p.Collect()
 			So(err, ShouldBeNil)
 			So(p.Count(), ShouldEqual, 1)
 			// S
-			p.Collect()
+			_, err = p.Collect()
 		})
 
 		Convey("Collection continues until capacity.", func() {
@@ -190,19 +190,15 @@ func TestICEServerParser(t *testing.T) {
 			length int
 		}{
 			{
-				[]string{"stun:stun.l.google.com:19302"},
-				[][]string{{"stun:stun.l.google.com:19302"}},
+				[]string{"stun:stun.l.google.com:19302", "stun:stun.ekiga.net"},
+				[][]string{[]string{"stun:stun.l.google.com:19302"}, []string{"stun:stun.ekiga.net:3478"}},
+				2,
+			},
+			{
+				[]string{"stun:stun1.l.google.com:19302", "stun.ekiga.net", "stun:stun.example.com:1234/path?query",
+					"https://example.com", "turn:relay.metered.ca:80?transport=udp"},
+				[][]string{[]string{"stun:stun1.l.google.com:19302"}},
 				1,
-			},
-			{
-				[]string{"stun:stun.l.google.com:19302", "stun.ekiga.net"},
-				[][]string{{"stun:stun.l.google.com:19302"}, {"stun.ekiga.net"}},
-				2,
-			},
-			{
-				[]string{"stun:stun.l.google.com:19302", "stun.ekiga.net"},
-				[][]string{{"stun:stun.l.google.com:19302"}, {"stun.ekiga.net"}},
-				2,
 			},
 		} {
 			servers := parseIceServers(test.input)

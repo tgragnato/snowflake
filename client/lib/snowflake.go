@@ -31,12 +31,14 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"net/url"
 	"strings"
 	"time"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/turbotunnel"
+	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
@@ -267,10 +269,30 @@ func parseIceServers(addresses []string) []webrtc.ICEServer {
 	if len(addresses) == 0 {
 		return nil
 	}
-	for _, url := range addresses {
-		url = strings.TrimSpace(url)
+	for _, address := range addresses {
+		address = strings.TrimSpace(address)
+
+		// ice.ParseURL recognizes many types of ICE servers,
+		// but we only support stun over UDP currently
+		u, err := url.Parse(address)
+		if err != nil {
+			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", address, err)
+			continue
+		}
+		if u.Scheme != "stun" {
+			log.Printf("Warning: Only stun: (STUN over UDP) servers are supported currently, skipping %v", address)
+			continue
+		}
+
+		// add default port, other sanity checks
+		parsedURL, err := ice.ParseURL(address)
+		if err != nil {
+			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", address, err)
+			continue
+		}
+
 		servers = append(servers, webrtc.ICEServer{
-			URLs: []string{url},
+			URLs: []string{parsedURL.String()},
 		})
 	}
 	return servers

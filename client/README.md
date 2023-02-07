@@ -45,7 +45,7 @@ Bridge snowflake 192.0.2.3:1
 
 `-front` is an optional front domain for the broker request.
 
-`-ice` is a comma-separated list of ICE servers. These can be STUN or TURN servers. We recommend using servers that have implemented NAT discovery. See our wiki page on [NAT traversal](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/wikis/NAT-matching) for more information.
+`-ice` is a comma-separated list of ICE servers. These must be STUN (over UDP) servers with the form stun:<var>host</var>[:<var>port</var>]. We recommend using servers that have implemented NAT discovery. See our wiki page on [NAT traversal](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/wikis/NAT-matching) for more information.
 
 To bootstrap Tor, run:
 ```
