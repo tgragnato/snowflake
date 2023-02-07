@@ -2,10 +2,12 @@ package ipsetsink
 
 import (
 	"fmt"
-	"github.com/clarkduvall/hyperloglog"
 	"testing"
+
+	"github.com/clarkduvall/hyperloglog"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
-import . "github.com/smartystreets/goconvey/convey"
 
 func TestSinkInit(t *testing.T) {
 	Convey("Context", t, func() {

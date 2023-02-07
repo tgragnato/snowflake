@@ -1,8 +1,10 @@
 package namematcher
 
-import "testing"
+import (
+	"testing"
 
-import . "github.com/smartystreets/goconvey/convey"
+	. "github.com/smartystreets/goconvey/convey"
+)
 
 func TestMatchMember(t *testing.T) {
 	testingVector := []struct {

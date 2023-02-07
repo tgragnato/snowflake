@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"

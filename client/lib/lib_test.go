@@ -28,11 +28,11 @@ type FakeSocksConn struct {
 	rejected bool
 }
 
-func (f FakeSocksConn) Reject() error {
+func (f *FakeSocksConn) Reject() error {
 	f.rejected = true
 	return nil
 }
-func (f FakeSocksConn) Grant(addr *net.TCPAddr) error { return nil }
+func (f *FakeSocksConn) Grant(addr *net.TCPAddr) error { return nil }
 
 func TestSnowflakeClient(t *testing.T) {
 

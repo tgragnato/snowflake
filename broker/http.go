@@ -24,7 +24,7 @@ func (sh SnowflakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Session-ID")
 	// Return early if it's CORS preflight.
-	if "OPTIONS" == r.Method {
+	if http.MethodOptions == r.Method {
 		return
 	}
 	sh.handle(sh.IPC, w, r)
@@ -40,7 +40,7 @@ func (mh MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Session-ID")
 	// Return early if it's CORS preflight.
-	if "OPTIONS" == r.Method {
+	if http.MethodOptions == r.Method {
 		return
 	}
 	mh.handle(mh.logFilename, w, r)
