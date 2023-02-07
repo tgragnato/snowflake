@@ -18,9 +18,9 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 	"github.com/pion/logging"
-	"github.com/pion/transport/connctx"
-	"github.com/pion/transport/deadline"
-	"github.com/pion/transport/replaydetector"
+	"github.com/pion/transport/v2/connctx"
+	"github.com/pion/transport/v2/deadline"
+	"github.com/pion/transport/v2/replaydetector"
 )
 
 const (
@@ -184,6 +184,7 @@ func createConn(ctx context.Context, nextConn net.Conn, config *Config, isClient
 		ellipticCurves:              curves,
 		localGetCertificate:         config.GetCertificate,
 		localGetClientCertificate:   config.GetClientCertificate,
+		insecureSkipHelloVerify:     config.InsecureSkipVerifyHello,
 	}
 
 	// rfc5246#section-7.4.3

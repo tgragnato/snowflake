@@ -3,7 +3,11 @@ package dtls
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	cryptoElliptic "crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
@@ -30,7 +34,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 	"github.com/pion/logging"
-	"github.com/pion/transport/test"
+	"github.com/pion/transport/v2/test"
 )
 
 var (
@@ -330,7 +334,6 @@ func sendClientHello(cookie []byte, ca net.Conn, sequenceNumber uint64, extensio
 	return nil
 }
 
-/*
 func TestHandshakeWithAlert(t *testing.T) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
@@ -349,21 +352,21 @@ func TestHandshakeWithAlert(t *testing.T) {
 	}{
 		"CipherSuiteNoIntersection": {
 			configServer: &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 			},
 			configClient: &Config{
-				CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+				CipherSuites: []CipherSuiteID{TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
 			},
 			errServer: errCipherSuiteNoIntersection,
 			errClient: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 		},
 		"SignatureSchemesNoIntersection": {
 			configServer: &Config{
-				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256},
 			},
 			configClient: &Config{
-				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP521AndSHA512},
 			},
 			errServer: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
@@ -394,7 +397,6 @@ func TestHandshakeWithAlert(t *testing.T) {
 		})
 	}
 }
-*/
 
 func TestExportKeyingMaterial(t *testing.T) {
 	// Check for leaking routines
@@ -404,15 +406,15 @@ func TestExportKeyingMaterial(t *testing.T) {
 	var rand [28]byte
 	exportLabel := "EXTRACTOR-dtls_srtp"
 
-	expectedServerKey := []byte{0x30, 0xef, 0x2b, 0x2d, 0x4f, 0x72, 0xe2, 0x3d, 0x2a, 0x13}
-	expectedClientKey := []byte{0xc7, 0xf9, 0x75, 0x03, 0x6b, 0x44, 0x10, 0x42, 0x34, 0xcf}
+	expectedServerKey := []byte{0x61, 0x09, 0x9d, 0x7d, 0xcb, 0x08, 0x52, 0x2c, 0xe7, 0x7b}
+	expectedClientKey := []byte{0x87, 0xf0, 0x40, 0x02, 0xf6, 0x1c, 0xf1, 0xfe, 0x8c, 0x77}
 
 	c := &Conn{
 		state: State{
 			localRandom:         handshake.Random{GMTUnixTime: time.Unix(500, 0), RandomBytes: rand},
 			remoteRandom:        handshake.Random{GMTUnixTime: time.Unix(1000, 0), RandomBytes: rand},
 			localSequenceNumber: []uint64{0, 0},
-			cipherSuite:         &ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
+			cipherSuite:         &ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{},
 		},
 	}
 	c.setLocalEpoch(0)
@@ -479,12 +481,12 @@ func TestPSK(t *testing.T) {
 		{
 			Name:           "Server identity specified",
 			ServerIdentity: []byte("Test Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
 		},
 		{
 			Name:           "Server identity specified - Server verify connection fails",
 			ServerIdentity: []byte("Test Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
 			ServerVerifyConnection: func(s *State) error {
 				return errExample
 			},
@@ -495,7 +497,7 @@ func TestPSK(t *testing.T) {
 		{
 			Name:           "Server identity specified - Client verify connection fails",
 			ServerIdentity: []byte("Test Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
 			ClientVerifyConnection: func(s *State) error {
 				return errExample
 			},
@@ -506,20 +508,18 @@ func TestPSK(t *testing.T) {
 		{
 			Name:           "Server identity nil",
 			ServerIdentity: nil,
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
 		},
 		{
-			Name:           "TLS_PSK_WITH_AES_128_GCM_SHA256",
+			Name:           "TLS_PSK_WITH_AES_128_CBC_SHA256",
 			ServerIdentity: nil,
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_CBC_SHA256},
 		},
-		/*
-			{
-				Name:           "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-				ServerIdentity: nil,
-				CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-			},
-		*/
+		{
+			Name:           "TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256",
+			ServerIdentity: nil,
+			CipherSuites:   []CipherSuiteID{TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256},
+		},
 	} {
 		test := test
 		t.Run(test.Name, func(t *testing.T) {
@@ -620,7 +620,7 @@ func TestPSKHintFail(t *testing.T) {
 				return nil, pskRejected
 			},
 			PSKIdentityHint: []byte{},
-			CipherSuites:    []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			CipherSuites:    []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
 		}
 
 		_, err := testClient(ctx, ca, conf, false)
@@ -632,7 +632,7 @@ func TestPSKHintFail(t *testing.T) {
 			return nil, pskRejected
 		},
 		PSKIdentityHint: []byte{},
-		CipherSuites:    []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+		CipherSuites:    []CipherSuiteID{TLS_PSK_WITH_AES_128_CCM_8},
 	}
 
 	if _, err := testServer(ctx, cb, config, false); !errors.Is(err, serverAlertError) {
@@ -1317,28 +1317,42 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 		},
 		{
 			Name:                    "Valid CipherSuites specified",
-			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 			WantClientError:         nil,
 			WantServerError:         nil,
-			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		},
-		/*
-			{
-				Name:               "CipherSuites mismatch",
-				ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-				ServerCipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
-				WantClientError:    &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
-				WantServerError:    errCipherSuiteNoIntersection,
-			},
-		*/
+		{
+			Name:               "CipherSuites mismatch",
+			ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+			ServerCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			WantClientError:    &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			WantServerError:    errCipherSuiteNoIntersection,
+		},
+		{
+			Name:                    "Valid CipherSuites CCM specified",
+			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_CCM},
+			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_CCM},
+			WantClientError:         nil,
+			WantServerError:         nil,
+			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_128_CCM,
+		},
+		{
+			Name:                    "Valid CipherSuites CCM-8 specified",
+			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8},
+			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8},
+			WantClientError:         nil,
+			WantServerError:         nil,
+			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
+		},
 		{
 			Name:                    "Server supports subset of client suites",
-			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_PSK_WITH_AES_128_GCM_SHA256},
-			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
+			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA},
 			WantClientError:         nil,
 			WantServerError:         nil,
-			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
 		},
 	} {
 		test := test
@@ -1414,7 +1428,7 @@ func TestCertificateAndPSKServer(t *testing.T) {
 			c := make(chan result)
 
 			go func() {
-				config := &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}}
+				config := &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256}}
 				if test.ClientPSK {
 					config.PSK = func([]byte) ([]byte, error) {
 						return []byte{0x00, 0x01, 0x02}, nil
@@ -1428,7 +1442,7 @@ func TestCertificateAndPSKServer(t *testing.T) {
 			}()
 
 			config := &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_PSK_WITH_AES_128_GCM_SHA256},
+				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, TLS_PSK_WITH_AES_128_GCM_SHA256},
 				PSK: func([]byte) ([]byte, error) {
 					return []byte{0x00, 0x01, 0x02}, nil
 				},
@@ -1565,7 +1579,8 @@ func TestServerTimeout(t *testing.T) {
 	random := handshake.Random{GMTUnixTime: time.Unix(500, 0), RandomBytes: rand}
 
 	cipherSuites := []CipherSuite{
-		&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
+		&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{},
+		&ciphersuite.TLSEcdheRsaWithAes128GcmSha256{},
 	}
 
 	extensions := []extension.Extension{
@@ -1574,10 +1589,13 @@ func TestServerTimeout(t *testing.T) {
 				{Hash: hash.SHA256, Signature: signature.ECDSA},
 				{Hash: hash.SHA384, Signature: signature.ECDSA},
 				{Hash: hash.SHA512, Signature: signature.ECDSA},
+				{Hash: hash.SHA256, Signature: signature.RSA},
+				{Hash: hash.SHA384, Signature: signature.RSA},
+				{Hash: hash.SHA512, Signature: signature.RSA},
 			},
 		},
 		&extension.SupportedEllipticCurves{
-			EllipticCurves: []elliptic.Curve{elliptic.X25519, elliptic.P384},
+			EllipticCurves: []elliptic.Curve{elliptic.X25519, elliptic.P256, elliptic.P384},
 		},
 		&extension.SupportedPointFormats{
 			PointFormats: []elliptic.CurvePointFormat{elliptic.CurvePointFormatUncompressed},
@@ -1652,7 +1670,7 @@ func TestServerTimeout(t *testing.T) {
 	defer cancel()
 
 	config := &Config{
-		CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+		CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 		FlightInterval: 100 * time.Millisecond,
 	}
 
@@ -1689,7 +1707,7 @@ func TestProtocolVersionValidation(t *testing.T) {
 	random := handshake.Random{GMTUnixTime: time.Unix(500, 0), RandomBytes: rand}
 
 	config := &Config{
-		CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+		CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 		FlightInterval: 100 * time.Millisecond,
 	}
 
@@ -1708,7 +1726,7 @@ func TestProtocolVersionValidation(t *testing.T) {
 								Version:            protocol.Version{Major: 0xfe, Minor: 0xff}, // try to downgrade
 								Cookie:             cookie,
 								Random:             random,
-								CipherSuiteIDs:     []uint16{uint16((&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{}).ID())},
+								CipherSuiteIDs:     []uint16{uint16((&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{}).ID())},
 								CompressionMethods: defaultCompressionMethods(),
 							},
 						},
@@ -1726,7 +1744,7 @@ func TestProtocolVersionValidation(t *testing.T) {
 								Version:            protocol.Version1_2,
 								Cookie:             cookie,
 								Random:             random,
-								CipherSuiteIDs:     []uint16{uint16((&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{}).ID())},
+								CipherSuiteIDs:     []uint16{uint16((&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{}).ID())},
 								CompressionMethods: defaultCompressionMethods(),
 							},
 						},
@@ -1744,7 +1762,7 @@ func TestProtocolVersionValidation(t *testing.T) {
 								Version:            protocol.Version{Major: 0xfe, Minor: 0xff}, // try to downgrade
 								Cookie:             cookie,
 								Random:             random,
-								CipherSuiteIDs:     []uint16{uint16((&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{}).ID())},
+								CipherSuiteIDs:     []uint16{uint16((&ciphersuite.TLSEcdheEcdsaWithAes128GcmSha256{}).ID())},
 								CompressionMethods: defaultCompressionMethods(),
 							},
 						},
@@ -1834,7 +1852,7 @@ func TestProtocolVersionValidation(t *testing.T) {
 							Message: &handshake.MessageServerHello{
 								Version:           protocol.Version{Major: 0xfe, Minor: 0xff}, // try to downgrade
 								Random:            random,
-								CipherSuiteID:     func() *uint16 { id := uint16(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384); return &id }(),
+								CipherSuiteID:     func() *uint16 { id := uint16(TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256); return &id }(),
 								CompressionMethod: defaultCompressionMethods()[0],
 							},
 						},
@@ -2432,7 +2450,7 @@ func TestSupportedGroupsExtension(t *testing.T) {
 		}()
 		extensions := []extension.Extension{
 			&extension.SupportedEllipticCurves{
-				EllipticCurves: []elliptic.Curve{elliptic.X25519, elliptic.P384},
+				EllipticCurves: []elliptic.Curve{elliptic.X25519, elliptic.P256, elliptic.P384},
 			},
 			&extension.SupportedPointFormats{
 				PointFormats: []elliptic.CurvePointFormat{elliptic.CurvePointFormatUncompressed},
@@ -2530,7 +2548,7 @@ func TestSessionResume(t *testing.T) {
 
 		go func() {
 			config := &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 				ServerName:   "example.com",
 				SessionStore: ss,
 				MTU:          100,
@@ -2540,7 +2558,7 @@ func TestSessionResume(t *testing.T) {
 		}()
 
 		config := &Config{
-			CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
 			ServerName:   "example.com",
 			SessionStore: ss,
 			MTU:          100,
@@ -2660,7 +2678,6 @@ func (ms *memSessStore) Del(key []byte) error {
 
 // Assert that the server only uses CipherSuites with a hash+signature that matches
 // the certificate. As specified in rfc5246#section-7.4.3
-/*
 func TestCipherSuiteMatchesCertificateType(t *testing.T) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
@@ -2739,7 +2756,6 @@ func TestCipherSuiteMatchesCertificateType(t *testing.T) {
 		})
 	}
 }
-*/
 
 // Test that we return the proper certificate if we are serving multiple ServerNames on a single Server
 func TestMultipleServerCertificates(t *testing.T) {
@@ -2858,11 +2874,11 @@ func TestEllipticCurveConfiguration(t *testing.T) {
 		c := make(chan result)
 
 		go func() {
-			client, err := testClient(ctx, ca, &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}, EllipticCurves: test.ConfigCurves}, true)
+			client, err := testClient(ctx, ca, &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256}, EllipticCurves: test.ConfigCurves}, true)
 			c <- result{client, err}
 		}()
 
-		server, err := testServer(ctx, cb, &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}, EllipticCurves: test.ConfigCurves}, true)
+		server, err := testServer(ctx, cb, &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256}, EllipticCurves: test.ConfigCurves}, true)
 		if err != nil {
 			t.Fatalf("Server error: %v", err)
 		}
@@ -2915,8 +2931,9 @@ func TestSkipHelloVerify(t *testing.T) {
 
 	go func() {
 		server, sErr := testServer(ctx, cb, &Config{
-			Certificates:  []tls.Certificate{certificate},
-			LoggerFactory: logging.NewDefaultLoggerFactory(),
+			Certificates:            []tls.Certificate{certificate},
+			LoggerFactory:           logging.NewDefaultLoggerFactory(),
+			InsecureSkipVerifyHello: true,
 		}, false)
 		if sErr != nil {
 			t.Error(sErr)
