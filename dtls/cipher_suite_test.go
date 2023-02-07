@@ -16,7 +16,7 @@ func TestCipherSuiteName(t *testing.T) {
 		expected string
 	}{
 		{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"},
-		{CipherSuiteID(0xc02c), "0xc02c"},
+		{CipherSuiteID(0xc02c), "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"},
 	}
 
 	for _, testCase := range testCases {
