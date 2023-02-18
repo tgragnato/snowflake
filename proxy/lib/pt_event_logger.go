@@ -40,7 +40,7 @@ func (p *logEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 func (p *logEventLogger) logTick() error {
 	inbound, inboundUnit := formatTraffic(p.inboundSum)
 	outbound, outboundUnit := formatTraffic(p.outboundSum)
-	p.logger.Printf("In the last %v, there were %v connections. Traffic Relayed ↑ %v %v, ↓ %v %v.\n",
+	p.logger.Printf("In the last %v, there were %v connections. Traffic Relayed ↓ %v %v, ↑ %v %v.\n",
 		p.logPeriod.String(), p.connectionCount, inbound, inboundUnit, outbound, outboundUnit)
 	p.logger.Printf("Current connections: %d, Reported connections: %d\n", tokens.count(), int((tokens.count()/8)*8))
 	p.outboundSum = 0

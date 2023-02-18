@@ -66,7 +66,7 @@ func (b *bytesSyncLogger) ThroughputSummary() string {
 	outbound, outUnit := formatTraffic(outbound)
 
 	t := time.Now()
-	return fmt.Sprintf("Traffic throughput (up|down): %d %s|%d %s -- (%d OnMessages, %d Sends, over %d seconds)", inbound, inUnit, outbound, outUnit, b.outEvents, b.inEvents, int(t.Sub(b.start).Seconds()))
+	return fmt.Sprintf("Traffic throughput (down|up): %d %s|%d %s -- (%d OnMessages, %d Sends, over %d seconds)", inbound, inUnit, outbound, outUnit, b.outEvents, b.inEvents, int(t.Sub(b.start).Seconds()))
 }
 
 func (b *bytesSyncLogger) GetStat() (in int64, out int64) { return b.inbound, b.outbound }
