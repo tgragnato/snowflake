@@ -1,6 +1,6 @@
 module git.torproject.org/pluggable-transports/snowflake.git/v2
 
-go 1.19
+go 1.20
 
 require (
 	git.torproject.org/pluggable-transports/goptlib.git v1.3.0
