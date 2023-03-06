@@ -379,6 +379,8 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 
 	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
+	settingsEngine.SetDTLSInsecureSkipHelloVerify(true)
+
 	return webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
 }
 
