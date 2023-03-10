@@ -97,3 +97,13 @@ runs in GitLab CI.  It is also possible to run this setup in a Virtual Machine
 using [vagrant](https://www.vagrantup.com/).  Just run `vagrant up` and it will
 create and provision the VM.  `vagrant ssh` to get into the VM to use it as a
 development environment.
+
+##### uTLS Settings
+
+Snowflake communicate with broker that serves as signaling server with TLS based domain fronting connection, which may be identified by its usage of Go language TLS stack.
+
+uTLS is a software library designed to initiate the TLS Client Hello fingerprint of browsers or other popular software's TLS stack to evade censorship based on TLS client hello fingerprint with `-utls-imitate` . You can use `-version` to see a list of supported values.
+
+Depending on client and server configuration, it may not always work as expected as not all extensions are correctly implemented.
+
+You can also remove SNI(Server Name Indication) from client hello to evade censorship with `-utls-nosni`, not all servers supports this.
