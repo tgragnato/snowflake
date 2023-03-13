@@ -106,4 +106,4 @@ uTLS is a software library designed to initiate the TLS Client Hello fingerprint
 
 Depending on client and server configuration, it may not always work as expected as not all extensions are correctly implemented.
 
-You can also remove SNI(Server Name Indication) from client hello to evade censorship with `-utls-nosni`, not all servers supports this.
+You can also remove SNI (Server Name Indication) from client hello to evade censorship with `-utls-nosni`, not all servers supports this.
