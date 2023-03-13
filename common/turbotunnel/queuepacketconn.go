@@ -42,9 +42,8 @@ func NewQueuePacketConn(localAddr net.Addr, timeout time.Duration) *QueuePacketC
 	}
 }
 
-// QueueIncoming queues an incoming packet and its source address, to be
-// returned in a future call to ReadFrom. This function takes ownership of p and
-// the caller must not reuse it.
+// QueueIncoming queues and incoming packet and its source address, to be
+// returned in a future call to ReadFrom.
 func (c *QueuePacketConn) QueueIncoming(p []byte, addr net.Addr) {
 	select {
 	case <-c.closed:
@@ -52,8 +51,11 @@ func (c *QueuePacketConn) QueueIncoming(p []byte, addr net.Addr) {
 		return
 	default:
 	}
+	// Copy the slice so that the caller may reuse it.
+	buf := make([]byte, len(p))
+	copy(buf, p)
 	select {
-	case c.recvQueue <- taggedPacket{p, addr}:
+	case c.recvQueue <- taggedPacket{buf, addr}:
 	default:
 		// Drop the incoming packet if the receive queue is full.
 	}
@@ -82,20 +84,22 @@ func (c *QueuePacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 // WriteTo queues an outgoing packet for the given address. The queue can later
-// be retrieved using the OutgoingQueue method. This function takes ownership of
-// p and the caller must not reuse it.
+// be retrieved using the OutgoingQueue method.
 func (c *QueuePacketConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 	select {
 	case <-c.closed:
 		return 0, &net.OpError{Op: "write", Net: c.LocalAddr().Network(), Addr: c.LocalAddr(), Err: c.err.Load().(error)}
 	default:
 	}
+	// Copy the slice so that the caller may reuse it.
+	buf := make([]byte, len(p))
+	copy(buf, p)
 	select {
-	case c.clients.SendQueue(addr) <- p:
-		return len(p), nil
+	case c.clients.SendQueue(addr) <- buf:
+		return len(buf), nil
 	default:
 		// Drop the outgoing packet if the send queue is full.
-		return len(p), nil
+		return len(buf), nil
 	}
 }
 
