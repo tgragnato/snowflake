@@ -250,6 +250,8 @@ func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayP
 	return nil, ""
 }
 
+// sendAnswer encodes an SDP answer, sends it to the broker
+// and wait for its response
 func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) error {
 	ld := pc.LocalDescription()
 	if !s.keepLocalAddresses {
@@ -485,6 +487,10 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 
 	// Wait for ICE candidate gathering to complete
 	<-done
+
+	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
+		return nil, fmt.Errorf("SDP answer contains no candidate")
+	}
 	log.Printf("Answer: \n\t%s", strings.ReplaceAll(pc.LocalDescription().SDP, "\n", "\n\t"))
 
 	return pc, nil
@@ -524,15 +530,16 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 		pc.Close()
 		return nil, err
 	}
-	log.Println("Probetest: Creating offer")
+	log.Println("Probetest: Created Offer")
 
 	// As of v3.0.0, pion-webrtc uses trickle ICE by default.
 	// We have to wait for candidate gathering to complete
 	// before we send the offer
 	done := webrtc.GatheringCompletePromise(pc)
+	// start the gathering of ICE candidates
 	err = pc.SetLocalDescription(offer)
 	if err != nil {
-		log.Println("Failed to prepare offer", err)
+		log.Println("Failed to apply offer", err)
 		pc.Close()
 		return nil, err
 	}
@@ -540,6 +547,11 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 
 	// Wait for ICE candidate gathering to complete
 	<-done
+
+	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
+		return nil, fmt.Errorf("Probetest SDP offer contains no candidate")
+	}
+
 	return pc, nil
 }
 
@@ -701,7 +713,6 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		log.Printf("Error parsing url: %s", err.Error())
 	}
 
-	// create offer used for probetest
 	dataChan := make(chan struct{})
 	pc, err := sf.makeNewPeerConnection(config, dataChan)
 	if err != nil {

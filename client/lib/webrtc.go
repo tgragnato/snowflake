@@ -4,8 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -143,10 +145,10 @@ func (c *WebRTCPeer) checkForStaleness(timeout time.Duration) {
 	}
 }
 
+// connect does the bulk of the work: gather ICE candidates, send the SDP offer to broker,
+// receive an answer from broker, and wait for data channel to open
 func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel) error {
 	log.Println(c.id, " connecting...")
-	// TODO: When go-webrtc is more stable, it's possible that a new
-	// PeerConnection won't need to be re-prepared each time.
 	err := c.preparePeerConnection(config)
 	localDescription := c.pc.LocalDescription()
 	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnOfferCreated{
@@ -187,7 +189,7 @@ func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel
 }
 
 // preparePeerConnection creates a new WebRTC PeerConnection and returns it
-// after ICE candidate gathering is complete..
+// after non-trickle ICE candidate gathering is complete.
 func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 	var err error
 	s := webrtc.SettingEngine{}
@@ -240,10 +242,8 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 	})
 	c.transport = dc
 	c.open = make(chan struct{})
-	log.Println("WebRTC: DataChannel created.")
+	log.Println("WebRTC: DataChannel created")
 
-	// Allow candidates to accumulate until ICEGatheringStateComplete.
-	done := webrtc.GatheringCompletePromise(c.pc)
 	offer, err := c.pc.CreateOffer(nil)
 	// TODO: Potentially timeout and retry if ICE isn't working.
 	if err != nil {
@@ -252,16 +252,23 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 		return err
 	}
 	log.Println("WebRTC: Created offer")
+
+	// Allow candidates to accumulate until ICEGatheringStateComplete.
+	done := webrtc.GatheringCompletePromise(c.pc)
+	// Start gathering candidates
 	err = c.pc.SetLocalDescription(offer)
 	if err != nil {
-		log.Println("Failed to prepare offer", err)
+		log.Println("Failed to apply offer", err)
 		c.pc.Close()
 		return err
 	}
 	log.Println("WebRTC: Set local description")
 
 	<-done // Wait for ICE candidate gathering to complete.
-	log.Println("WebRTC: PeerConnection created.")
+
+	if !strings.Contains(c.pc.LocalDescription().SDP, "\na=candidate:") {
+		return fmt.Errorf("SDP offer contains no candidate")
+	}
 	return nil
 }
 

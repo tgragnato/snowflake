@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -137,10 +139,17 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = validateSDP(body)
+	if err != nil {
+		log.Println("Error client SDP: ", err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	// Handle the legacy version
 	//
 	// We support two client message formats. The legacy format is for backwards
-	// combatability and relies heavily on HTTP headers and status codes to convey
+	// compatability and relies heavily on HTTP headers and status codes to convey
 	// information.
 	isLegacy := false
 	if len(body) > 0 && body[0] == '{' {
@@ -197,7 +206,7 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-Expects snowflake proxes which have previously successfully received
+Expects snowflake proxies which have previously successfully received
 an offer from proxyHandler to respond with an answer in an HTTP POST,
 which the broker will pass back to the original client.
 */
@@ -205,6 +214,13 @@ func proxyAnswers(i *IPC, w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if err != nil {
 		log.Println("Invalid data.", err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = validateSDP(body)
+	if err != nil {
+		log.Println("Error proxy SDP: ", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -232,4 +248,13 @@ func proxyAnswers(i *IPC, w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(response); err != nil {
 		log.Printf("proxyAnswers unable to write answer response with error: %v", err)
 	}
+}
+
+func validateSDP(SDP []byte) error {
+	// TODO: more validation likely needed
+	if !bytes.Contains(SDP, []byte("a=candidate")) {
+		return fmt.Errorf("SDP contains no candidate")
+	}
+
+	return nil
 }
