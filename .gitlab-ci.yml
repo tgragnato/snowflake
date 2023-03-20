@@ -110,7 +110,7 @@ android:
         gnupg
         unzip
         wget
-    - apt-get install -t bullseye-backports golang-1.16
+    - apt-get install -t bullseye-backports golang
 
     - ndk=android-ndk-r21e-linux-x86_64.zip
     - wget --continue --no-verbose https://dl.google.com/android/repository/$ndk
@@ -140,13 +140,6 @@ android:
     - go get golang.org/x/mobile/bind
     - gomobile bind -v -target=android $REPRODUCIBLE_FLAGS .
 
-go-1.15:
-  image: golang:1.15-stretch
-  <<: *golang-docker-debian-template
-  <<: *test-template
-  script:
-    - *go-test
-
 go-1.18:
   image: golang:1.18-stretch
   <<: *golang-docker-debian-template
@@ -156,6 +149,13 @@ go-1.18:
 
 go-1.19:
   image: golang:1.19-buster
+  <<: *golang-docker-debian-template
+  <<: *test-template
+  script:
+    - *go-test
+
+go-1.20:
+  image: golang:1.20-buster
   <<: *golang-docker-debian-template
   <<: *test-template
   script:
