@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,9 @@ func main() {
 		"the time interval in second before NAT type is retested, 0s disables retest. Valid time units are \"s\", \"m\", \"h\". ")
 	SummaryInterval := flag.Duration("summary-interval", time.Hour,
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
+	disableStatsLogger := flag.Bool("disable-stats-logger", false, "disable the exposing mechanism for stats using logs")
+	enableMetrics := flag.Bool("metrics", false, "enable the exposing mechanism for stats using metrics")
+	metricsPort := flag.Int("metrics-port", 9999, "set port for the metrics service")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
 	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "ICE UDP ephemeral ports range (format:\"<min>:<max>\")")
 	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
@@ -120,8 +124,21 @@ func main() {
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
 
-	periodicEventLogger := sf.NewProxyEventLogger(*SummaryInterval, eventlogOutput)
-	eventLogger.AddSnowflakeEventListener(periodicEventLogger)
+	if !*disableStatsLogger {
+		periodicEventLogger := sf.NewProxyEventLogger(*SummaryInterval, eventlogOutput)
+		eventLogger.AddSnowflakeEventListener(periodicEventLogger)
+	}
+
+	if *enableMetrics {
+		metrics := sf.NewMetrics()
+
+		err := metrics.Start(net.JoinHostPort("localhost", strconv.Itoa(*metricsPort)))
+		if err != nil {
+			log.Fatalf("could not enable metrics: %v", err)
+		}
+
+		eventLogger.AddSnowflakeEventListener(sf.NewEventMetrics(metrics))
+	}
 
 	log.Printf("snowflake-proxy %s\n", version.GetVersion())
 
