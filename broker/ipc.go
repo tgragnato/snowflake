@@ -4,10 +4,11 @@ import (
 	"container/heap"
 	"encoding/hex"
 	"fmt"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
 	"log"
 	"net"
 	"time"
+
+	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
 
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"github.com/prometheus/client_golang/prometheus"
@@ -102,7 +103,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	// Log geoip stats
 	remoteIP, _, err := net.SplitHostPort(arg.RemoteAddr)
 	if err != nil {
-		log.Println("Error processing proxy IP: ", err.Error())
+		log.Println("Warning: cannot process proxy IP: ", err.Error())
 	} else {
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateCountryStats(remoteIP, proxyType, natType)
