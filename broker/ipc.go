@@ -266,6 +266,7 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 		// The snowflake took too long to respond with an answer, so its client
 		// disappeared / the snowflake is no longer recognized by the Broker.
 		success = false
+		log.Printf("Warning: matching with snowflake client failed")
 	}
 
 	b, err := messages.EncodeAnswerResponse(success)
