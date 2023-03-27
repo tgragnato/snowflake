@@ -16,6 +16,8 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 )
 
+const maxBufferedAmount uint64 = 512 * 1024 // 512 KB
+
 var remoteIPPatterns = []*regexp.Regexp{
 	/* IPv4 */
 	regexp.MustCompile(`(?m)^c=IN IP4 ([\d.]+)(?:(?:\/\d+)?\/\d+)?(:? |\r?\n)`),
@@ -31,18 +33,23 @@ type webRTCConn struct {
 	lock sync.Mutex // Synchronization for DataChannel destruction
 	once sync.Once  // Synchronization for PeerConnection destruction
 
+	isClosing bool
+
 	bytesLogger bytesLogger
 	eventLogger event.SnowflakeEventReceiver
 
 	inactivityTimeout time.Duration
 	activity          chan struct{}
+	sendMoreCh        chan struct{}
 	cancelTimeoutLoop context.CancelFunc
 }
 
 func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) *webRTCConn {
 	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: eventLogger}
+	conn.isClosing = false
 	conn.bytesLogger = newBytesSyncLogger()
 	conn.activity = make(chan struct{}, 100)
+	conn.sendMoreCh = make(chan struct{}, 1)
 	conn.inactivityTimeout = 30 * time.Second
 	ctx, cancel := context.WithCancel(context.Background())
 	conn.cancelTimeoutLoop = cancel
@@ -76,16 +83,27 @@ func (c *webRTCConn) Read(b []byte) (int, error) {
 
 func (c *webRTCConn) Write(b []byte) (int, error) {
 	c.bytesLogger.AddInbound(int64(len(b)))
-	c.activity <- struct{}{}
+	select {
+	case c.activity <- struct{}{}:
+	default:
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.dc != nil {
 		c.dc.Send(b)
+		if !c.isClosing && c.dc.BufferedAmount()+uint64(len(b)) > maxBufferedAmount {
+			<-c.sendMoreCh
+		}
 	}
 	return len(b), nil
 }
 
 func (c *webRTCConn) Close() (err error) {
+	c.isClosing = true
+	select {
+	case c.sendMoreCh <- struct{}{}:
+	default:
+	}
 	c.once.Do(func() {
 		c.cancelTimeoutLoop()
 		err = c.pc.Close()

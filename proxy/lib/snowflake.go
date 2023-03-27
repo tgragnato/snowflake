@@ -83,6 +83,8 @@ const (
 	sessionIDLength = 16
 )
 
+const bufferedAmountLowThreshold uint64 = 256 * 1024 // 256 KB
+
 var broker *SignalingServer
 
 var currentNATTypeAccess = &sync.RWMutex{}
@@ -407,6 +409,15 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 
 		pr, pw := io.Pipe()
 		conn := newWebRTCConn(pc, dc, pr, sf.EventDispatcher)
+
+		dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
+
+		dc.OnBufferedAmountLow(func() {
+			select {
+			case conn.sendMoreCh <- struct{}{}:
+			default:
+			}
+		})
 
 		dc.OnOpen(func() {
 			log.Printf("Data Channel %s-%d open\n", dc.Label(), dc.ID())
