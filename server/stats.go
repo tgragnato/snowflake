@@ -1,6 +1,6 @@
 package main
 
-// This code handled periodic statistics logging.
+// This code handles periodic statistics logging.
 //
 // The only thing it keeps track of is how many connections had the client_ip
 // parameter. Write true to statsChannel to record a connection with client_ip;
