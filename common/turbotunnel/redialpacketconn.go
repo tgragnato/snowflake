@@ -33,7 +33,7 @@ type RedialPacketConn struct {
 	err atomic.Value
 }
 
-// NewQueuePacketConn makes a new RedialPacketConn, with the given static local
+// NewRedialPacketConn makes a new RedialPacketConn, with the given static local
 // and remote addresses, and dialContext function.
 func NewRedialPacketConn(
 	localAddr, remoteAddr net.Addr,
