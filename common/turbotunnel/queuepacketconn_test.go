@@ -27,12 +27,9 @@ func BenchmarkQueueIncoming(b *testing.B) {
 	defer conn.Close()
 
 	b.ResetTimer()
-	s := 500
+	var p [500]byte
 	for i := 0; i < b.N; i++ {
-		// Use a variable for the length to stop the compiler from
-		// optimizing out the allocation.
-		p := make([]byte, s)
-		conn.QueueIncoming(p, emptyAddr{})
+		conn.QueueIncoming(p[:], emptyAddr{})
 	}
 	b.StopTimer()
 }
@@ -43,12 +40,9 @@ func BenchmarkWriteTo(b *testing.B) {
 	defer conn.Close()
 
 	b.ResetTimer()
-	s := 500
+	var p [500]byte
 	for i := 0; i < b.N; i++ {
-		// Use a variable for the length to stop the compiler from
-		// optimizing out the allocation.
-		p := make([]byte, s)
-		conn.WriteTo(p, emptyAddr{})
+		conn.WriteTo(p[:], emptyAddr{})
 	}
 	b.StopTimer()
 }
