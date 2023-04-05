@@ -23,7 +23,7 @@ func (i intAddr) String() string  { return fmt.Sprintf("%d", i) }
 
 // Run with -benchmem to see memory allocations.
 func BenchmarkQueueIncoming(b *testing.B) {
-	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour)
+	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, 500)
 	defer conn.Close()
 
 	b.ResetTimer()
@@ -36,7 +36,7 @@ func BenchmarkQueueIncoming(b *testing.B) {
 
 // BenchmarkWriteTo benchmarks the QueuePacketConn.WriteTo function.
 func BenchmarkWriteTo(b *testing.B) {
-	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour)
+	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, 500)
 	defer conn.Close()
 
 	b.ResetTimer()
@@ -45,6 +45,72 @@ func BenchmarkWriteTo(b *testing.B) {
 		conn.WriteTo(p[:], emptyAddr{})
 	}
 	b.StopTimer()
+}
+
+// TestQueueIncomingOversize tests that QueueIncoming truncates packets that are
+// larger than the MTU.
+func TestQueueIncomingOversize(t *testing.T) {
+	const payload = "abcdefghijklmnopqrstuvwxyz"
+	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, len(payload)-1)
+	defer conn.Close()
+	conn.QueueIncoming([]byte(payload), emptyAddr{})
+	var p [500]byte
+	n, _, err := conn.ReadFrom(p[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(p[:n], []byte(payload[:len(payload)-1])) {
+		t.Fatalf("payload was %+q, expected %+q", p[:n], payload[:len(payload)-1])
+	}
+}
+
+// TestWriteToOversize tests that WriteTo truncates packets that are larger than
+// the MTU.
+func TestWriteToOversize(t *testing.T) {
+	const payload = "abcdefghijklmnopqrstuvwxyz"
+	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, len(payload)-1)
+	defer conn.Close()
+	conn.WriteTo([]byte(payload), emptyAddr{})
+	p := <-conn.OutgoingQueue(emptyAddr{})
+	if !bytes.Equal(p, []byte(payload[:len(payload)-1])) {
+		t.Fatalf("payload was %+q, expected %+q", p, payload[:len(payload)-1])
+	}
+}
+
+// TestRestoreMTU tests that Restore ignores any inputs that are not at least
+// MTU-sized.
+func TestRestoreMTU(t *testing.T) {
+	const mtu = 500
+	const payload = "hello"
+	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, mtu)
+	defer conn.Close()
+	conn.Restore(make([]byte, mtu-1))
+	// This WriteTo may use the short slice we just gave to Restore.
+	conn.WriteTo([]byte(payload), emptyAddr{})
+	// Read the queued slice and ensure its capacity is at least the MTU.
+	p := <-conn.OutgoingQueue(emptyAddr{})
+	if cap(p) != mtu {
+		t.Fatalf("cap was %v, expected %v", cap(p), mtu)
+	}
+	// Check the payload while we're at it.
+	if !bytes.Equal(p, []byte(payload)) {
+		t.Fatalf("payload was %+q, expected %+q", p, payload)
+	}
+}
+
+// TestRestoreCap tests that Restore can use slices whose cap is at least the
+// MTU, even if the len is shorter.
+func TestRestoreCap(t *testing.T) {
+	const mtu = 500
+	const payload = "hello"
+	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, mtu)
+	defer conn.Close()
+	conn.Restore(make([]byte, 0, mtu))
+	conn.WriteTo([]byte(payload), emptyAddr{})
+	p := <-conn.OutgoingQueue(emptyAddr{})
+	if !bytes.Equal(p, []byte(payload)) {
+		t.Fatalf("payload was %+q, expected %+q", p, payload)
+	}
 }
 
 // DiscardPacketConn is a net.PacketConn whose ReadFrom method block forever and
@@ -122,7 +188,7 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 		}
 	}()
 
-	pconn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour)
+	pconn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, 500)
 	defer pconn.Close()
 	addr1 := intAddr(1)
 	outgoing := pconn.OutgoingQueue(addr1)

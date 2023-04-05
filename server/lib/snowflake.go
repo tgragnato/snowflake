@@ -79,7 +79,11 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 		ln:     make([]*kcp.Listener, 0, numKCPInstances),
 	}
 
-	handler := newHTTPHandler(addr, numKCPInstances)
+	// kcp-go doesn't provide an accessor for the current MTU setting (and
+	// anyway we could not create a kcp.Listener without creating a
+	// net.PacketConn for it first), so assume the default kcp.IKCP_MTU_DEF
+	// (1400 bytes) and don't increase it elsewhere.
+	handler := newHTTPHandler(addr, numKCPInstances, kcp.IKCP_MTU_DEF)
 	server := &http.Server{
 		Addr:        addr.String(),
 		Handler:     handler,
