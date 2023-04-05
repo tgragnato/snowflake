@@ -42,7 +42,7 @@ func NewQueuePacketConn(localAddr net.Addr, timeout time.Duration) *QueuePacketC
 	}
 }
 
-// QueueIncoming queues and incoming packet and its source address, to be
+// QueueIncoming queues an incoming packet and its source address, to be
 // returned in a future call to ReadFrom.
 func (c *QueuePacketConn) QueueIncoming(p []byte, addr net.Addr) {
 	select {
