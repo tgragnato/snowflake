@@ -99,10 +99,11 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 		defer readyClose.Do(func() { close(ready) })
 		pconn := DiscardPacketConn{}
 		defer pconn.Close()
+	loop:
 		for {
 			select {
 			case <-done:
-				break
+				break loop
 			default:
 			}
 			// Create a new UDPSession, send once, then discard the
