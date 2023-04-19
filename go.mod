@@ -3,7 +3,6 @@ module git.torproject.org/pluggable-transports/snowflake.git/v2
 go 1.15
 
 require (
-	git.torproject.org/pluggable-transports/goptlib.git v1.3.0
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/gorilla/websocket v1.5.0
 	github.com/pion/ice/v2 v2.3.1
@@ -18,6 +17,7 @@ require (
 	github.com/xtaci/kcp-go/v5 v5.6.1
 	github.com/xtaci/smux v1.5.15
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
+	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.4.0
 	golang.org/x/crypto v0.6.0
 	golang.org/x/net v0.7.0
 	google.golang.org/protobuf v1.26.0

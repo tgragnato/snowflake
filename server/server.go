@@ -23,8 +23,8 @@ import (
 	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
 	"golang.org/x/crypto/acme/autocert"
 
-	pt "git.torproject.org/pluggable-transports/goptlib.git"
 	sf "git.torproject.org/pluggable-transports/snowflake.git/v2/server/lib"
+	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
 )
 
 const ptMethodName = "snowflake"
