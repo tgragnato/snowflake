@@ -56,6 +56,10 @@ func (c ClusterCounter) Count(reader io.Reader) (*ClusterCountResult, error) {
 			return nil, err
 		}
 	}
+	err = inputScanner.Err()
+	if err != nil {
+		return nil, err
+	}
 	result.Sum = counter.Count()
 	return &result, nil
 }
