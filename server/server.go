@@ -76,7 +76,9 @@ func handleConn(conn net.Conn, orPortSrcAddr *net.IPNet) error {
 	addr := conn.RemoteAddr().String()
 	statsChannel <- addr != ""
 
-	dialer := net.Dialer{}
+	dialer := net.Dialer{
+		Control: dialerControl,
+	}
 	if orPortSrcAddr != nil {
 		// Use a random source IP address in the given range.
 		ip, err := randIPAddr(orPortSrcAddr)
