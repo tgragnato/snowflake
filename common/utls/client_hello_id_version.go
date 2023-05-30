@@ -1,7 +1,7 @@
 package utls
 
 import (
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/version"
 	"strings"
 )
 

@@ -4,7 +4,7 @@ require 'yaml'
 
 srvpath = Pathname.new(File.dirname(__FILE__)).realpath
 configfile = YAML.load_file(File.join(srvpath, "/.gitlab-ci.yml"))
-remote_url = 'https://git.torproject.org/pluggable-transports/snowflake.git'
+remote_url = 'https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake'
 
 # set up essential environment variables
 env = configfile['variables']

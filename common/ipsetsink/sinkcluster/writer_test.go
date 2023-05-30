@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/ipsetsink"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink"
 
 	. "github.com/smartystreets/goconvey/convey"
 )

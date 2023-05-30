@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
 	. "github.com/smartystreets/goconvey/convey"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 )
 
 type FakeDialer struct {

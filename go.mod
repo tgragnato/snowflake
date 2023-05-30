@@ -1,4 +1,4 @@
-module git.torproject.org/pluggable-transports/snowflake.git/v2
+module gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2
 
 go 1.15
 
