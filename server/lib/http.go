@@ -173,12 +173,13 @@ func (handler *httpHandler) turbotunnelMode(conn net.Conn, addr net.Addr) error 
 	go func() {
 		defer wg.Done()
 		defer close(done) // Signal the write loop to finish
+		var p [2048]byte
 		for {
-			p, err := encapsulation.ReadData(conn)
+			n, err := encapsulation.ReadData(conn, p[:])
 			if err != nil {
 				return
 			}
-			pconn.QueueIncoming(p, clientID)
+			pconn.QueueIncoming(p[:n], clientID)
 		}
 	}()
 
