@@ -28,10 +28,10 @@ type ClientMap struct {
 
 // NewClientMap creates a ClientMap that expires clients after a timeout.
 //
-// The timeout does not have to be kept in sync with QUIC's internal idle
-// timeout. If a client is removed from the client map while the QUIC session is
+// The timeout does not have to be kept in sync with smux's internal idle
+// timeout. If a client is removed from the client map while the smux session is
 // still live, the worst that can happen is a loss of whatever packets were in
-// the send queue at the time. If QUIC later decides to send more packets to the
+// the send queue at the time. If smux later decides to send more packets to the
 // same client, we'll instantiate a new send queue, and if the client ever
 // connects again with the proper client ID, we'll deliver them.
 func NewClientMap(timeout time.Duration) *ClientMap {
