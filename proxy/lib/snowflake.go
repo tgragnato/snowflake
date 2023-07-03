@@ -44,12 +44,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/namematcher"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/websocketconn"
+	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/messages"
+	"github.com/tgragnato/snowflake.git/v2/common/namematcher"
+	"github.com/tgragnato/snowflake.git/v2/common/task"
+	"github.com/tgragnato/snowflake.git/v2/common/util"
+	"github.com/tgragnato/snowflake.git/v2/common/websocketconn"
 )
 
 const (

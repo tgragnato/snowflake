@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pion/webrtc/v3"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
+	"github.com/tgragnato/snowflake.git/v2/common/safelog"
 )
 
 type SnowflakeEvent interface {

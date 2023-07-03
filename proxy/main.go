@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/version"
-	sf "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/proxy/lib"
+	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/safelog"
+	"github.com/tgragnato/snowflake.git/v2/common/version"
+	sf "github.com/tgragnato/snowflake.git/v2/proxy/lib"
 )
 
 func main() {

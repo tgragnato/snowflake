@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/encapsulation"
+	"github.com/tgragnato/snowflake.git/v2/common/encapsulation"
 )
 
 var errNotImplemented = errors.New("not implemented")

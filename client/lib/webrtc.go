@@ -13,7 +13,7 @@ import (
 
 	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/event"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.

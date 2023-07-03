@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/amp"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/nat"
+	"github.com/tgragnato/snowflake.git/v2/common/amp"
+	"github.com/tgragnato/snowflake.git/v2/common/messages"
+	"github.com/tgragnato/snowflake.git/v2/common/nat"
 )
 
 // mockTransport's RoundTrip method returns a response with a fake status and

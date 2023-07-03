@@ -37,11 +37,11 @@ import (
 
 	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
+	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/nat"
+	"github.com/tgragnato/snowflake.git/v2/common/turbotunnel"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/nat"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/turbotunnel"
 )
 
 const (

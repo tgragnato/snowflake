@@ -1,15 +1,15 @@
 //Package for communication with the snowflake broker
 
-// import "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+// import "github.com/tgragnato/snowflake.git/v2/common/messages"
 package messages
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
+	"github.com/tgragnato/snowflake.git/v2/common/bridgefingerprint"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/nat"
+	"github.com/tgragnato/snowflake.git/v2/common/nat"
 )
 
 const ClientVersion = "1.0"

@@ -1,6 +1,6 @@
 //Package for communication with the snowflake broker
 
-// import "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+// import "github.com/tgragnato/snowflake.git/v2/common/messages"
 package messages
 
 import (
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/nat"
+	"github.com/tgragnato/snowflake.git/v2/common/nat"
 )
 
 const (

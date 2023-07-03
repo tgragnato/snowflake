@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink"
+	"github.com/tgragnato/snowflake.git/v2/common/ipsetsink"
 )
 
 func NewClusterWriter(writer WriteSyncer, writeInterval time.Duration, sink *ipsetsink.IPSetSink) *ClusterWriter {

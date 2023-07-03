@@ -14,8 +14,8 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/amp"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+	"github.com/tgragnato/snowflake.git/v2/common/amp"
+	"github.com/tgragnato/snowflake.git/v2/common/messages"
 )
 
 func NullLogger() *log.Logger {
@@ -23,8 +23,6 @@ func NullLogger() *log.Logger {
 	logger.SetOutput(io.Discard)
 	return logger
 }
-
-var promOnce sync.Once
 
 var (
 	sdp = "v=0\r\n" +
@@ -131,7 +129,7 @@ func TestBroker(t *testing.T) {
 
 		Convey("Responds to HTTP client offers...", func() {
 			w := httptest.NewRecorder()
-			data, err := createClientOffer(sdp, NATUnknown, "")
+			data, _ := createClientOffer(sdp, NATUnknown, "")
 			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
 			So(err, ShouldBeNil)
 
@@ -362,7 +360,7 @@ func TestBroker(t *testing.T) {
 			})
 
 			Convey("with client gone status if the proxy ID is not recognized", func() {
-				data, err := createProxyAnswer(sdp, "invalid")
+				data, _ := createProxyAnswer(sdp, "invalid")
 				r, err := http.NewRequest("POST", "snowflake.broker/answer", data)
 				So(err, ShouldBeNil)
 				proxyAnswers(i, w, r)

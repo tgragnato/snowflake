@@ -15,11 +15,11 @@ import (
 	"sync"
 	"syscall"
 
+	sf "github.com/tgragnato/snowflake.git/v2/client/lib"
+	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/safelog"
+	"github.com/tgragnato/snowflake.git/v2/common/version"
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
-	sf "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/client/lib"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/version"
 )
 
 const (
