@@ -18,12 +18,12 @@ import (
 	"sync"
 	"syscall"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/version"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/version"
 	"golang.org/x/crypto/acme/autocert"
 
-	sf "git.torproject.org/pluggable-transports/snowflake.git/v2/server/lib"
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
+	sf "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/server/lib"
 )
 
 const ptMethodName = "snowflake"
@@ -75,7 +75,9 @@ func handleConn(conn net.Conn, orPortSrcAddr *net.IPNet) error {
 	addr := conn.RemoteAddr().String()
 	statsChannel <- addr != ""
 
-	dialer := net.Dialer{}
+	dialer := net.Dialer{
+		Control: dialerControl,
+	}
 	if orPortSrcAddr != nil {
 		// Use a random source IP address in the given range.
 		ip, err := randIPAddr(orPortSrcAddr)

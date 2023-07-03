@@ -1,3 +1,32 @@
+Changes in version v2.6.0 - 2023-06-19
+- Issue 40243: Implement datachannel flow control at proxy
+- Issue 40087: Append Let's Encrypt ISRG Root X1 to cert pool
+- Issue 40198: Use IP_BIND_ADDRESS_NO_PORT when dialing the ORPort on linux
+- Move from gitweb to gitlab
+- Add warning log at broker when proxy does not connect with client
+- Fix unit tests after SDP validation
+- Soften non-critical log from error to warning
+- Issue 40231: Validate SDP offers and answers
+- Add scanner error check to ClusterCounter.Count
+- Fix server benchmark tests
+- Issue 40260: Use a sync.Pool to reuse QueuePacketConn buffers
+- Issue 40043: Restore ListenAndServe error in server
+- Update pion webrtc library versions
+- Issue 40108: Add outbound address config option to proxy
+- Issue 40260: Fix a data race in the Snowflake server
+- Issue 40216: Add utls-imitate, utls-nosni documentation to the README
+- Fix up/down traffic stats in standalone proxy
+- Issue 40226: Filter out ICE servers that are not STUN
+- Issue 40226: Update README to reflect the type of ICE servers we support
+- Issue 40226: Parse ICE servers using the pion/ice library function
+- Bring client torrc up to date with Tor Browser
+
+Changes in version v2.5.1 - 2023-01-18
+- Issue 40249: Fix issue with Skip Hello Verify patch
+
+Changes in version v2.5.0 - 2023-01-18
+- Issue 40249: Apply Skip Hello Verify Migration
+
 Changes in version v2.4.3 - 2023-01-16
 - Fix version number in version.go
 

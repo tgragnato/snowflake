@@ -44,9 +44,9 @@ import (
 	"sync"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/turbotunnel"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/turbotunnel"
 	"golang.org/x/net/http2"
 )
 

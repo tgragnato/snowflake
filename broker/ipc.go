@@ -8,10 +8,10 @@ import (
 	"net"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
 	"github.com/prometheus/client_golang/prometheus"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
 )
 
 const (
@@ -103,7 +103,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	// Log geoip stats
 	remoteIP, _, err := net.SplitHostPort(arg.RemoteAddr)
 	if err != nil {
-		log.Println("Error processing proxy IP: ", err.Error())
+		log.Println("Warning: cannot process proxy IP: ", err.Error())
 	} else {
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateCountryStats(remoteIP, proxyType, natType)
@@ -266,6 +266,7 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 		// The snowflake took too long to respond with an answer, so its client
 		// disappeared / the snowflake is no longer recognized by the Broker.
 		success = false
+		log.Printf("Warning: matching with snowflake client failed")
 	}
 
 	b, err := messages.EncodeAnswerResponse(success)

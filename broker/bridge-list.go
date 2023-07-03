@@ -29,7 +29,7 @@ import (
 	"io"
 	"sync"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
 )
 
 var ErrBridgeNotFound = errors.New("bridge not found")

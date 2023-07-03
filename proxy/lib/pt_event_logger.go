@@ -1,12 +1,12 @@
 package snowflake_proxy
 
 import (
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
 	"io"
 	"log"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/task"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 )
 
 func NewProxyEventLogger(logPeriod time.Duration, output io.Writer) event.SnowflakeEventReceiver {

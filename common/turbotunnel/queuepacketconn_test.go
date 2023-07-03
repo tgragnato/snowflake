@@ -182,6 +182,7 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
+			conn.Close()
 			// Signal the main test to start once we have done one
 			// iterator of this noisy loop.
 			readyClose.Do(func() { close(ready) })

@@ -3,8 +3,8 @@ package event
 import (
 	"fmt"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
 	"github.com/pion/webrtc/v3"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
 )
 
 type SnowflakeEvent interface {

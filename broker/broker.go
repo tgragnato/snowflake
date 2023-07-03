@@ -10,9 +10,9 @@ import (
 	"container/heap"
 	"crypto/tls"
 	"flag"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/bridgefingerprint"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/ipsetsink"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/ipsetsink/sinkcluster"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink/sinkcluster"
 	"io"
 	"log"
 	"net/http"
@@ -23,10 +23,10 @@ import (
 	"syscall"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/namematcher"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/namematcher"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
 	"golang.org/x/crypto/acme/autocert"
 )
 

@@ -4,6 +4,7 @@
 package snowflake_client
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 
@@ -12,13 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/event"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/nat"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
-	utlsutil "git.torproject.org/pluggable-transports/snowflake.git/v2/common/utls"
 	"github.com/pion/webrtc/v3"
 	utls "github.com/refraction-networking/utls"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/certs"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/nat"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
+	utlsutil "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/utls"
 )
 
 const (
@@ -50,7 +52,10 @@ type BrokerChannel struct {
 // and TLSHandshakeTimeout settings. But we want to disable the default
 // ProxyFromEnvironment setting.
 func createBrokerTransport() http.RoundTripper {
-	transport := http.DefaultTransport.(*http.Transport)
+	tlsConfig := &tls.Config{
+		RootCAs: certs.GetRootCAs(),
+	}
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = 15 * time.Second
 	return transport
@@ -70,7 +75,9 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to create broker channel: %v", err)
 		}
-		utlsConfig := &utls.Config{}
+		utlsConfig := &utls.Config{
+			RootCAs: certs.GetRootCAs(),
+		}
 		brokerTransport = utlsutil.NewUTLSHTTPRoundTripper(utlsClientHelloID, utlsConfig, brokerTransport, config.UTLSRemoveSNI)
 	}
 

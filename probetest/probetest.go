@@ -19,9 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/messages"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/safelog"
-	"git.torproject.org/pluggable-transports/snowflake.git/v2/common/util"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/crypto/acme/autocert"
