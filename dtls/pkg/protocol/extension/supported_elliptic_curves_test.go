@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package extension
 
 import (
@@ -18,5 +21,12 @@ func TestExtensionSupportedGroups(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawSupportedGroups) {
 		t.Errorf("extensionSupportedGroups marshal: got %#v, want %#v", raw, rawSupportedGroups)
+	}
+
+	roundtrip := &SupportedEllipticCurves{}
+	if err := roundtrip.Unmarshal(raw); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(roundtrip, parsedSupportedGroups) {
+		t.Errorf("extensionSupportedGroups unmarshal: got %#v, want %#v", roundtrip, parsedSupportedGroups)
 	}
 }

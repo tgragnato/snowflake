@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package extension
 
 import (
@@ -18,5 +21,12 @@ func TestExtensionSupportedPointFormats(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawExtensionSupportedPointFormats) {
 		t.Errorf("extensionSupportedPointFormats marshal: got %#v, want %#v", raw, rawExtensionSupportedPointFormats)
+	}
+
+	roundtrip := &SupportedPointFormats{}
+	if err := roundtrip.Unmarshal(raw); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(roundtrip, parsedExtensionSupportedPointFormats) {
+		t.Errorf("extensionSupportedPointFormats unmarshal: got %#v, want %#v", roundtrip, parsedExtensionSupportedPointFormats)
 	}
 }

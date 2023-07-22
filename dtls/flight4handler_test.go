@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package dtls
 
 import (
@@ -13,12 +16,12 @@ import (
 
 type flight4TestMockFlightConn struct{}
 
-func (f *flight4TestMockFlightConn) notify(ctx context.Context, level alert.Level, desc alert.Description) error {
+func (f *flight4TestMockFlightConn) notify(context.Context, alert.Level, alert.Description) error {
 	return nil
 }
 func (f *flight4TestMockFlightConn) writePackets(context.Context, []*packet) error { return nil }
 func (f *flight4TestMockFlightConn) recvHandshake() <-chan chan struct{}           { return nil }
-func (f *flight4TestMockFlightConn) setLocalEpoch(epoch uint16)                    {}
+func (f *flight4TestMockFlightConn) setLocalEpoch(uint16)                          {}
 func (f *flight4TestMockFlightConn) handleQueuedPackets(context.Context) error     { return nil }
 func (f *flight4TestMockFlightConn) sessionKey() []byte                            { return nil }
 

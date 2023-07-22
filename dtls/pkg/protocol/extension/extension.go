@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 // Package extension implements the extension values in the ClientHello/ServerHello
 package extension
 
@@ -61,6 +64,10 @@ func Unmarshal(buf []byte) ([]Extension, error) {
 			err = unmarshalAndAppend(buf[offset:], &ServerName{})
 		case SupportedEllipticCurvesTypeValue:
 			err = unmarshalAndAppend(buf[offset:], &SupportedEllipticCurves{})
+		case SupportedPointFormatsTypeValue:
+			err = unmarshalAndAppend(buf[offset:], &SupportedPointFormats{})
+		case SupportedSignatureAlgorithmsTypeValue:
+			err = unmarshalAndAppend(buf[offset:], &SupportedSignatureAlgorithms{})
 		case UseSRTPTypeValue:
 			err = unmarshalAndAppend(buf[offset:], &UseSRTP{})
 		case ALPNTypeValue:

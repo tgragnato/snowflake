@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package dtls
 
 import (
@@ -427,6 +430,11 @@ func (c *Conn) writePackets(ctx context.Context, pkts []*packet) error {
 }
 
 func (c *Conn) compactRawPackets(rawPackets [][]byte) [][]byte {
+	// avoid a useless copy in the common case
+	if len(rawPackets) == 1 {
+		return rawPackets
+	}
+
 	combinedRawPackets := make([][]byte, 0)
 	currentCombinedRawPacket := make([]byte, 0)
 
@@ -597,17 +605,16 @@ func (c *Conn) readAndBuffer(ctx context.Context) error {
 				}
 			}
 		}
-		if hs {
-			hasHandshake = true
-		}
 
 		var e *alertError
-		if errors.As(err, &e) {
-			if e.IsFatalOrCloseNotify() {
-				return e
-			}
-		} else if err != nil {
+		if errors.As(err, &e) && e.IsFatalOrCloseNotify() {
 			return e
+		}
+		if err != nil {
+			return err
+		}
+		if hs {
+			hasHandshake = true
 		}
 	}
 	if hasHandshake {
@@ -637,12 +644,11 @@ func (c *Conn) handleQueuedPackets(ctx context.Context) error {
 			}
 		}
 		var e *alertError
-		if errors.As(err, &e) {
-			if e.IsFatalOrCloseNotify() {
-				return e
-			}
-		} else if err != nil {
+		if errors.As(err, &e) && e.IsFatalOrCloseNotify() {
 			return e
+		}
+		if err != nil {
+			return err
 		}
 	}
 	return nil

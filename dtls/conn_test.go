@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package dtls
 
 import (
@@ -18,7 +21,6 @@ import (
 	"time"
 
 	"github.com/pion/dtls/v2/internal/ciphersuite"
-	"github.com/pion/dtls/v2/internal/net/dpipe"
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v2/pkg/crypto/hash"
 	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
@@ -30,6 +32,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 	"github.com/pion/logging"
+	"github.com/pion/transport/v2/dpipe"
 	"github.com/pion/transport/v2/test"
 )
 
@@ -2258,7 +2261,7 @@ func TestALPNExtension(t *testing.T) {
 					SupportedProtocols: test.ServerProtocolNameList,
 				}
 				if _, err2 := testServer(ctx2, cb2, conf, true); !errors.Is(err2, context.Canceled) {
-					if test.ExpectAlertFromServer {
+					if test.ExpectAlertFromServer { //nolint
 						// Assert the error type?
 					} else {
 						t.Error(err2)

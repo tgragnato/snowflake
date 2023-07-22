@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 //go:build openssl && !js
 // +build openssl,!js
 
@@ -74,7 +77,7 @@ func serverOpenSSL(c *comm) {
 
 		// launch command
 		// #nosec G204
-		cmd := exec.CommandContext(c.ctx, "openssl", args...)
+		cmd := exec.Command("openssl", args...)
 		var inner net.Conn
 		inner, c.serverConn = net.Pipe()
 		cmd.Stdin = inner
@@ -91,6 +94,8 @@ func serverOpenSSL(c *comm) {
 
 		c.serverReady <- struct{}{}
 		simpleReadWrite(c.errChan, c.serverChan, c.serverConn, c.messageRecvCount)
+		c.serverDone <- cmd.Process.Kill()
+		close(c.serverDone)
 	}()
 }
 
@@ -151,7 +156,7 @@ func clientOpenSSL(c *comm) {
 
 	// launch command
 	// #nosec G204
-	cmd := exec.CommandContext(c.ctx, "openssl", args...)
+	cmd := exec.Command("openssl", args...)
 	var inner net.Conn
 	inner, c.clientConn = net.Pipe()
 	cmd.Stdin = inner
@@ -164,6 +169,8 @@ func clientOpenSSL(c *comm) {
 	}
 
 	simpleReadWrite(c.errChan, c.clientChan, c.clientConn, c.messageRecvCount)
+	c.clientDone <- cmd.Process.Kill()
+	close(c.clientDone)
 }
 
 func ciphersOpenSSL(cfg *dtls.Config) string {

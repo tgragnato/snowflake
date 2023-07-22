@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-License-Identifier: MIT
+
 package extension
 
 import (
@@ -31,5 +34,12 @@ func TestExtensionSupportedSignatureAlgorithms(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawExtensionSupportedSignatureAlgorithms) {
 		t.Errorf("extensionSupportedSignatureAlgorithms marshal: got %#v, want %#v", raw, rawExtensionSupportedSignatureAlgorithms)
+	}
+
+	roundtrip := &SupportedSignatureAlgorithms{}
+	if err := roundtrip.Unmarshal(raw); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(roundtrip, parsedExtensionSupportedSignatureAlgorithms) {
+		t.Errorf("extensionSupportedSignatureAlgorithms unmarshal: got %#v, want %#v", roundtrip, parsedExtensionSupportedSignatureAlgorithms)
 	}
 }
