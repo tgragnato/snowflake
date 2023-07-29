@@ -54,7 +54,7 @@ import (
 const (
 	DefaultBrokerURL   = "https://snowflake-broker.torproject.net/"
 	DefaultNATProbeURL = "https://snowflake-broker.torproject.net:8443/probe"
-	DefaultRelayURL    = "wss://snowflake.bamsoftware.com/"
+	DefaultRelayURL    = "wss://snowflake.torproject.net/"
 	DefaultSTUNURL     = "stun:stun.l.google.com:19302"
 	DefaultProxyType   = "standalone"
 )
