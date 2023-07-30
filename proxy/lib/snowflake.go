@@ -55,8 +55,7 @@ import (
 const (
 	DefaultBrokerURL   = "https://snowflake-broker.torproject.net/"
 	DefaultNATProbeURL = "https://snowflake-broker.torproject.net:8443/probe"
-	DefaultProbeURL    = "https://snowflake-broker.torproject.net:8443/probe"
-	DefaultRelayURL    = "wss://snowflake.bamsoftware.com/"
+	DefaultRelayURL    = "wss://snowflake.torproject.net/"
 	DefaultSTUNURL     = "stun:stun.tgragnato.it:3478"
 	DefaultProxyType   = "standalone"
 	pollInterval       = 5 * time.Second
