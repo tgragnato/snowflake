@@ -46,14 +46,13 @@ require (
 	github.com/pion/rtcp v1.2.10 // indirect
 	github.com/pion/rtp v1.8.0 // indirect
 	github.com/pion/sctp v1.8.7 // indirect
-	github.com/pion/srtp/v2 v2.0.15 // indirect
+	github.com/pion/srtp/v2 v2.0.16 // indirect
 	github.com/pion/transport/v2 v2.2.1 // indirect
 	github.com/pion/turn/v2 v2.1.3 // indirect
-	github.com/pion/udp/v2 v2.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
-	github.com/prometheus/procfs v0.11.0 // indirect
+	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/smartystreets/assertions v1.13.0 // indirect
 	github.com/templexxx/cpu v0.1.0 // indirect
 	github.com/templexxx/xorsimd v0.4.2 // indirect
