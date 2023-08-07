@@ -26,6 +26,7 @@ The Dial function connects to a Snowflake server:
 package snowflake_client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
+	"github.com/tgragnato/snowflake.git/v2/common/encapsulation"
 	"github.com/tgragnato/snowflake.git/v2/common/event"
 	"github.com/tgragnato/snowflake.git/v2/common/nat"
 	"github.com/tgragnato/snowflake.git/v2/common/turbotunnel"
@@ -318,12 +320,13 @@ func newSession(snowflakes SnowflakeCollector) (net.PacketConn, *smux.Session, e
 		}
 		log.Println("---- Handler: snowflake assigned ----")
 		// Send the magic Turbo Tunnel token.
-		_, err := conn.Write(turbotunnel.Token[:])
-		if err != nil {
-			return nil, err
-		}
+		buf := bytes.NewBuffer(nil)
+		buf.Write(turbotunnel.Token[:])
 		// Send ClientID prefix.
-		_, err = conn.Write(clientID[:])
+		buf.Write(clientID[:])
+		// Send some amount of padding.
+		encapsulation.WritePadding(buf, int(2000.0+rand.NormFloat64()*100.0))
+		_, err := conn.Write(buf.Bytes())
 		if err != nil {
 			return nil, err
 		}

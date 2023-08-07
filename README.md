@@ -12,6 +12,7 @@ Pluggable Transport using WebRTC, inspired by Flashproxy.
 - use the Setting Engine to reduce MulticastDNS noise
 - use a context aware io.Reader that closes on errors in copyLoop
 - non-performing but simple token handling
+- client padding to evade TLS in DTLS detection
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
