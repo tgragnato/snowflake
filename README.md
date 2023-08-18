@@ -6,7 +6,7 @@ Pluggable Transport using WebRTC, inspired by Flashproxy.
 
 ![Schematic](/schematic.png)
 
-- golang 1.20+ & bumped dependencies
+- golang 1.21+ & bumped dependencies
 - custom transport for broker negotiation (TLS 1.3 with selected ciphersuites & groups)
 - custom DTLS fingerprint, different from any popular WebRTC implementation
 - use the Setting Engine to reduce MulticastDNS noise
