@@ -15,7 +15,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 )
 
-// TLSEcdheEcdsaWithAes256GcmSha384 represents a TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 CipherSuite
+// TLSEcdheEcdsaWithAes256GcmSha384  represents a TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 CipherSuite
 type TLSEcdheEcdsaWithAes256GcmSha384 struct {
 	gcm atomic.Value // *cryptoGCM
 }
@@ -54,6 +54,12 @@ func (c *TLSEcdheEcdsaWithAes256GcmSha384) AuthenticationType() AuthenticationTy
 	return AuthenticationTypeCertificate
 }
 
+// IsInitialized returns if the CipherSuite has keying material and can
+// encrypt/decrypt packets
+func (c *TLSEcdheEcdsaWithAes256GcmSha384) IsInitialized() bool {
+	return c.gcm.Load() != nil
+}
+
 func (c *TLSEcdheEcdsaWithAes256GcmSha384) init(masterSecret, clientRandom, serverRandom []byte, isClient bool, prfMacLen, prfKeyLen, prfIvLen int, hashFunc func() hash.Hash) error {
 	keys, err := prf.GenerateEncryptionKeys(masterSecret, clientRandom, serverRandom, prfMacLen, prfKeyLen, prfIvLen, hashFunc)
 	if err != nil {
@@ -68,12 +74,6 @@ func (c *TLSEcdheEcdsaWithAes256GcmSha384) init(masterSecret, clientRandom, serv
 	}
 	c.gcm.Store(gcm)
 	return err
-}
-
-// IsInitialized returns if the CipherSuite has keying material and can
-// encrypt/decrypt packets
-func (c *TLSEcdheEcdsaWithAes256GcmSha384) IsInitialized() bool {
-	return c.gcm.Load() != nil
 }
 
 // Init initializes the internal Cipher with keying material
@@ -98,11 +98,11 @@ func (c *TLSEcdheEcdsaWithAes256GcmSha384) Encrypt(pkt *recordlayer.RecordLayer,
 }
 
 // Decrypt decrypts a single TLS RecordLayer
-func (c *TLSEcdheEcdsaWithAes256GcmSha384) Decrypt(raw []byte) ([]byte, error) {
+func (c *TLSEcdheEcdsaWithAes256GcmSha384) Decrypt(h recordlayer.Header, raw []byte) ([]byte, error) {
 	cipherSuite, ok := c.gcm.Load().(*ciphersuite.GCM)
 	if !ok {
 		return nil, fmt.Errorf("%w, unable to decrypt", errCipherSuiteNotInit)
 	}
 
-	return cipherSuite.Decrypt(raw)
+	return cipherSuite.Decrypt(h, raw)
 }

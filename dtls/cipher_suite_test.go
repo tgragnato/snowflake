@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/pion/dtls/v2/internal/ciphersuite"
-	"github.com/pion/transport/v2/dpipe"
-	"github.com/pion/transport/v2/test"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/transport/v3/dpipe"
+	"github.com/pion/transport/v3/test"
 )
 
 func TestCipherSuiteName(t *testing.T) {
@@ -70,14 +71,14 @@ func TestCustomCipherSuite(t *testing.T) {
 		c := make(chan result)
 
 		go func() {
-			client, err := testClient(ctx, ca, &Config{
+			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
 				CipherSuites:       []CipherSuiteID{},
 				CustomCipherSuites: cipherFactory,
 			}, true)
 			c <- result{client, err}
 		}()
 
-		server, err := testServer(ctx, cb, &Config{
+		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
 			CipherSuites:       []CipherSuiteID{},
 			CustomCipherSuites: cipherFactory,
 		}, true)

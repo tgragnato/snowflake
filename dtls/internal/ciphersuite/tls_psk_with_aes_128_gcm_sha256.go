@@ -98,11 +98,11 @@ func (c *TLSPskWithAes128GcmSha256) Encrypt(pkt *recordlayer.RecordLayer, raw []
 }
 
 // Decrypt decrypts a single TLS RecordLayer
-func (c *TLSPskWithAes128GcmSha256) Decrypt(raw []byte) ([]byte, error) {
+func (c *TLSPskWithAes128GcmSha256) Decrypt(h recordlayer.Header, raw []byte) ([]byte, error) {
 	cipherSuite, ok := c.gcm.Load().(*ciphersuite.GCM)
 	if !ok {
 		return nil, fmt.Errorf("%w, unable to decrypt", errCipherSuiteNotInit)
 	}
 
-	return cipherSuite.Decrypt(raw)
+	return cipherSuite.Decrypt(h, raw)
 }

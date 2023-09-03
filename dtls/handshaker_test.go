@@ -18,7 +18,7 @@ import (
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 	"github.com/pion/logging"
-	"github.com/pion/transport/v2/test"
+	"github.com/pion/transport/v3/test"
 )
 
 const nonZeroRetransmitInterval = 100 * time.Millisecond
@@ -409,7 +409,7 @@ func (c *flightTestConn) writePackets(_ context.Context, pkts []*packet) error {
 				return err
 			}
 
-			c.handshakeCache.push(handshakeRaw[recordlayer.HeaderSize:], p.record.Header.Epoch, h.Header.MessageSequence, h.Header.Type, c.state.isClient)
+			c.handshakeCache.push(handshakeRaw[recordlayer.FixedHeaderSize:], p.record.Header.Epoch, h.Header.MessageSequence, h.Header.Type, c.state.isClient)
 
 			content, err := h.Message.Marshal()
 			if err != nil {

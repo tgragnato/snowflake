@@ -14,7 +14,8 @@ import (
 	"time"
 
 	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	"github.com/pion/transport/v2/test"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/transport/v3/test"
 )
 
 var errMessageMissmatch = errors.New("messages missmatch")
@@ -32,7 +33,7 @@ func fatal(t *testing.T, errChan chan error, err error) {
 	t.Fatal(err)
 }
 
-func DoTestResume(t *testing.T, newLocal, newRemote func(net.Conn, *Config) (*Conn, error)) {
+func DoTestResume(t *testing.T, newLocal, newRemote func(net.PacketConn, net.Addr, *Config) (*Conn, error)) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
 	defer lim.Stop()
@@ -67,7 +68,7 @@ func DoTestResume(t *testing.T, newLocal, newRemote func(net.Conn, *Config) (*Co
 	go func() {
 		var remote *Conn
 		var errR error
-		remote, errR = newRemote(remoteConn, config)
+		remote, errR = newRemote(dtlsnet.PacketConnFromConn(remoteConn), remoteConn.RemoteAddr(), config)
 		if errR != nil {
 			errChan <- errR
 		}
@@ -89,7 +90,7 @@ func DoTestResume(t *testing.T, newLocal, newRemote func(net.Conn, *Config) (*Co
 	}()
 
 	var local *Conn
-	local, err = newLocal(localConn1, config)
+	local, err = newLocal(dtlsnet.PacketConnFromConn(localConn1), localConn1.RemoteAddr(), config)
 	if err != nil {
 		fatal(t, errChan, err)
 	}
@@ -132,7 +133,7 @@ func DoTestResume(t *testing.T, newLocal, newRemote func(net.Conn, *Config) (*Co
 
 	// Resume dtls connection
 	var resumed net.Conn
-	resumed, err = Resume(deserialized, localConn2, config)
+	resumed, err = Resume(deserialized, dtlsnet.PacketConnFromConn(localConn2), localConn2.RemoteAddr(), config)
 	if err != nil {
 		fatal(t, errChan, err)
 	}

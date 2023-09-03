@@ -12,7 +12,8 @@ import (
 
 	"github.com/pion/dtls/v2"
 	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	transportTest "github.com/pion/transport/v2/test"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	transportTest "github.com/pion/transport/v3/test"
 )
 
 const (
@@ -144,7 +145,7 @@ func TestPionE2ELossy(t *testing.T) {
 					cfg.Certificates = []tls.Certificate{clientCert}
 				}
 
-				client, startupErr := dtls.Client(br.GetConn0(), cfg)
+				client, startupErr := dtls.Client(dtlsnet.PacketConnFromConn(br.GetConn0()), br.GetConn0().RemoteAddr(), cfg)
 				clientDone <- runResult{client, startupErr}
 			}()
 
@@ -159,7 +160,7 @@ func TestPionE2ELossy(t *testing.T) {
 					cfg.ClientAuth = dtls.RequireAnyClientCert
 				}
 
-				server, startupErr := dtls.Server(br.GetConn1(), cfg)
+				server, startupErr := dtls.Server(dtlsnet.PacketConnFromConn(br.GetConn1()), br.GetConn1().RemoteAddr(), cfg)
 				serverDone <- runResult{server, startupErr}
 			}()
 
