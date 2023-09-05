@@ -3,7 +3,6 @@ module gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/
 go 1.21
 
 require (
-	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/gorilla/websocket v1.5.0
 	github.com/pion/ice/v2 v2.3.11
 	github.com/pion/sdp/v3 v3.0.6
