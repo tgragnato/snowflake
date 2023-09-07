@@ -5,22 +5,22 @@ go 1.21
 require (
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/gorilla/websocket v1.5.0
-	github.com/pion/ice/v2 v2.3.11
+	github.com/pion/ice/v3 v3.0.0
 	github.com/pion/sdp/v3 v3.0.6
-	github.com/pion/stun v0.6.1
-	github.com/pion/transport/v2 v2.2.3
-	github.com/pion/webrtc/v3 v3.2.17
+	github.com/pion/stun/v2 v2.0.0
+	github.com/pion/transport/v3 v3.0.1
+	github.com/pion/webrtc/v3 v3.2.18
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
-	github.com/refraction-networking/utls v1.5.2
+	github.com/refraction-networking/utls v1.5.3
 	github.com/smartystreets/goconvey v1.7.2
 	github.com/stretchr/testify v1.8.4
 	github.com/xtaci/kcp-go/v5 v5.6.3
 	github.com/xtaci/smux v1.5.24
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
-	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.4.0
-	golang.org/x/crypto v0.12.0
-	golang.org/x/net v0.14.0
+	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
+	golang.org/x/crypto v0.13.0
+	golang.org/x/net v0.15.0
 	golang.org/x/sys v0.12.0
 	google.golang.org/protobuf v1.31.0
 )
@@ -50,8 +50,10 @@ require (
 	github.com/pion/rtcp v1.2.10 // indirect
 	github.com/pion/rtp v1.8.1 // indirect
 	github.com/pion/sctp v1.8.8 // indirect
-	github.com/pion/srtp/v2 v2.0.17 // indirect
-	github.com/pion/turn/v2 v2.1.3 // indirect
+	github.com/pion/srtp/v3 v3.0.0 // indirect
+	github.com/pion/stun v0.6.1 // indirect
+	github.com/pion/transport/v2 v2.2.3 // indirect
+	github.com/pion/turn/v3 v3.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect

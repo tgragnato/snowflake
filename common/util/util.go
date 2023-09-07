@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/pion/ice/v2"
+	"github.com/pion/ice/v3"
 	"github.com/pion/sdp/v3"
 	"github.com/pion/webrtc/v3"
 )

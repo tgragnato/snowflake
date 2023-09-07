@@ -20,7 +20,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/pion/stun"
+	"github.com/pion/stun/v2"
 )
 
 var ErrTimedOut = errors.New("timed out waiting for response")
