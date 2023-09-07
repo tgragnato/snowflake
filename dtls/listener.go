@@ -74,7 +74,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Server(c, raddr, l.config)
+	return ServerResume(c, raddr, l.config)
 }
 
 // Close closes the listener.

@@ -86,7 +86,7 @@ func TestContextConfig(t *testing.T) {
 			f: func() (func() (net.Conn, error), func()) {
 				ca, _ := dpipe.Pipe()
 				return func() (net.Conn, error) {
-						return Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						return ClientResume(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
 					}, func() {
 						_ = ca.Close()
 					}
@@ -98,7 +98,7 @@ func TestContextConfig(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 				ca, _ := dpipe.Pipe()
 				return func() (net.Conn, error) {
-						return ClientWithContext(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						return ClientWithContextResume(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
 					}, func() {
 						cancel()
 						_ = ca.Close()
@@ -110,7 +110,7 @@ func TestContextConfig(t *testing.T) {
 			f: func() (func() (net.Conn, error), func()) {
 				ca, _ := dpipe.Pipe()
 				return func() (net.Conn, error) {
-						return Server(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						return ServerResume(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
 					}, func() {
 						_ = ca.Close()
 					}

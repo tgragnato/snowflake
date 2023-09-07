@@ -17,6 +17,7 @@ import (
 	"github.com/pion/dtls/v2/internal/closer"
 	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
 	"github.com/pion/dtls/v2/pkg/protocol"
 	"github.com/pion/dtls/v2/pkg/protocol/alert"
 	"github.com/pion/dtls/v2/pkg/protocol/handshake"
@@ -258,17 +259,27 @@ func Dial(network string, rAddr *net.UDPAddr, config *Config) (*Conn, error) {
 // Client establishes a DTLS connection over an existing connection.
 // Connection handshake will timeout using ConnectContextMaker in the Config.
 // If you want to specify the timeout duration, use ClientWithContext() instead.
-func Client(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func Client(conn net.Conn, config *Config) (*Conn, error) {
+	packetConn := dtlsnet.PacketConnFromConn(conn)
+	rAddr := conn.RemoteAddr()
+	return ClientResume(packetConn, rAddr, config)
+}
+func ClientResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	ctx, cancel := config.connectContextMaker()
 	defer cancel()
 
-	return ClientWithContext(ctx, conn, rAddr, config)
+	return ClientWithContextResume(ctx, conn, rAddr, config)
 }
 
 // Server listens for incoming DTLS connections.
 // Connection handshake will timeout using ConnectContextMaker in the Config.
 // If you want to specify the timeout duration, use ServerWithContext() instead.
-func Server(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func Server(conn net.Conn, config *Config) (*Conn, error) {
+	packetConn := dtlsnet.PacketConnFromConn(conn)
+	rAddr := conn.RemoteAddr()
+	return ServerResume(packetConn, rAddr, config)
+}
+func ServerResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	ctx, cancel := config.connectContextMaker()
 	defer cancel()
 
@@ -286,11 +297,16 @@ func DialWithContext(ctx context.Context, network string, rAddr *net.UDPAddr, co
 		return nil, err
 	}
 
-	return ClientWithContext(ctx, pConn, rAddr, config)
+	return ClientWithContextResume(ctx, pConn, rAddr, config)
 }
 
 // ClientWithContext establishes a DTLS connection over an existing connection.
-func ClientWithContext(ctx context.Context, conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func ClientWithContext(ctx context.Context, conn net.Conn, config *Config) (*Conn, error) {
+	packetConn := dtlsnet.PacketConnFromConn(conn)
+	rAddr := conn.RemoteAddr()
+	return ClientWithContextResume(ctx, packetConn, rAddr, config)
+}
+func ClientWithContextResume(ctx context.Context, conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	switch {
 	case config == nil:
 		return nil, errNoConfigProvided
