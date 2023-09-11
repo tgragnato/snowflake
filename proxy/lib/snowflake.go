@@ -452,12 +452,17 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 			var n int
 			n, err = pw.Write(msg.Data)
 			if err != nil {
-				if inerr := pw.CloseWithError(err); inerr != nil {
-					log.Printf("close with error generated an error: %v", inerr)
+				if inErr := pw.CloseWithError(err); inErr != nil {
+					log.Printf("close with error generated an error: %v", inErr)
 				}
+
+				return
 			}
+
 			conn.bytesLogger.AddOutbound(int64(n))
+
 			if n != len(msg.Data) {
+				// XXX: Maybe don't panic here and log an error instead?
 				panic("short write")
 			}
 		})
