@@ -21,7 +21,7 @@ require (
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.4.0
 	golang.org/x/crypto v0.12.0
 	golang.org/x/net v0.13.0
-	golang.org/x/sys v0.11.0
+	golang.org/x/sys v0.12.0
 	google.golang.org/protobuf v1.31.0
 )
 
