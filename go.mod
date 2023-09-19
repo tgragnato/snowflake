@@ -18,7 +18,7 @@ require (
 	github.com/xtaci/kcp-go/v5 v5.6.2
 	github.com/xtaci/smux v1.5.24
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
-	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.4.0
+	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
 	golang.org/x/crypto v0.13.0
 	golang.org/x/net v0.15.0
 	golang.org/x/sys v0.12.0
