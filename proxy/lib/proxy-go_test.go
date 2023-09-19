@@ -338,7 +338,7 @@ func TestBrokerInteractions(t *testing.T) {
 	Convey("Proxy connections to broker", t, func() {
 		var err error
 		broker, err = newSignalingServer("localhost", false)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		tokens = newTokens(0)
 
 		//Mock peerConnection
@@ -359,7 +359,7 @@ func TestBrokerInteractions(t *testing.T) {
 			var err error
 
 			b, err := messages.EncodePollResponse(sampleOffer, true, "unknown")
-			So(err, ShouldEqual, nil)
+			So(err, ShouldBeNil)
 			broker.transport = &MockTransport{
 				http.StatusOK,
 				b,
@@ -373,7 +373,7 @@ func TestBrokerInteractions(t *testing.T) {
 			var err error
 
 			b := []byte("test")
-			So(err, ShouldEqual, nil)
+			So(err, ShouldBeNil)
 			broker.transport = &MockTransport{
 				http.StatusOK,
 				b,
@@ -386,17 +386,17 @@ func TestBrokerInteractions(t *testing.T) {
 			var err error
 
 			b, err := messages.EncodeAnswerResponse(true)
-			So(err, ShouldEqual, nil)
+			So(err, ShouldBeNil)
 			broker.transport = &MockTransport{
 				http.StatusOK,
 				b,
 			}
 
 			err = broker.sendAnswer(sampleAnswer, pc)
-			So(err, ShouldEqual, nil)
+			So(err, ShouldBeNil)
 
 			b, err = messages.EncodeAnswerResponse(false)
-			So(err, ShouldEqual, nil)
+			So(err, ShouldBeNil)
 			broker.transport = &MockTransport{
 				http.StatusOK,
 				b,
@@ -486,7 +486,7 @@ func TestUtilityFuncs(t *testing.T) {
 		bytes := make([]byte, 6)
 		n, err := c2.Read(bytes)
 		So(n, ShouldEqual, 6)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		So(bytes, ShouldResemble, []byte("Hello!"))
 		s1.Close()
 

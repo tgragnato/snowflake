@@ -553,7 +553,7 @@ func TestInvalidGeoipFile(t *testing.T) {
 			log.Printf("loading geo ip databases returned error: %v", err)
 		}
 		ctx.metrics.UpdateCountryStats("127.0.0.1", "", NATUnrestricted)
-		So(ctx.metrics.geoipdb, ShouldEqual, nil)
+		So(ctx.metrics.geoipdb, ShouldBeNil)
 
 	})
 }
@@ -566,7 +566,7 @@ func TestMetrics(t *testing.T) {
 		i := &IPC{ctx}
 
 		err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 
 		//Test addition of proxy polls
 		Convey("for proxy polls", func() {
