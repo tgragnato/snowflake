@@ -89,12 +89,10 @@ variables:
 # -- jobs ------------------------------------------------------------
 
 android:
-  image: debian:bullseye-backports
+  image: golang:1.21-$DEBIAN_STABLE
   variables:
     ANDROID_HOME: /usr/lib/android-sdk
-    GOPATH: "/go"
     LANG: C.UTF-8
-    PATH: "/go/bin:/usr/lib/go-1.16/bin:/usr/bin:/bin"
   cache:
     paths:
       - .gradle/wrapper
@@ -112,7 +110,8 @@ android:
         gnupg
         unzip
         wget
-    - apt-get install -t bullseye-backports golang
+        ca-certificates
+        lbzip2
 
     - ndk=android-ndk-r21e-linux-x86_64.zip
     - wget --continue --no-verbose https://dl.google.com/android/repository/$ndk
@@ -123,7 +122,6 @@ android:
     - mv android-ndk-* $ANDROID_HOME/ndk-bundle/
 
     - chmod -R a+rX $ANDROID_HOME
-
   script:
     - *go-test
     - export GRADLE_USER_HOME=$CI_PROJECT_DIR/.gradle
