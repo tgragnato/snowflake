@@ -85,9 +85,12 @@ type ClientConfig struct {
 	// AmpCacheURL is the full URL of a valid AMP cache. A nonzero value indicates
 	// that AMP cache will be used as the rendezvous method with the broker.
 	AmpCacheURL string
-	// FrontDomain is a the full URL of an optional front domain that can be used with either
+	// FrontDomain is the full URL of an optional front domain that can be used with either
 	// the AMP cache or HTTP domain fronting rendezvous method.
 	FrontDomain string
+	// ICEAddresses are a slice of ICE server URLs that will be used for NAT traversal and
+	// the creation of the client's WebRTC SDP offer.
+	FrontDomains []string
 	// ICEAddresses are a slice of ICE server URLs that will be used for NAT traversal and
 	// the creation of the client's WebRTC SDP offer.
 	ICEAddresses []string
@@ -132,6 +135,11 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 	log.Printf("Using ICE servers:")
 	for _, server := range iceServers {
 		log.Printf("url: %v", strings.Join(server.URLs, " "))
+	}
+
+	// Maintain backwards compatability with old FrontDomain field of ClientConfig
+	if (len(config.FrontDomains) == 0) && (config.FrontDomain != "") {
+		config.FrontDomains = []string{config.FrontDomain}
 	}
 
 	// Rendezvous with broker using the given parameters.
