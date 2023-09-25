@@ -1,6 +1,8 @@
 module gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2
 
-go 1.17
+go 1.21
+
+toolchain go1.21.1
 
 require (
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
@@ -15,7 +17,7 @@ require (
 	github.com/refraction-networking/utls v1.3.2
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.8.4
-	github.com/xtaci/kcp-go/v5 v5.6.2
+	github.com/xtaci/kcp-go/v5 v5.6.3
 	github.com/xtaci/smux v1.5.24
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
