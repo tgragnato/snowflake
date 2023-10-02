@@ -234,22 +234,19 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 }
 
 func (i *IPC) matchSnowflake(natType string) *Snowflake {
-	// Only hand out known restricted snowflakes to unrestricted clients
-	var snowflakeHeap *SnowflakeHeap
-	if natType == NATUnrestricted {
-		snowflakeHeap = i.ctx.restrictedSnowflakes
-	} else {
-		snowflakeHeap = i.ctx.snowflakes
-	}
-
 	i.ctx.snowflakeLock.Lock()
 	defer i.ctx.snowflakeLock.Unlock()
 
-	if snowflakeHeap.Len() > 0 {
-		return heap.Pop(snowflakeHeap).(*Snowflake)
-	} else {
-		return nil
+	// Proiritize known restricted snowflakes for unrestricted clients
+	if natType == NATUnrestricted && i.ctx.restrictedSnowflakes.Len() > 0 {
+		return heap.Pop(i.ctx.restrictedSnowflakes).(*Snowflake)
 	}
+
+	if i.ctx.snowflakes.Len() > 0 {
+		return heap.Pop(i.ctx.snowflakes).(*Snowflake)
+	}
+
+	return nil
 }
 
 func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
