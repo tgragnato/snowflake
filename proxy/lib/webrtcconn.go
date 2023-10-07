@@ -91,7 +91,7 @@ func (c *webRTCConn) Write(b []byte) (int, error) {
 	defer c.lock.Unlock()
 	if c.dc != nil {
 		c.dc.Send(b)
-		if !c.isClosing && c.dc.BufferedAmount()+uint64(len(b)) > maxBufferedAmount {
+		if !c.isClosing && c.dc.BufferedAmount() >= maxBufferedAmount {
 			<-c.sendMoreCh
 		}
 	}
