@@ -4,8 +4,10 @@ import (
 	"errors"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/tgragnato/snowflake.git/v2/common/amp"
 )
@@ -16,7 +18,7 @@ import (
 type ampCacheRendezvous struct {
 	brokerURL *url.URL
 	cacheURL  *url.URL          // Optional AMP cache URL.
-	front     string            // Optional front domain to replace url.Host in requests.
+	fronts    []string          // Optional front domains to replace url.Host in requests.
 	transport http.RoundTripper // Used to make all requests.
 }
 
@@ -24,7 +26,7 @@ type ampCacheRendezvous struct {
 // broker at the given URL, optionally proxying through an AMP cache, and with
 // an optional front domain. transport is the http.RoundTripper used to make all
 // requests.
-func newAMPCacheRendezvous(broker, cache, front string, transport http.RoundTripper) (*ampCacheRendezvous, error) {
+func newAMPCacheRendezvous(broker, cache string, fronts []string, transport http.RoundTripper) (*ampCacheRendezvous, error) {
 	brokerURL, err := url.Parse(broker)
 	if err != nil {
 		return nil, err
@@ -40,7 +42,7 @@ func newAMPCacheRendezvous(broker, cache, front string, transport http.RoundTrip
 	return &ampCacheRendezvous{
 		brokerURL: brokerURL,
 		cacheURL:  cacheURL,
-		front:     front,
+		fronts:    fronts,
 		transport: transport,
 	}, nil
 }
@@ -49,7 +51,6 @@ func (r *ampCacheRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 	log.Println("Negotiating via AMP cache rendezvous...")
 	log.Println("Broker URL:", r.brokerURL)
 	log.Println("AMP cache URL:", r.cacheURL)
-	log.Println("Front domain:", r.front)
 
 	// We cannot POST a body through an AMP cache, so instead we GET and
 	// encode the client poll request message into the URL.
@@ -71,11 +72,14 @@ func (r *ampCacheRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if r.front != "" {
-		// Do domain fronting. Replace the domain in the URL's with the
-		// front, and store the original domain the HTTP Host header.
+	if len(r.fronts) != 0 {
+		// Do domain fronting. Replace the domain in the URL's with a randomly
+		// selected front, and store the original domain the HTTP Host header.
+		rand.Seed(time.Now().UnixNano())
+		front := r.fronts[rand.Intn(len(r.fronts))]
+		log.Println("Front domain:", front)
 		req.Host = req.URL.Host
-		req.URL.Host = r.front
+		req.URL.Host = front
 	}
 
 	resp, err := r.transport.RoundTrip(req)

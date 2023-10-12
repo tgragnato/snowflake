@@ -2,6 +2,7 @@ package snowflake_proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -62,7 +63,7 @@ func (c *webRTCConn) timeoutLoop(ctx context.Context) {
 	for {
 		select {
 		case <-timer.C:
-			c.Close()
+			_ = c.Close()
 			log.Println("Closed connection due to inactivity")
 			return
 		case <-c.activity:
@@ -90,8 +91,8 @@ func (c *webRTCConn) Write(b []byte) (int, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.dc != nil {
-		c.dc.Send(b)
-		if !c.isClosing && c.dc.BufferedAmount()+uint64(len(b)) > maxBufferedAmount {
+		_ = c.dc.Send(b)
+		if !c.isClosing && c.dc.BufferedAmount() >= maxBufferedAmount {
 			<-c.sendMoreCh
 		}
 	}
@@ -106,7 +107,7 @@ func (c *webRTCConn) Close() (err error) {
 	}
 	c.once.Do(func() {
 		c.cancelTimeoutLoop()
-		err = c.pc.Close()
+		err = errors.Join(c.pr.Close(), c.pc.Close())
 	})
 	return
 }

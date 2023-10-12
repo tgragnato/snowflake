@@ -79,8 +79,10 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			if arg, ok := conn.Req.Args.Get("ampcache"); ok {
 				config.AmpCacheURL = arg
 			}
-			if arg, ok := conn.Req.Args.Get("front"); ok {
-				config.FrontDomain = arg
+			if arg, ok := conn.Req.Args.Get("fronts"); ok {
+				config.FrontDomains = strings.Split(strings.TrimSpace(arg), ",")
+			} else if arg, ok := conn.Req.Args.Get("front"); ok {
+				config.FrontDomains = strings.Split(strings.TrimSpace(arg), ",")
 			}
 			if arg, ok := conn.Req.Args.Get("ice"); ok {
 				config.ICEAddresses = strings.Split(strings.TrimSpace(arg), ",")
@@ -150,6 +152,7 @@ func main() {
 	iceServersCommas := flag.String("ice", "", "comma-separated list of ICE servers")
 	brokerURL := flag.String("url", "", "URL of signaling broker")
 	frontDomain := flag.String("front", "", "front domain")
+	frontDomainsCommas := flag.String("fronts", "", "comma-separated list of front domains")
 	ampCacheURL := flag.String("ampcache", "", "URL of AMP cache to use as a proxy for signaling")
 	logFilename := flag.String("log", "", "name of log file")
 	logToStateDir := flag.Bool("log-to-state-dir", false, "resolve the log file relative to tor's pt state dir")
@@ -204,11 +207,17 @@ func main() {
 	log.Printf("snowflake-client %s\n", version.GetVersion())
 
 	iceAddresses := strings.Split(strings.TrimSpace(*iceServersCommas), ",")
+	frontDomains := strings.Split(strings.TrimSpace(*frontDomainsCommas), ",")
+
+	// Maintain backwards compatability with legacy commandline option
+	if (len(frontDomains) == 0) && (*frontDomain != "") {
+		frontDomains = []string{*frontDomain}
+	}
 
 	config := sf.ClientConfig{
 		BrokerURL:          *brokerURL,
 		AmpCacheURL:        *ampCacheURL,
-		FrontDomain:        *frontDomain,
+		FrontDomains:       frontDomains,
 		ICEAddresses:       iceAddresses,
 		KeepLocalAddresses: *keepLocalAddresses || *oldKeepLocalAddresses,
 		Max:                *max,

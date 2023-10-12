@@ -123,13 +123,13 @@ func TestDecodeProxyPollRequest(t *testing.T) {
 func TestEncodeProxyPollRequests(t *testing.T) {
 	Convey("Context", t, func() {
 		b, err := EncodeProxyPollRequest("ymbcCMto7KHNGYlp", "standalone", "unknown", 16)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		sid, proxyType, natType, clients, err := DecodeProxyPollRequest(b)
 		So(sid, ShouldEqual, "ymbcCMto7KHNGYlp")
 		So(proxyType, ShouldEqual, "standalone")
 		So(natType, ShouldEqual, "unknown")
 		So(clients, ShouldEqual, 16)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 	})
 }
 
@@ -180,18 +180,18 @@ func TestDecodeProxyPollResponse(t *testing.T) {
 func TestEncodeProxyPollResponse(t *testing.T) {
 	Convey("Context", t, func() {
 		b, err := EncodePollResponse("fake offer", true, "restricted")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		offer, natType, err := DecodePollResponse(b)
 		So(offer, ShouldEqual, "fake offer")
 		So(natType, ShouldEqual, "restricted")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 
 		b, err = EncodePollResponse("", false, "unknown")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		offer, natType, err = DecodePollResponse(b)
 		So(offer, ShouldEqual, "")
 		So(natType, ShouldEqual, "unknown")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 	})
 }
 
@@ -267,11 +267,11 @@ func TestDecodeProxyAnswerRequest(t *testing.T) {
 func TestEncodeProxyAnswerRequest(t *testing.T) {
 	Convey("Context", t, func() {
 		b, err := EncodeAnswerRequest("test answer", "test sid")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		answer, sid, err := DecodeAnswerRequest(b)
 		So(answer, ShouldEqual, "test answer")
 		So(sid, ShouldEqual, "test sid")
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 	})
 }
 
@@ -309,16 +309,16 @@ func TestDecodeProxyAnswerResponse(t *testing.T) {
 func TestEncodeProxyAnswerResponse(t *testing.T) {
 	Convey("Context", t, func() {
 		b, err := EncodeAnswerResponse(true)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		success, err := DecodeAnswerResponse(b)
 		So(success, ShouldEqual, true)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 
 		b, err = EncodeAnswerResponse(false)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		success, err = DecodeAnswerResponse(b)
 		So(success, ShouldEqual, false)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 	})
 }
 
@@ -406,7 +406,7 @@ func TestEncodeClientPollRequests(t *testing.T) {
 				Fingerprint: test.fingerprint,
 			}
 			b, err := req1.EncodeClientPollRequest()
-			So(err, ShouldEqual, nil)
+			So(err, ShouldBeNil)
 			req2, err := DecodeClientPollRequest(b)
 			So(err, ShouldHaveSameTypeAs, test.err)
 			if test.err == nil {
@@ -455,18 +455,18 @@ func TestEncodeClientPollResponse(t *testing.T) {
 			Answer: "fake answer",
 		}
 		b, err := resp1.EncodePollResponse()
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		resp2, err := DecodeClientPollResponse(b)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		So(resp1, ShouldResemble, resp2)
 
 		resp1 = &ClientPollResponse{
 			Error: "failed",
 		}
 		b, err = resp1.EncodePollResponse()
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		resp2, err = DecodeClientPollResponse(b)
-		So(err, ShouldEqual, nil)
+		So(err, ShouldBeNil)
 		So(resp1, ShouldResemble, resp2)
 	})
 }

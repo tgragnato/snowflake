@@ -64,8 +64,8 @@ func createBrokerTransport() http.RoundTripper {
 func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 	log.Println("Rendezvous using Broker at:", config.BrokerURL)
 
-	if config.FrontDomain != "" {
-		log.Println("Domain fronting using:", config.FrontDomain)
+	if len(config.FrontDomains) != 0 {
+		log.Printf("Domain fronting using a randomly selected domain from: %v", config.FrontDomains)
 	}
 
 	brokerTransport := createBrokerTransport()
@@ -86,11 +86,11 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 	if config.AmpCacheURL != "" {
 		log.Println("Through AMP cache at:", config.AmpCacheURL)
 		rendezvous, err = newAMPCacheRendezvous(
-			config.BrokerURL, config.AmpCacheURL, config.FrontDomain,
+			config.BrokerURL, config.AmpCacheURL, config.FrontDomains,
 			brokerTransport)
 	} else {
 		rendezvous, err = newHTTPRendezvous(
-			config.BrokerURL, config.FrontDomain, brokerTransport)
+			config.BrokerURL, config.FrontDomains, brokerTransport)
 	}
 	if err != nil {
 		return nil, err
