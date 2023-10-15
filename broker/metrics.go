@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tgragnato/snowflake.git/v2/common/ipsetsink/sinkcluster"
 	"github.com/tgragnato/snowflake.git/v2/common/messages"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 )
@@ -41,8 +40,6 @@ type CountryStats struct {
 type Metrics struct {
 	logger  *log.Logger
 	geoipdb *geoip.Geoip
-
-	distinctIPWriter *sinkcluster.ClusterWriter
 
 	countryStats                  CountryStats
 	clientRoundtripEstimate       time.Duration
@@ -326,14 +323,4 @@ func initPrometheus() *PromMetrics {
 	)
 
 	return promMetrics
-}
-
-func (m *Metrics) RecordIPAddress(ip string) {
-	if m.distinctIPWriter != nil {
-		m.distinctIPWriter.AddIPToSet(ip)
-	}
-}
-
-func (m *Metrics) SetIPAddressRecorder(recorder *sinkcluster.ClusterWriter) {
-	m.distinctIPWriter = recorder
 }

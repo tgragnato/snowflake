@@ -23,8 +23,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tgragnato/snowflake.git/v2/common/bridgefingerprint"
-	"github.com/tgragnato/snowflake.git/v2/common/ipsetsink"
-	"github.com/tgragnato/snowflake.git/v2/common/ipsetsink/sinkcluster"
 	"github.com/tgragnato/snowflake.git/v2/common/namematcher"
 	"github.com/tgragnato/snowflake.git/v2/common/safelog"
 	"golang.org/x/crypto/acme/autocert"
@@ -262,16 +260,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-	}
-
-	if ipCountFilename != "" {
-		ipCountFile, err := os.OpenFile(ipCountFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-		ipSetSink := ipsetsink.NewIPSetSink(ipCountMaskingKey)
-		ctx.metrics.distinctIPWriter = sinkcluster.NewClusterWriter(ipCountFile, ipCountInterval, ipSetSink)
 	}
 
 	go ctx.Broker()
