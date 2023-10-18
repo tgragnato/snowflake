@@ -251,3 +251,20 @@ func (r *dnsResolver) lookupIPAddr(ctx context.Context, host string, ipv6 bool) 
 	}
 	return returnedIPs, nil
 }
+
+func NewTransportWrapper(sc *SocksClient, innerNet transport.Net) transport.Net {
+	return &transportWrapper{sc: sc, Net: innerNet}
+}
+
+type transportWrapper struct {
+	transport.Net
+	sc *SocksClient
+}
+
+func (t *transportWrapper) ListenPacket(network string, address string) (net.PacketConn, error) {
+	return t.sc.ListenPacket(network, nil)
+}
+
+func (t *transportWrapper) ResolveUDPAddr(network string, address string) (*net.UDPAddr, error) {
+	return t.sc.ResolveUDPAddr(network, address)
+}
