@@ -261,6 +261,10 @@ type transportWrapper struct {
 	sc *SocksClient
 }
 
+func (t *transportWrapper) ListenUDP(network string, locAddr *net.UDPAddr) (transport.UDPConn, error) {
+	return t.sc.ListenPacket(network, nil)
+}
+
 func (t *transportWrapper) ListenPacket(network string, address string) (net.PacketConn, error) {
 	return t.sc.ListenPacket(network, nil)
 }

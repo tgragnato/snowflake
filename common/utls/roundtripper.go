@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"golang.org/x/net/proxy"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -14,7 +16,13 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// NewUTLSHTTPRoundTripper creates an instance of RoundTripper that dial to remote HTTPS endpoint with
+// Deprecated: use NewUTLSHTTPRoundTripperWithProxy instead
+func NewUTLSHTTPRoundTripper(clientHelloID utls.ClientHelloID, uTlsConfig *utls.Config,
+	backdropTransport http.RoundTripper, removeSNI bool) http.RoundTripper {
+	return NewUTLSHTTPRoundTripperWithProxy(clientHelloID, uTlsConfig, backdropTransport, removeSNI, nil)
+}
+
+// NewUTLSHTTPRoundTripperWithProxy creates an instance of RoundTripper that dial to remote HTTPS endpoint with
 // an alternative version of TLS implementation that attempts to imitate browsers' fingerprint.
 // clientHelloID is the clientHello that uTLS attempts to imitate
 // uTlsConfig is the TLS Configuration template
@@ -22,8 +30,8 @@ import (
 // removeSNI indicates not to send Server Name Indication Extension
 // returns a RoundTripper: its behaviour is documented at
 // https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/merge_requests/76#note_2777161
-func NewUTLSHTTPRoundTripper(clientHelloID utls.ClientHelloID, uTlsConfig *utls.Config,
-	backdropTransport http.RoundTripper, removeSNI bool) http.RoundTripper {
+func NewUTLSHTTPRoundTripperWithProxy(clientHelloID utls.ClientHelloID, uTlsConfig *utls.Config,
+	backdropTransport http.RoundTripper, removeSNI bool, proxy *url.URL) http.RoundTripper {
 	rtImpl := &uTLSHTTPRoundTripperImpl{
 		clientHelloID:     clientHelloID,
 		config:            uTlsConfig,
@@ -31,6 +39,7 @@ func NewUTLSHTTPRoundTripper(clientHelloID utls.ClientHelloID, uTlsConfig *utls.
 		backdropTransport: backdropTransport,
 		pendingConn:       map[pendingConnKey]*unclaimedConnection{},
 		removeSNI:         removeSNI,
+		proxyAddr:         proxy,
 	}
 	rtImpl.init()
 	return rtImpl
@@ -51,6 +60,7 @@ type uTLSHTTPRoundTripperImpl struct {
 	pendingConn             map[pendingConnKey]*unclaimedConnection
 
 	removeSNI bool
+	proxyAddr *url.URL
 }
 
 type pendingConnKey struct {
@@ -174,7 +184,19 @@ func (r *uTLSHTTPRoundTripperImpl) dialTLS(ctx context.Context, addr string) (*u
 	}
 	config.ServerName = host
 
-	dialer := &net.Dialer{}
+	systemDialer := &net.Dialer{}
+
+	var dialer proxy.ContextDialer
+	dialer = systemDialer
+
+	if r.proxyAddr != nil {
+		proxyDialer, err := proxy.FromURL(r.proxyAddr, systemDialer)
+		if err != nil {
+			return nil, err
+		}
+		dialer = proxyDialer.(proxy.ContextDialer)
+	}
+
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err

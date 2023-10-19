@@ -5,8 +5,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/pion/transport/v2"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"io"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -38,20 +41,28 @@ type WebRTCPeer struct {
 
 	bytesLogger  bytesLogger
 	eventsLogger event.SnowflakeEventReceiver
+	proxy        *url.URL
 }
 
+// Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
 func NewWebRTCPeer(config *webrtc.Configuration,
 	broker *BrokerChannel) (*WebRTCPeer, error) {
-	return NewWebRTCPeerWithEvents(config, broker, nil)
+	return NewWebRTCPeerWithEventsAndProxy(config, broker, nil, nil)
 }
 
-// NewWebRTCPeerWithEvents constructs a WebRTC PeerConnection to a snowflake proxy.
+// Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
+func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
+	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver) (*WebRTCPeer, error) {
+	return NewWebRTCPeerWithEventsAndProxy(config, broker, eventsLogger, nil)
+}
+
+// NewWebRTCPeerWithEventsAndProxy constructs a WebRTC PeerConnection to a snowflake proxy.
 //
 // The creation of the peer handles the signaling to the Snowflake broker, including
 // the exchange of SDP information, the creation of a PeerConnection, and the establishment
 // of a DataChannel to the Snowflake proxy.
-func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
-	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver) (*WebRTCPeer, error) {
+func NewWebRTCPeerWithEventsAndProxy(config *webrtc.Configuration,
+	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver, proxy *url.URL) (*WebRTCPeer, error) {
 	if eventsLogger == nil {
 		eventsLogger = event.NewSnowflakeEventDispatcher()
 	}
@@ -73,6 +84,7 @@ func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
 	connection.recvPipe, connection.writePipe = io.Pipe()
 
 	connection.eventsLogger = eventsLogger
+	connection.proxy = proxy
 
 	err := connection.connect(config, broker)
 	if err != nil {
@@ -199,7 +211,17 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error
-	vnet, _ := stdnet.NewNet()
+	var vnet transport.Net
+	vnet, _ = stdnet.NewNet()
+
+	if c.proxy != nil {
+		if err = proxy.CheckProxyProtocolSupport(c.proxy); err != nil {
+			return err
+		}
+		socksClient := proxy.NewSocks5UDPClient(c.proxy)
+		vnet = proxy.NewTransportWrapper(&socksClient, vnet)
+	}
+
 	s.SetNet(vnet)
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	c.pc, err = api.NewPeerConnection(*config)

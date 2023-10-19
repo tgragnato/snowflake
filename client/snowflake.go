@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"io"
 	"io/ioutil"
 	"log"
@@ -231,8 +232,20 @@ func main() {
 		log.Fatal(err)
 	}
 	if ptInfo.ProxyURL != nil {
-		pt.ProxyError("proxy is not supported")
-		os.Exit(1)
+		if err := proxy.CheckProxyProtocolSupport(ptInfo.ProxyURL); err != nil {
+			pt.ProxyError("proxy is not supported:" + err.Error())
+			os.Exit(1)
+		} else {
+			config.CommunicationProxy = ptInfo.ProxyURL
+			client := proxy.NewSocks5UDPClient(config.CommunicationProxy)
+			conn, err := client.ListenPacket("udp", nil)
+			if err != nil {
+				pt.ProxyError("proxy test failure:" + err.Error())
+				os.Exit(1)
+			}
+			conn.Close()
+			pt.ProxyDone()
+		}
 	}
 	listeners := make([]net.Listener, 0)
 	shutdown := make(chan struct{})
