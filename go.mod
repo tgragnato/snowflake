@@ -14,7 +14,7 @@ require (
 	github.com/refraction-networking/utls v1.5.3
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.8.4
-	github.com/xtaci/kcp-go/v5 v5.6.3
+	github.com/xtaci/kcp-go/v5 v5.6.5
 	github.com/xtaci/smux v1.5.24
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
