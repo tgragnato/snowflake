@@ -82,7 +82,9 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 				config.AmpCacheURL = arg
 			}
 			if arg, ok := conn.Req.Args.Get("fronts"); ok {
-				config.FrontDomains = strings.Split(strings.TrimSpace(arg), ",")
+				if arg != "" {
+					config.FrontDomains = strings.Split(strings.TrimSpace(arg), ",")
+				}
 			} else if arg, ok := conn.Req.Args.Get("front"); ok {
 				config.FrontDomains = strings.Split(strings.TrimSpace(arg), ",")
 			}
@@ -210,7 +212,11 @@ func main() {
 	log.Printf("snowflake-client %s\n", version.GetVersion())
 
 	iceAddresses := strings.Split(strings.TrimSpace(*iceServersCommas), ",")
-	frontDomains := strings.Split(strings.TrimSpace(*frontDomainsCommas), ",")
+
+	var frontDomains []string
+	if *frontDomainsCommas != "" {
+		frontDomains = strings.Split(strings.TrimSpace(*frontDomainsCommas), ",")
+	}
 
 	// Maintain backwards compatability with legacy commandline option
 	if (len(frontDomains) == 0) && (*frontDomain != "") {
