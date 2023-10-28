@@ -14,7 +14,6 @@ import (
 	"github.com/pion/ice/v2"
 	"github.com/pion/sdp/v3"
 	"github.com/pion/webrtc/v3"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 )
 
 const maxBufferedAmount uint64 = 512 * 1024 // 512 KB
@@ -36,19 +35,17 @@ type webRTCConn struct {
 
 	isClosing bool
 
-	bytesLogger bytesLogger
-	eventLogger event.SnowflakeEventReceiver
-
 	inactivityTimeout time.Duration
 	activity          chan struct{}
 	sendMoreCh        chan struct{}
 	cancelTimeoutLoop context.CancelFunc
+
+	bytesLogger bytesLogger
 }
 
-func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, eventLogger event.SnowflakeEventReceiver) *webRTCConn {
-	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, eventLogger: eventLogger}
+func newWebRTCConn(pc *webrtc.PeerConnection, dc *webrtc.DataChannel, pr *io.PipeReader, bytesLogger bytesLogger) *webRTCConn {
+	conn := &webRTCConn{pc: pc, dc: dc, pr: pr, bytesLogger: bytesLogger}
 	conn.isClosing = false
-	conn.bytesLogger = newBytesSyncLogger()
 	conn.activity = make(chan struct{}, 100)
 	conn.sendMoreCh = make(chan struct{}, 1)
 	conn.inactivityTimeout = 30 * time.Second

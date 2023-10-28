@@ -416,7 +416,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 		close(dataChan)
 
 		pr, pw := io.Pipe()
-		conn := newWebRTCConn(pc, dc, pr, sf.EventDispatcher)
+		conn := newWebRTCConn(pc, dc, pr, sf.bytesLogger)
 
 		dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 
@@ -446,11 +446,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
-			in, out := conn.bytesLogger.GetStat()
-			conn.eventLogger.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{
-				InboundTraffic:  in,
-				OutboundTraffic: out,
-			})
+			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{})
 			conn.dc = nil
 			dc.Close()
 			pw.Close()
@@ -663,7 +659,8 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 
 	if !sf.DisableStatsLogger {
-		sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher)
+		sf.bytesLogger = newBytesSyncLogger()
+		sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
 	}
 
 	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)

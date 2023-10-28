@@ -6,9 +6,8 @@ import (
 	"log"
 	"time"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
-
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
 )
 
 func NewProxyEventLogger(output io.Writer) event.SnowflakeEventReceiver {
@@ -25,16 +24,15 @@ func (p *proxyEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 }
 
 type periodicProxyStats struct {
-	inboundSum      int64
-	outboundSum     int64
+	bytesLogger     bytesLogger
 	connectionCount int
 	logPeriod       time.Duration
 	task            *task.Periodic
 	dispatcher      event.SnowflakeEventDispatcher
 }
 
-func newPeriodicProxyStats(logPeriod time.Duration, dispatcher event.SnowflakeEventDispatcher) *periodicProxyStats {
-	el := &periodicProxyStats{logPeriod: logPeriod, dispatcher: dispatcher}
+func newPeriodicProxyStats(logPeriod time.Duration, dispatcher event.SnowflakeEventDispatcher, bytesLogger bytesLogger) *periodicProxyStats {
+	el := &periodicProxyStats{logPeriod: logPeriod, dispatcher: dispatcher, bytesLogger: bytesLogger}
 	el.task = &task.Periodic{Interval: logPeriod, Execute: el.logTick}
 	el.task.WaitThenStart()
 	return el
@@ -43,21 +41,17 @@ func newPeriodicProxyStats(logPeriod time.Duration, dispatcher event.SnowflakeEv
 func (p *periodicProxyStats) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 	switch e.(type) {
 	case event.EventOnProxyConnectionOver:
-		e := e.(event.EventOnProxyConnectionOver)
-		p.inboundSum += e.InboundTraffic
-		p.outboundSum += e.OutboundTraffic
 		p.connectionCount += 1
 	}
 }
 
 func (p *periodicProxyStats) logTick() error {
-	inbound, inboundUnit := formatTraffic(p.inboundSum)
-	outbound, outboundUnit := formatTraffic(p.outboundSum)
-	statString := fmt.Sprintf("In the last %v, there were %v connections. Traffic Relayed ↓ %v %v, ↑ %v %v.\n",
+	inboundSum, outboundSum := p.bytesLogger.GetStat()
+	inbound, inboundUnit := formatTraffic(inboundSum)
+	outbound, outboundUnit := formatTraffic(outboundSum)
+	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v, ↑ %v %v.",
 		p.logPeriod.String(), p.connectionCount, inbound, inboundUnit, outbound, outboundUnit)
 	p.dispatcher.OnNewSnowflakeEvent(&event.EventOnProxyStats{StatString: statString})
-	p.outboundSum = 0
-	p.inboundSum = 0
 	p.connectionCount = 0
 	return nil
 }
