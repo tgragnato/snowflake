@@ -438,7 +438,6 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
-			log.Println(conn.bytesLogger.ThroughputSummary())
 			in, out := conn.bytesLogger.GetStat()
 			conn.eventLogger.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{
 				InboundTraffic:  in,

@@ -1,7 +1,6 @@
 package snowflake_proxy
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -10,7 +9,6 @@ import (
 type bytesLogger interface {
 	AddOutbound(int64)
 	AddInbound(int64)
-	ThroughputSummary() string
 	GetStat() (in int64, out int64)
 }
 
@@ -22,9 +20,6 @@ func (b bytesNullLogger) AddOutbound(amount int64) {}
 
 // AddInbound in bytesNullLogger does nothing
 func (b bytesNullLogger) AddInbound(amount int64) {}
-
-// ThroughputSummary in bytesNullLogger does nothing
-func (b bytesNullLogger) ThroughputSummary() string { return "" }
 
 func (b bytesNullLogger) GetStat() (in int64, out int64) { return -1, -1 }
 
@@ -69,18 +64,6 @@ func (b *bytesSyncLogger) AddOutbound(amount int64) {
 // AddInbound add a number of bytes to the inbound total reported by the logger
 func (b *bytesSyncLogger) AddInbound(amount int64) {
 	b.inboundChan <- amount
-}
-
-// ThroughputSummary view a formatted summary of the throughput totals
-func (b *bytesSyncLogger) ThroughputSummary() string {
-	inbound := b.inbound
-	outbound := b.outbound
-
-	inbound, inUnit := formatTraffic(inbound)
-	outbound, outUnit := formatTraffic(outbound)
-
-	t := time.Now()
-	return fmt.Sprintf("Traffic throughput (down|up): %d %s|%d %s -- (%d OnMessages, %d Sends, over %d seconds)", inbound, inUnit, outbound, outUnit, b.outEvents, b.inEvents, int(t.Sub(b.start).Seconds()))
 }
 
 func (b *bytesSyncLogger) GetStat() (in int64, out int64) { return b.inbound, b.outbound }
