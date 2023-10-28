@@ -76,6 +76,15 @@ func (e EventOnProxyConnectionOver) String() string {
 	return fmt.Sprintf("Proxy connection closed (↑ %d, ↓ %d)", e.InboundTraffic, e.OutboundTraffic)
 }
 
+type EventOnProxyStats struct {
+	SnowflakeEvent
+	StatString string
+}
+
+func (e EventOnProxyStats) String() string {
+	return e.StatString
+}
+
 type EventOnCurrentNATTypeDetermined struct {
 	SnowflakeEvent
 	CurNATType string

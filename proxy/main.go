@@ -31,7 +31,7 @@ func main() {
 	allowNonTLSRelay := flag.Bool("allow-non-tls-relay", false, "allow relay without tls encryption")
 	NATTypeMeasurementInterval := flag.Duration("nat-retest-interval", time.Hour*24,
 		"the time interval in second before NAT type is retested, 0s disables retest. Valid time units are \"s\", \"m\", \"h\". ")
-	SummaryInterval := flag.Duration("summary-interval", time.Hour,
+	summaryInterval := flag.Duration("summary-interval", time.Hour,
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
 	disableStatsLogger := flag.Bool("disable-stats-logger", false, "disable the exposing mechanism for stats using logs")
 	enableMetrics := flag.Bool("metrics", false, "enable the exposing mechanism for stats using metrics")
@@ -96,6 +96,9 @@ func main() {
 
 		RelayDomainNamePattern: *allowedRelayHostNamePattern,
 		AllowNonTLSRelay:       *allowNonTLSRelay,
+
+		DisableStatsLogger: *disableStatsLogger,
+		SummaryInterval:    *summaryInterval,
 	}
 
 	var logOutput = ioutil.Discard
@@ -124,10 +127,8 @@ func main() {
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
 
-	if !*disableStatsLogger {
-		periodicEventLogger := sf.NewProxyEventLogger(*SummaryInterval, eventlogOutput)
-		eventLogger.AddSnowflakeEventListener(periodicEventLogger)
-	}
+	proxyEventLogger := sf.NewProxyEventLogger(eventlogOutput)
+	eventLogger.AddSnowflakeEventListener(proxyEventLogger)
 
 	if *enableMetrics {
 		metrics := sf.NewMetrics()

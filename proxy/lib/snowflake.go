@@ -139,6 +139,14 @@ type SnowflakeProxy struct {
 	ProxyType       string
 	EventDispatcher event.SnowflakeEventDispatcher
 	shutdown        chan struct{}
+
+	// DisableStatsLogger indicates whether proxy stats will be logged periodically
+	DisableStatsLogger bool
+	// SummaryInterval is the time interval at which proxy stats will be logged
+	SummaryInterval time.Duration
+
+	periodicProxyStats *periodicProxyStats
+	bytesLogger        bytesLogger
 }
 
 // Checks whether an IP address is a remote address for the client
@@ -652,6 +660,10 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 	if sf.EventDispatcher == nil {
 		sf.EventDispatcher = event.NewSnowflakeEventDispatcher()
+	}
+
+	if !sf.DisableStatsLogger {
+		sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher)
 	}
 
 	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
