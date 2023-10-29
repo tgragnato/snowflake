@@ -16,8 +16,10 @@ package nat
 import (
 	"errors"
 	"fmt"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"log"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/pion/stun/v2"
@@ -31,23 +33,28 @@ const (
 	NATUnrestricted = "unrestricted"
 )
 
-// This function checks the NAT mapping and filtering
+// Deprecated: Use CheckIfRestrictedNATWithProxy Instead.
+func CheckIfRestrictedNAT(server string) (bool, error) {
+	return CheckIfRestrictedNATWithProxy(server, nil)
+}
+
+// CheckIfRestrictedNATWithProxy checks the NAT mapping and filtering
 // behaviour and returns true if the NAT is restrictive
 // (address-dependent mapping and/or port-dependent filtering)
 // and false if the NAT is unrestrictive (meaning it
 // will work with most other NATs),
-func CheckIfRestrictedNAT(server string) (bool, error) {
-	return isRestrictedMapping(server)
+func CheckIfRestrictedNATWithProxy(server string, proxy *url.URL) (bool, error) {
+	return isRestrictedMapping(server, proxy)
 }
 
 // Performs two tests from RFC 5780 to determine whether the mapping type
 // of the client's NAT is address-independent or address-dependent
 // Returns true if the mapping is address-dependent and false otherwise
-func isRestrictedMapping(addrStr string) (bool, error) {
+func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 	var xorAddr1 stun.XORMappedAddress
 	var xorAddr2 stun.XORMappedAddress
 
-	mapTestConn, err := connect(addrStr)
+	mapTestConn, err := connect(addrStr, proxy)
 	if err != nil {
 		return false, fmt.Errorf("Error creating STUN connection: %w", err)
 	}
@@ -98,10 +105,10 @@ func isRestrictedMapping(addrStr string) (bool, error) {
 // Note: This function is no longer used because a client's NAT type is
 // determined only by their mapping type, but the functionality might
 // be useful in the future and remains here.
-func isRestrictedFiltering(addrStr string) (bool, error) {
+func isRestrictedFiltering(addrStr string, proxy *url.URL) (bool, error) {
 	var xorAddr stun.XORMappedAddress
 
-	mapTestConn, err := connect(addrStr)
+	mapTestConn, err := connect(addrStr, proxy)
 	if err != nil {
 		log.Printf("Error creating STUN connection: %s", err.Error())
 		return false, err
@@ -142,23 +149,41 @@ func isRestrictedFiltering(addrStr string) (bool, error) {
 }
 
 // Given an address string, returns a StunServerConn
-func connect(addrStr string) (*StunServerConn, error) {
+func connect(addrStr string, proxyAddr *url.URL) (*StunServerConn, error) {
 	// Creating a "connection" to STUN server.
-	addr, err := net.ResolveUDPAddr("udp4", addrStr)
+	var conn net.PacketConn
+
+	ResolveUDPAddr := net.ResolveUDPAddr
+	if proxyAddr != nil {
+		socksClient := proxy.NewSocks5UDPClient(proxyAddr)
+		ResolveUDPAddr = socksClient.ResolveUDPAddr
+	}
+
+	addr, err := ResolveUDPAddr("udp4", addrStr)
 	if err != nil {
 		log.Printf("Error resolving address: %s\n", err.Error())
 		return nil, err
 	}
 
-	c, err := net.ListenUDP("udp4", nil)
-	if err != nil {
-		return nil, err
+	if proxyAddr == nil {
+		c, err := net.ListenUDP("udp4", nil)
+		if err != nil {
+			return nil, err
+		}
+		conn = c
+	} else {
+		socksClient := proxy.NewSocks5UDPClient(proxyAddr)
+		c, err := socksClient.ListenPacket("udp", nil)
+		if err != nil {
+			return nil, err
+		}
+		conn = c
 	}
 
-	mChan := listen(c)
+	mChan := listen(conn)
 
 	return &StunServerConn{
-		conn:        c,
+		conn:        conn,
 		PrimaryAddr: addr,
 		messageChan: mChan,
 	}, nil
@@ -203,13 +228,13 @@ func (c *StunServerConn) AddOtherAddr(addrStr string) error {
 }
 
 // taken from https://github.com/pion/stun/blob/master/cmd/stun-traversal/main.go
-func listen(conn *net.UDPConn) chan *stun.Message {
+func listen(conn net.PacketConn) chan *stun.Message {
 	messages := make(chan *stun.Message)
 	go func() {
 		for {
 			buf := make([]byte, 1024)
 
-			n, _, err := conn.ReadFromUDP(buf)
+			n, _, err := conn.ReadFrom(buf)
 			if err != nil {
 				close(messages)
 				return

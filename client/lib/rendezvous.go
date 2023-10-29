@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"log"
 	"net/http"
@@ -51,12 +52,15 @@ type BrokerChannel struct {
 // We make a copy of DefaultTransport because we want the default Dial
 // and TLSHandshakeTimeout settings. But we want to disable the default
 // ProxyFromEnvironment setting.
-func createBrokerTransport() http.RoundTripper {
+func createBrokerTransport(proxy *url.URL) http.RoundTripper {
 	tlsConfig := &tls.Config{
 		RootCAs: certs.GetRootCAs(),
 	}
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	transport.Proxy = nil
+	if proxy != nil {
+		transport.Proxy = http.ProxyURL(proxy)
+	}
 	transport.ResponseHeaderTimeout = 15 * time.Second
 	return transport
 }
@@ -68,7 +72,7 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 		log.Printf("Domain fronting using a randomly selected domain from: %v", config.FrontDomains)
 	}
 
-	brokerTransport := createBrokerTransport()
+	brokerTransport := createBrokerTransport(config.CommunicationProxy)
 
 	if config.UTLSClientID != "" {
 		utlsClientHelloID, err := utlsutil.NameToUTLSID(config.UTLSClientID)
@@ -78,7 +82,8 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 		utlsConfig := &utls.Config{
 			RootCAs: certs.GetRootCAs(),
 		}
-		brokerTransport = utlsutil.NewUTLSHTTPRoundTripper(utlsClientHelloID, utlsConfig, brokerTransport, config.UTLSRemoveSNI)
+		brokerTransport = utlsutil.NewUTLSHTTPRoundTripperWithProxy(utlsClientHelloID, utlsConfig, brokerTransport,
+			config.UTLSRemoveSNI, config.CommunicationProxy)
 	}
 
 	var rendezvous RendezvousMethod
@@ -168,14 +173,22 @@ type WebRTCDialer struct {
 	max          int
 
 	eventLogger event.SnowflakeEventReceiver
+	proxy       *url.URL
 }
 
+// Deprecated: Use NewWebRTCDialerWithEventsAndProxy instead
 func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int) *WebRTCDialer {
-	return NewWebRTCDialerWithEvents(broker, iceServers, max, nil)
+	return NewWebRTCDialerWithEventsAndProxy(broker, iceServers, max, nil, nil)
 }
 
-// NewWebRTCDialerWithEvents constructs a new WebRTCDialer.
+// Deprecated: Use NewWebRTCDialerWithEventsAndProxy instead
 func NewWebRTCDialerWithEvents(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int, eventLogger event.SnowflakeEventReceiver) *WebRTCDialer {
+	return NewWebRTCDialerWithEventsAndProxy(broker, iceServers, max, eventLogger, nil)
+}
+
+// NewWebRTCDialerWithEventsAndProxy constructs a new WebRTCDialer.
+func NewWebRTCDialerWithEventsAndProxy(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int,
+	eventLogger event.SnowflakeEventReceiver, proxy *url.URL) *WebRTCDialer {
 	config := webrtc.Configuration{
 		ICEServers: iceServers,
 	}
@@ -186,6 +199,7 @@ func NewWebRTCDialerWithEvents(broker *BrokerChannel, iceServers []webrtc.ICESer
 		max:           max,
 
 		eventLogger: eventLogger,
+		proxy:       proxy,
 	}
 }
 
@@ -193,7 +207,7 @@ func NewWebRTCDialerWithEvents(broker *BrokerChannel, iceServers []webrtc.ICESer
 func (w WebRTCDialer) Catch() (*WebRTCPeer, error) {
 	// TODO: [#25591] Fetch ICE server information from Broker.
 	// TODO: [#25596] Consider TURN servers here too.
-	return NewWebRTCPeerWithEvents(w.webrtcConfig, w.BrokerChannel, w.eventLogger)
+	return NewWebRTCPeerWithEventsAndProxy(w.webrtcConfig, w.BrokerChannel, w.eventLogger, w.proxy)
 }
 
 // GetMax returns the maximum number of snowflakes to collect.

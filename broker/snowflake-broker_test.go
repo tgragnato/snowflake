@@ -163,6 +163,30 @@ func TestBroker(t *testing.T) {
 				So(w.Code, ShouldEqual, http.StatusOK)
 			})
 
+			Convey("with unrestricted proxy to unrestricted client if there are no restricted proxies", func() {
+				snowflake := ctx.AddSnowflake("test", "", NATUnrestricted, 0)
+				offerData, err := createClientOffer(sdp, NATUnrestricted, "")
+				So(err, ShouldBeNil)
+				r, err := http.NewRequest("POST", "snowflake.broker/client", offerData)
+
+				done := make(chan bool)
+				go func() {
+					clientOffers(i, w, r)
+					done <- true
+				}()
+
+				select {
+				case <-snowflake.offerChannel:
+				case <-time.After(250 * time.Millisecond):
+					So(false, ShouldBeTrue)
+					return
+				}
+				snowflake.answerChannel <- "test answer"
+
+				<-done
+				So(w.Body.String(), ShouldEqual, `{"answer":"test answer"}`)
+			})
+
 			Convey("Times out when no proxy responds.", func() {
 				if testing.Short() {
 					return

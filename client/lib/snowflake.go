@@ -112,6 +112,8 @@ type ClientConfig struct {
 	// BridgeFingerprint is the fingerprint of the bridge that the client will eventually
 	// connect to, as specified in the Bridge line of the torrc.
 	BridgeFingerprint string
+	// CommunicationProxy is the proxy address for network communication
+	CommunicationProxy *url.URL
 }
 
 // NewSnowflakeClient creates a new Snowflake transport client that can spawn multiple
@@ -149,14 +151,14 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 	if err != nil {
 		return nil, err
 	}
-	go updateNATType(iceServers, broker)
+	go updateNATType(iceServers, broker, config.CommunicationProxy)
 
 	max := 1
 	if config.Max > max {
 		max = config.Max
 	}
 	eventsLogger := event.NewSnowflakeEventDispatcher()
-	transport := &Transport{dialer: NewWebRTCDialerWithEvents(broker, iceServers, max, eventsLogger), eventDispatcher: eventsLogger}
+	transport := &Transport{dialer: NewWebRTCDialerWithEventsAndProxy(broker, iceServers, max, eventsLogger, config.CommunicationProxy), eventDispatcher: eventsLogger}
 
 	return transport, nil
 }
@@ -249,13 +251,13 @@ func (conn *SnowflakeConn) Close() error {
 
 // loop through all provided STUN servers until we exhaust the list or find
 // one that is compatible with RFC 5780
-func updateNATType(servers []webrtc.ICEServer, broker *BrokerChannel) {
+func updateNATType(servers []webrtc.ICEServer, broker *BrokerChannel, proxy *url.URL) {
 
 	var restrictedNAT bool
 	var err error
 	for _, server := range servers {
 		addr := strings.TrimPrefix(server.URLs[0], "stun:")
-		restrictedNAT, err = nat.CheckIfRestrictedNAT(addr)
+		restrictedNAT, err = nat.CheckIfRestrictedNATWithProxy(addr, proxy)
 
 		if err != nil {
 			log.Printf("Warning: NAT checking failed for server at %s: %s", addr, err)
