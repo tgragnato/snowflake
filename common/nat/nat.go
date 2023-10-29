@@ -16,13 +16,13 @@ package nat
 import (
 	"errors"
 	"fmt"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"log"
 	"net"
 	"net/url"
 	"time"
 
 	"github.com/pion/stun/v2"
+	"github.com/tgragnato/snowflake.git/v2/common/proxy"
 )
 
 var ErrTimedOut = errors.New("timed out waiting for response")

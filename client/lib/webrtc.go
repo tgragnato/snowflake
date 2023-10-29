@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/pion/transport/v2"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"io"
 	"log"
 	"net/url"
@@ -14,8 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pion/ice/v2"
+	"github.com/pion/transport/v2"
+	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
 	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/proxy"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.

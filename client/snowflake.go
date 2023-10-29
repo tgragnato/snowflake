@@ -4,7 +4,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"io"
 	"log"
 	"net"
@@ -18,6 +17,7 @@ import (
 
 	sf "github.com/tgragnato/snowflake.git/v2/client/lib"
 	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/proxy"
 	"github.com/tgragnato/snowflake.git/v2/common/safelog"
 	"github.com/tgragnato/snowflake.git/v2/common/version"
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
