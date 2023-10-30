@@ -2,6 +2,7 @@ package event
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pion/webrtc/v3"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
@@ -78,11 +79,16 @@ func (e EventOnProxyConnectionOver) String() string {
 
 type EventOnProxyStats struct {
 	SnowflakeEvent
-	StatString string
+	ConnectionCount             int
+	InboundBytes, OutboundBytes int64
+	InboundUnit, OutboundUnit   string
+	SummaryInterval             time.Duration
 }
 
 func (e EventOnProxyStats) String() string {
-	return e.StatString
+	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v, ↑ %v %v.",
+		e.SummaryInterval.String(), e.ConnectionCount, e.InboundBytes, e.InboundUnit, e.OutboundBytes, e.OutboundUnit)
+	return statString
 }
 
 type EventOnCurrentNATTypeDetermined struct {

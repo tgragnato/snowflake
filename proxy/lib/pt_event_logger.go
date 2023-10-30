@@ -1,7 +1,6 @@
 package snowflake_proxy
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"time"
@@ -47,11 +46,13 @@ func (p *periodicProxyStats) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 
 func (p *periodicProxyStats) logTick() error {
 	inboundSum, outboundSum := p.bytesLogger.GetStat()
-	inbound, inboundUnit := formatTraffic(inboundSum)
-	outbound, outboundUnit := formatTraffic(outboundSum)
-	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v, ↑ %v %v.",
-		p.logPeriod.String(), p.connectionCount, inbound, inboundUnit, outbound, outboundUnit)
-	p.dispatcher.OnNewSnowflakeEvent(&event.EventOnProxyStats{StatString: statString})
+	e := &event.EventOnProxyStats{
+		SummaryInterval: p.logPeriod,
+		ConnectionCount: p.connectionCount,
+	}
+	e.InboundBytes, e.InboundUnit = formatTraffic(inboundSum)
+	e.OutboundBytes, e.OutboundUnit = formatTraffic(outboundSum)
+	p.dispatcher.OnNewSnowflakeEvent(e)
 	p.connectionCount = 0
 	return nil
 }
