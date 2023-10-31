@@ -97,8 +97,7 @@ func main() {
 		RelayDomainNamePattern: *allowedRelayHostNamePattern,
 		AllowNonTLSRelay:       *allowNonTLSRelay,
 
-		DisableStatsLogger: *disableStatsLogger,
-		SummaryInterval:    *summaryInterval,
+		SummaryInterval: *summaryInterval,
 	}
 
 	var logOutput = ioutil.Discard
@@ -127,7 +126,7 @@ func main() {
 		log.SetOutput(&safelog.LogScrubber{Output: logOutput})
 	}
 
-	proxyEventLogger := sf.NewProxyEventLogger(eventlogOutput)
+	proxyEventLogger := sf.NewProxyEventLogger(eventlogOutput, *disableStatsLogger)
 	eventLogger.AddSnowflakeEventListener(proxyEventLogger)
 
 	if *enableMetrics {

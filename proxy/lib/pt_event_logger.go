@@ -9,17 +9,25 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
 )
 
-func NewProxyEventLogger(output io.Writer) event.SnowflakeEventReceiver {
+func NewProxyEventLogger(output io.Writer, disableStats bool) event.SnowflakeEventReceiver {
 	logger := log.New(output, "", log.LstdFlags|log.LUTC)
-	return &proxyEventLogger{logger: logger}
+	return &proxyEventLogger{logger: logger, disableStats: disableStats}
 }
 
 type proxyEventLogger struct {
-	logger *log.Logger
+	logger       *log.Logger
+	disableStats bool
 }
 
 func (p *proxyEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
-	p.logger.Println(e.String())
+	switch e.(type) {
+	case event.EventOnProxyStats:
+		if !p.disableStats {
+			p.logger.Println(e.String())
+		}
+	default:
+		p.logger.Println(e.String())
+	}
 }
 
 type periodicProxyStats struct {

@@ -140,8 +140,6 @@ type SnowflakeProxy struct {
 	EventDispatcher event.SnowflakeEventDispatcher
 	shutdown        chan struct{}
 
-	// DisableStatsLogger indicates whether proxy stats will be logged periodically
-	DisableStatsLogger bool
 	// SummaryInterval is the time interval at which proxy stats will be logged
 	SummaryInterval time.Duration
 
@@ -658,11 +656,9 @@ func (sf *SnowflakeProxy) Start() error {
 		sf.EventDispatcher = event.NewSnowflakeEventDispatcher()
 	}
 
-	if !sf.DisableStatsLogger {
-		sf.bytesLogger = newBytesSyncLogger()
-		sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
-		sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
-	}
+	sf.bytesLogger = newBytesSyncLogger()
+	sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
+	sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
 
 	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
 	if err != nil {
