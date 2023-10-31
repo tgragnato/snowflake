@@ -661,6 +661,7 @@ func (sf *SnowflakeProxy) Start() error {
 	if !sf.DisableStatsLogger {
 		sf.bytesLogger = newBytesSyncLogger()
 		sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
+		sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
 	}
 
 	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)

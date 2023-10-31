@@ -74,7 +74,7 @@ type EventOnProxyConnectionOver struct {
 }
 
 func (e EventOnProxyConnectionOver) String() string {
-	return fmt.Sprintf("Proxy connection closed (↑ %d, ↓ %d)", e.InboundTraffic, e.OutboundTraffic)
+	return fmt.Sprintf("Proxy connection closed")
 }
 
 type EventOnProxyStats struct {
