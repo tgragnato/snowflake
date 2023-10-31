@@ -46,7 +46,7 @@ func (p *periodicProxyStats) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 
 func (p *periodicProxyStats) logTick() error {
 	inboundSum, outboundSum := p.bytesLogger.GetStat()
-	e := &event.EventOnProxyStats{
+	e := event.EventOnProxyStats{
 		SummaryInterval: p.logPeriod,
 		ConnectionCount: p.connectionCount,
 	}
