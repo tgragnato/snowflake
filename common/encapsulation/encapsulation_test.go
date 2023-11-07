@@ -342,8 +342,8 @@ func TestReadDataTruncate(t *testing.T) {
 	var p [4]byte
 	// First ReadData should return truncated "1234".
 	n, err := ReadData(&enc, p[:])
-	if err != nil {
-		t.Fatalf("got error %v, expected %v", err, nil)
+	if err != io.ErrShortBuffer {
+		t.Fatalf("got error %v, expected %v", err, io.ErrShortBuffer)
 	}
 	if !bytes.Equal(p[:n], []byte("1234")) {
 		t.Fatalf("got <%x>, expected <%x>", p[:n], []byte("1234"))
@@ -351,8 +351,8 @@ func TestReadDataTruncate(t *testing.T) {
 	// Second ReadData should return truncated "abcd", not the rest of
 	// "12345678".
 	n, err = ReadData(&enc, p[:])
-	if err != nil {
-		t.Fatalf("got error %v, expected %v", err, nil)
+	if err != io.ErrShortBuffer {
+		t.Fatalf("got error %v, expected %v", err, io.ErrShortBuffer)
 	}
 	if !bytes.Equal(p[:n], []byte("abcd")) {
 		t.Fatalf("got <%x>, expected <%x>", p[:n], []byte("abcd"))
@@ -377,8 +377,8 @@ func TestReadDataTruncateFull(t *testing.T) {
 	}()
 	var p [8]byte
 	n, err := ReadData(pr, p[:])
-	if err != nil {
-		t.Fatalf("got error %v, expected %v", err, nil)
+	if err != io.ErrShortBuffer {
+		t.Fatalf("got error %v, expected %v", err, io.ErrShortBuffer)
 	}
 	// Should not stop after "hello".
 	if !bytes.Equal(p[:n], []byte("hellowor")) {

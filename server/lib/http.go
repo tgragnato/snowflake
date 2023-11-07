@@ -176,6 +176,9 @@ func (handler *httpHandler) turbotunnelMode(conn net.Conn, addr net.Addr) error 
 		var p [2048]byte
 		for {
 			n, err := encapsulation.ReadData(conn, p[:])
+			if err == io.ErrShortBuffer {
+				err = nil
+			}
 			if err != nil {
 				return
 			}

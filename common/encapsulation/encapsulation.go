@@ -53,11 +53,12 @@ var ErrTooLong = errors.New("length prefix is too long")
 
 // ReadData the next available data chunk, skipping over any padding chunks that
 // may come first, and copies the data into p. If p is shorter than the length
-// of the data chunk, only the first len(p) bytes are copied into p. The
-// returned error value is nil if and only if a data chunk was present and was
-// read in its entirety. The returned error is io.EOF only if r ended before the
-// first byte of a length prefix. If r ended in the middle of a length prefix or
-// data/padding, the returned error is io.ErrUnexpectedEOF.
+// of the data chunk, only the first len(p) bytes are copied into p, and the
+// error return is io.ErrShortBuffer. The returned error value is nil if and
+// only if a data chunk was present and was read in its entirety. The returned
+// error is io.EOF only if r ended before the first byte of a length prefix. If
+// r ended in the middle of a length prefix or data/padding, the returned error
+// is io.ErrUnexpectedEOF.
 func ReadData(r io.Reader, p []byte) (int, error) {
 	for {
 		var b [1]byte
@@ -89,9 +90,13 @@ func ReadData(r io.Reader, p []byte) (int, error) {
 			}
 			numData, err := io.ReadFull(r, p)
 			if err == nil && numData < n {
-				// Discard the rest of the data, if the caller's
-				// buffer was too short.
+				// If the caller's buffer was too short, discard
+				// the rest of the data and return
+				// io.ErrShortBuffer.
 				_, err = io.CopyN(ioutil.Discard, r, int64(n-numData))
+				if err == nil {
+					err = io.ErrShortBuffer
+				}
 			}
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
