@@ -2,6 +2,7 @@ package event
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/tgragnato/snowflake.git/v2/common/safelog"
@@ -73,7 +74,21 @@ type EventOnProxyConnectionOver struct {
 }
 
 func (e EventOnProxyConnectionOver) String() string {
-	return fmt.Sprintf("Proxy connection closed (↑ %d, ↓ %d)", e.InboundTraffic, e.OutboundTraffic)
+	return fmt.Sprintf("Proxy connection closed")
+}
+
+type EventOnProxyStats struct {
+	SnowflakeEvent
+	ConnectionCount             int
+	InboundBytes, OutboundBytes int64
+	InboundUnit, OutboundUnit   string
+	SummaryInterval             time.Duration
+}
+
+func (e EventOnProxyStats) String() string {
+	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v, ↑ %v %v.",
+		e.SummaryInterval.String(), e.ConnectionCount, e.InboundBytes, e.InboundUnit, e.OutboundBytes, e.OutboundUnit)
+	return statString
 }
 
 type EventOnCurrentNATTypeDetermined struct {

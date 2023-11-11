@@ -1,54 +1,70 @@
 package snowflake_proxy
 
 import (
-	"github.com/tgragnato/snowflake.git/v2/common/task"
 	"io"
 	"log"
 	"time"
 
 	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake.git/v2/common/task"
 )
 
-func NewProxyEventLogger(logPeriod time.Duration, output io.Writer) event.SnowflakeEventReceiver {
+func NewProxyEventLogger(output io.Writer, disableStats bool) event.SnowflakeEventReceiver {
 	logger := log.New(output, "", log.LstdFlags|log.LUTC)
-	el := &logEventLogger{logPeriod: logPeriod, logger: logger}
-	el.task = &task.Periodic{Interval: logPeriod, Execute: el.logTick}
-	el.task.WaitThenStart()
-	return el
+	return &proxyEventLogger{logger: logger, disableStats: disableStats}
 }
 
-type logEventLogger struct {
-	inboundSum      int64
-	outboundSum     int64
-	connectionCount int
-	logPeriod       time.Duration
-	task            *task.Periodic
-	logger          *log.Logger
+type proxyEventLogger struct {
+	logger       *log.Logger
+	disableStats bool
 }
 
-func (p *logEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
-	switch e := e.(type) {
-	case event.EventOnProxyConnectionOver:
-		p.inboundSum += e.InboundTraffic
-		p.outboundSum += e.OutboundTraffic
-		p.connectionCount += 1
+func (p *proxyEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
+	switch e.(type) {
+	case event.EventOnProxyStats:
+		if !p.disableStats {
+			p.logger.Println(e.String())
+		}
 	default:
 		p.logger.Println(e.String())
 	}
 }
 
-func (p *logEventLogger) logTick() error {
-	inbound, inboundUnit := formatTraffic(p.inboundSum)
-	outbound, outboundUnit := formatTraffic(p.outboundSum)
-	p.logger.Printf("In the last %v, there were %v connections. Traffic Relayed ↓ %v %v, ↑ %v %v.\n",
-		p.logPeriod.String(), p.connectionCount, inbound, inboundUnit, outbound, outboundUnit)
-	p.logger.Printf("Current connections: %d, Reported connections: %d\n", tokens.count(), int((tokens.count()/8)*8))
-	p.outboundSum = 0
-	p.inboundSum = 0
+type periodicProxyStats struct {
+	bytesLogger     bytesLogger
+	connectionCount int
+	logPeriod       time.Duration
+	task            *task.Periodic
+	dispatcher      event.SnowflakeEventDispatcher
+}
+
+func newPeriodicProxyStats(logPeriod time.Duration, dispatcher event.SnowflakeEventDispatcher, bytesLogger bytesLogger) *periodicProxyStats {
+	el := &periodicProxyStats{logPeriod: logPeriod, dispatcher: dispatcher, bytesLogger: bytesLogger}
+	el.task = &task.Periodic{Interval: logPeriod, Execute: el.logTick}
+	el.task.WaitThenStart()
+	return el
+}
+
+func (p *periodicProxyStats) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
+	switch e.(type) {
+	case event.EventOnProxyConnectionOver:
+		p.connectionCount += 1
+	}
+}
+
+func (p *periodicProxyStats) logTick() error {
+	inboundSum, outboundSum := p.bytesLogger.GetStat()
+	e := event.EventOnProxyStats{
+		SummaryInterval: p.logPeriod,
+		ConnectionCount: p.connectionCount,
+	}
+	e.InboundBytes, e.InboundUnit = formatTraffic(inboundSum)
+	e.OutboundBytes, e.OutboundUnit = formatTraffic(outboundSum)
+	p.dispatcher.OnNewSnowflakeEvent(e)
 	p.connectionCount = 0
 	return nil
 }
 
-func (p *logEventLogger) Close() error {
+func (p *periodicProxyStats) Close() error {
 	return p.task.Close()
 }

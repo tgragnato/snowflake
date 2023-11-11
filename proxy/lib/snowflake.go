@@ -136,6 +136,12 @@ type SnowflakeProxy struct {
 	ProxyType       string
 	EventDispatcher event.SnowflakeEventDispatcher
 	shutdown        chan struct{}
+
+	// SummaryInterval is the time interval at which proxy stats will be logged
+	SummaryInterval time.Duration
+
+	periodicProxyStats *periodicProxyStats
+	bytesLogger        bytesLogger
 }
 
 // Checks whether an IP address is a remote address for the client
@@ -422,7 +428,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 		close(dataChan)
 
 		pr, pw := io.Pipe()
-		conn := newWebRTCConn(pc, dc, pr, sf.EventDispatcher)
+		conn := newWebRTCConn(pc, dc, pr, sf.bytesLogger)
 
 		dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 
@@ -452,12 +458,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
-			log.Println(conn.bytesLogger.ThroughputSummary())
-			in, out := conn.bytesLogger.GetStat()
-			conn.eventLogger.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{
-				InboundTraffic:  in,
-				OutboundTraffic: out,
-			})
+			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{})
 			conn.dc = nil
 			dc.Close()
 			pw.Close()
@@ -662,6 +663,10 @@ func (sf *SnowflakeProxy) Start() error {
 	if sf.EventDispatcher == nil {
 		sf.EventDispatcher = event.NewSnowflakeEventDispatcher()
 	}
+
+	sf.bytesLogger = newBytesSyncLogger()
+	sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
+	sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
 
 	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
 	if err != nil {
