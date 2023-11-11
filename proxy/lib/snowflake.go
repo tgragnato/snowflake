@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/tgragnato/snowflake.git/v2/common/event"
 	"github.com/tgragnato/snowflake.git/v2/common/messages"
@@ -401,7 +402,7 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 		settingsEngine.SetNAT1To1IPs([]string{sf.OutboundAddress}, webrtc.ICECandidateTypeHost)
 	}
 
-	//settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
 	settingsEngine.SetDTLSInsecureSkipHelloVerify(true)
 
