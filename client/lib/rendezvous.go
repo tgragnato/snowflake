@@ -26,7 +26,9 @@ import (
 
 const (
 	brokerErrorUnexpected string = "Unexpected error, no answer."
-	readLimit                    = 100000 //Maximum number of bytes to be read from an HTTP response
+	rendezvousErrorMsg    string = "One of SQS, AmpCache, or Domain Fronting rendezvous methods must be used."
+
+	readLimit = 100000 //Maximum number of bytes to be read from an HTTP response
 )
 
 // RendezvousMethod represents a way of communicating with the broker: sending
@@ -88,14 +90,25 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 
 	var rendezvous RendezvousMethod
 	var err error
-	if config.AmpCacheURL != "" {
+	if config.SQSQueueURL != "" {
+		if config.AmpCacheURL != "" || config.BrokerURL != "" {
+			log.Fatalln("Multiple rendezvous methods specified. " + rendezvousErrorMsg)
+		}
+		if config.SQSAccessKeyID == "" || config.SQSSecretKey == "" {
+			log.Fatalln("sqsakid and sqsskey must be specified to use SQS rendezvous method.")
+		}
+		log.Println("Through SQS queue at:", config.SQSQueueURL)
+		rendezvous, err = newSQSRendezvous(config.SQSQueueURL, config.SQSAccessKeyID, config.SQSSecretKey, brokerTransport)
+	} else if config.AmpCacheURL != "" && config.BrokerURL != "" {
 		log.Println("Through AMP cache at:", config.AmpCacheURL)
 		rendezvous, err = newAMPCacheRendezvous(
 			config.BrokerURL, config.AmpCacheURL, config.FrontDomains,
 			brokerTransport)
-	} else {
+	} else if config.BrokerURL != "" {
 		rendezvous, err = newHTTPRendezvous(
 			config.BrokerURL, config.FrontDomains, brokerTransport)
+	} else {
+		log.Fatalln("No rendezvous method was specified. " + rendezvousErrorMsg)
 	}
 	if err != nil {
 		return nil, err

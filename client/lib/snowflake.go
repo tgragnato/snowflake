@@ -86,6 +86,12 @@ type ClientConfig struct {
 	// AmpCacheURL is the full URL of a valid AMP cache. A nonzero value indicates
 	// that AMP cache will be used as the rendezvous method with the broker.
 	AmpCacheURL string
+	// SQSQueueURL is the full URL of an AWS SQS Queue. A nonzero value indicates
+	// that SQS queue will be used as the rendezvous method with the broker.
+	SQSQueueURL string
+	// Access Key ID and Secret Key of the credentials used to access the AWS SQS Qeueue
+	SQSAccessKeyID string
+	SQSSecretKey   string
 	// FrontDomain is the full URL of an optional front domain that can be used with either
 	// the AMP cache or HTTP domain fronting rendezvous method.
 	FrontDomain string
