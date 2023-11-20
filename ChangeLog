@@ -1,3 +1,11 @@
+Changes in version v2.8.0 - 2023-11-20
+- Issue 40069: Add outbound proxy support
+- Issue 40301: Fix for a bug in domain fronting configurations
+- Issue 40302: Remove throughput summary from proxy logger
+- Issue 40302: Change proxy stats logging to only log stats for traffic that occurred in the summary interval
+- Update renovate bot configuration to use Go 1.21
+- Bump versions of dependencies
+
 Changes in version v2.7.0 - 2023-10-16
 7142fa3 fix(proxy): Correctly close connection pipe when dealing with error
 6393af6 Remove proxy churn measurements from broker.
