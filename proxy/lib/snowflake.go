@@ -525,7 +525,7 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
 	}
 
 	// Must create a data channel before creating an offer
-	// https://github.com/pion/webrtc/wiki/Release-WebRTC@v3.0.0
+	// https://github.com/pion/webrtc/wiki/Release-WebRTC@v3.0.0#a-data-channel-is-no-longer-implicitly-created-with-a-peerconnection
 	dc, err := pc.CreateDataChannel("test", &webrtc.DataChannelInit{})
 	if err != nil {
 		log.Printf("CreateDataChannel ERROR: %s", err)
