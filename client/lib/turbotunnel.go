@@ -37,11 +37,11 @@ func newEncapsulationPacketConn(
 
 // ReadFrom reads an encapsulated packet from the stream.
 func (c *encapsulationPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
-	data, err := encapsulation.ReadData(c.ReadWriteCloser)
-	if err != nil {
-		return 0, c.remoteAddr, err
+	n, err := encapsulation.ReadData(c.ReadWriteCloser, p)
+	if err == io.ErrShortBuffer {
+		err = nil
 	}
-	return copy(p, data), c.remoteAddr, nil
+	return n, c.remoteAddr, err
 }
 
 // WriteTo writes an encapsulated packet to the stream.
