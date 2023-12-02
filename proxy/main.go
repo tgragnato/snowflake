@@ -27,6 +27,7 @@ func main() {
 	outboundAddress := flag.String("outbound-address", "", "prefer the given address as outbound address")
 	allowedRelayHostNamePattern := flag.String("allowed-relay-hostname-pattern", "snowflake.torproject.net$", "a pattern to specify allowed hostname pattern for relay URL.")
 	allowNonTLSRelay := flag.Bool("allow-non-tls-relay", false, "allow relay without tls encryption")
+	NATTypeForceUnrestricted := flag.Bool("nat-type-force-unrestricted", false, "force the NAT type as unrestricted")
 	NATTypeMeasurementInterval := flag.Duration("nat-retest-interval", time.Hour*24,
 		"the time interval in second before NAT type is retested, 0s disables retest. Valid time units are \"s\", \"m\", \"h\". ")
 	summaryInterval := flag.Duration("summary-interval", time.Hour,
@@ -88,6 +89,7 @@ func main() {
 		EphemeralMinPort:   ephemeralPortsRange[0],
 		EphemeralMaxPort:   ephemeralPortsRange[1],
 
+		NATTypeForceUnrestricted:   *NATTypeForceUnrestricted,
 		NATTypeMeasurementInterval: *NATTypeMeasurementInterval,
 		EventDispatcher:            eventLogger,
 

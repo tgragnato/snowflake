@@ -129,6 +129,9 @@ type SnowflakeProxy struct {
 	// thus the string prepend the suffix does not need to be empty or ends with a dot.
 	RelayDomainNamePattern string
 	AllowNonTLSRelay       bool
+	// NATTypeForceUnrestricted is an option used to force the NAT type as unrestricted
+	// It's useful in cases where the probe does not work reliably
+	NATTypeForceUnrestricted bool
 	// NATProbeURL is the URL of the probe service we use for NAT checks
 	NATProbeURL string
 	// NATTypeMeasurementInterval is time before NAT type is retested
@@ -737,6 +740,13 @@ func (sf *SnowflakeProxy) Stop() {
 // attempting to connect with a known symmetric NAT. If success,
 // it is considered "unrestricted". If timeout it is considered "restricted"
 func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL string) {
+	if sf.NATTypeForceUnrestricted {
+		currentNATTypeAccess.Lock()
+		currentNATType = NATUnrestricted
+		currentNATTypeAccess.Unlock()
+		return
+	}
+
 	probe, err := newSignalingServer(probeURL, false)
 	if err != nil {
 		log.Printf("Error parsing url: %s", err.Error())
