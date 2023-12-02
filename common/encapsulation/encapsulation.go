@@ -92,7 +92,7 @@ func ReadData(r io.Reader, p []byte) (int, error) {
 				// If the caller's buffer was too short, discard
 				// the rest of the data and return
 				// io.ErrShortBuffer.
-				_, err = io.CopyN(ioutil.Discard, r, int64(n-numData))
+				_, err = io.CopyN(io.Discard, r, int64(n-numData))
 				if err == nil {
 					err = io.ErrShortBuffer
 				}
