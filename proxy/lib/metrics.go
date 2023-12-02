@@ -28,12 +28,12 @@ func NewMetrics() *Metrics {
 		totalInBoundTraffic: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Name:      "traffic_inbound_bytes_total",
-			Help:      "The total in bound traffic by the snowflake proxy",
+			Help:      "The total in bound traffic by the snowflake proxy (KB)",
 		}),
 		totalOutBoundTraffic: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Name:      "traffic_outbound_bytes_total",
-			Help:      "The total out bound traffic by the snowflake proxy ",
+			Help:      "The total out bound traffic by the snowflake proxy (KB)",
 		}),
 	}
 }

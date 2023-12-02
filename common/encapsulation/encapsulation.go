@@ -50,54 +50,64 @@ import (
 // encode in a 3-byte length prefix.
 var ErrTooLong = errors.New("length prefix is too long")
 
-// ReadData returns a new slice with the contents of the next available data
-// chunk, skipping over any padding chunks that may come first. The returned
-// error value is nil if and only if a data chunk was present and was read in
-// its entirety. The returned error is io.EOF only if r ended before the first
-// byte of a length prefix. If r ended in the middle of a length prefix or
-// data/padding, the returned error is io.ErrUnexpectedEOF.
-func ReadData(r io.Reader) ([]byte, error) {
+// ReadData the next available data chunk, skipping over any padding chunks that
+// may come first, and copies the data into p. If p is shorter than the length
+// of the data chunk, only the first len(p) bytes are copied into p, and the
+// error return is io.ErrShortBuffer. The returned error value is nil if and
+// only if a data chunk was present and was read in its entirety. The returned
+// error is io.EOF only if r ended before the first byte of a length prefix. If
+// r ended in the middle of a length prefix or data/padding, the returned error
+// is io.ErrUnexpectedEOF.
+func ReadData(r io.Reader, p []byte) (int, error) {
 	for {
 		var b [1]byte
 		_, err := r.Read(b[:])
 		if err != nil {
 			// This is the only place we may return a real io.EOF.
-			return nil, err
+			return 0, err
 		}
 		isData := (b[0] & 0x80) != 0
 		moreLength := (b[0] & 0x40) != 0
 		n := int(b[0] & 0x3f)
 		for i := 0; moreLength; i++ {
 			if i >= 2 {
-				return nil, ErrTooLong
+				return 0, ErrTooLong
 			}
 			_, err := r.Read(b[:])
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 			moreLength = (b[0] & 0x80) != 0
 			n = (n << 7) | int(b[0]&0x7f)
 		}
 		if isData {
-			p := make([]byte, n)
-			_, err := io.ReadFull(r, p)
+			if len(p) > n {
+				p = p[:n]
+			}
+			numData, err := io.ReadFull(r, p)
+			if err == nil && numData < n {
+				// If the caller's buffer was too short, discard
+				// the rest of the data and return
+				// io.ErrShortBuffer.
+				_, err = io.CopyN(ioutil.Discard, r, int64(n-numData))
+				if err == nil {
+					err = io.ErrShortBuffer
+				}
+			}
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
-			if err != nil {
-				return nil, err
-			}
-			return p, err
-		} else {
+			return numData, err
+		} else if n > 0 {
 			_, err := io.CopyN(io.Discard, r, int64(n))
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 		}
 	}
