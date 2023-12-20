@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+  - package-ecosystem: "gomod"
+    directory: "/dtls"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
