@@ -1,3 +1,9 @@
+Changes in version v2.8.1 - 2023-12-21
+- Issue 40276: Reduce allocations in encapsulation.ReadData
+- Issue 40310: Remove excessive logging for closed proxy connections
+- Issue 40278: Add network fix for old version of android to proxy
+- Bump versions of dependencies
+
 Changes in version v2.8.0 - 2023-11-20
 - Issue 40069: Add outbound proxy support
 - Issue 40301: Fix for a bug in domain fronting configurations
