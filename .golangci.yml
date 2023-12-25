@@ -1,0 +1,52 @@
+run:
+  concurrency: 4
+  timeout: 5m
+  tests: true
+  allow-parallel-runners: true
+  go: '1.21'
+
+linters:
+  enable:
+    - gosec
+  disable:
+    - errcheck
+
+issues:
+  exclude-rules:
+
+    - linters:
+        - staticcheck
+      text: "err.Temporary"
+
+    - linters:
+        - staticcheck
+      text: "SA6002:"  
+
+    - path: client/lib/rendezvous
+      linters:
+        - gosec
+      text: "G404:"
+
+    - path: proxy/lib/metrics.go
+      linters:
+        - gosec
+      text: "G114:"
+
+    - path: proxy/lib/pt_event_metrics.go
+      linters:
+        - gosimple
+      text: "type assertion"
+
+    - path: test.go
+      linters:
+        - gosec
+        - ineffassign
+        - staticcheck
+
+    - path: broker/
+      linters:
+        - gosec
+
+    - path: server/
+      linters:
+        - gosec

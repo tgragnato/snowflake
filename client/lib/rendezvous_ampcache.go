@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/tgragnato/snowflake.git/v2/common/amp"
 )
@@ -75,7 +74,6 @@ func (r *ampCacheRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 	if len(r.fronts) != 0 {
 		// Do domain fronting. Replace the domain in the URL's with a randomly
 		// selected front, and store the original domain the HTTP Host header.
-		rand.Seed(time.Now().UnixNano())
 		front := r.fronts[rand.Intn(len(r.fronts))]
 		log.Println("Front domain:", front)
 		req.Host = req.URL.Host

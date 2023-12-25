@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pion/ice/v2"
+	"github.com/pion/stun/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/tgragnato/snowflake.git/v2/common/encapsulation"
 	"github.com/tgragnato/snowflake.git/v2/common/event"
@@ -129,7 +129,6 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 
 	iceServers := parseIceServers(config.ICEAddresses)
 	// chooses a random subset of servers from inputs
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(iceServers), func(i, j int) {
 		iceServers[i], iceServers[j] = iceServers[j], iceServers[i]
 	})
@@ -297,7 +296,8 @@ func parseIceServers(addresses []string) []webrtc.ICEServer {
 		}
 
 		// add default port, other sanity checks
-		parsedURL, err := ice.ParseURL(address)
+		parsedURL, err := stun.ParseURI(address)
+
 		if err != nil {
 			log.Printf("Warning: Parsing ICE server %v resulted in error: %v, skipping", address, err)
 			continue

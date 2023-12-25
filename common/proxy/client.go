@@ -187,6 +187,9 @@ func (sc *SocksClient) ResolveUDPAddr(network string, address string) (*net.UDPA
 	}
 
 	portInInt, err := strconv.ParseInt(port, 10, 32)
+	if err != nil {
+		return nil, err
+	}
 	return &net.UDPAddr{
 		IP:   ip[0].IP,
 		Port: int(portInInt),

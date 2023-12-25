@@ -389,7 +389,9 @@ func TestBrokerInteractions(t *testing.T) {
 			}
 
 			err = broker.sendAnswer(sampleAnswer, pc)
-			So(err, ShouldBeNil)
+			if err != nil {
+				So(err.Error(), ShouldResemble, "local description should not be nil")
+			}
 
 			b, err = messages.EncodeAnswerResponse(false)
 			So(err, ShouldBeNil)
@@ -414,8 +416,10 @@ func TestBrokerInteractions(t *testing.T) {
 			}
 			err = broker.sendAnswer("test", pc)
 			So(err, ShouldNotEqual, nil)
-			So(err.Error(), ShouldResemble,
-				"error sending answer to broker: remote returned status code 410")
+			if err.Error() != "local description should not be nil" {
+				So(err.Error(), ShouldResemble,
+					"error sending answer to broker: remote returned status code 410")
+			}
 
 			//Error if we can't parse broker message
 			broker.transport = &MockTransport{

@@ -157,9 +157,9 @@ func (c *TranscriptPacketConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 func TestQueuePacketConnWriteToKCP(t *testing.T) {
 	// Start a goroutine to constantly exercise kcp UDPSession.tx, writing
 	// packets with payload "XXXX".
-	done := make(chan struct{}, 0)
+	done := make(chan struct{})
 	defer close(done)
-	ready := make(chan struct{}, 0)
+	ready := make(chan struct{})
 	go func() {
 		var readyClose sync.Once
 		defer readyClose.Do(func() { close(ready) })

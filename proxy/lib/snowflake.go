@@ -31,6 +31,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -262,6 +263,10 @@ func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayP
 // and wait for its response
 func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) error {
 	ld := pc.LocalDescription()
+	if ld == nil {
+		return errors.New("local description should not be nil")
+	}
+
 	if !s.keepLocalAddresses {
 		ld = &webrtc.SessionDescription{
 			Type: ld.Type,
@@ -808,7 +813,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		currentNATTypeTestResult = NATRestricted
 	}
 
-	currentNATTypeToStore := NATUnknown
+	var currentNATTypeToStore string
 	switch currentNATTypeLoaded + "->" + currentNATTypeTestResult {
 	case NATUnrestricted + "->" + NATUnknown:
 		currentNATTypeToStore = NATUnrestricted
