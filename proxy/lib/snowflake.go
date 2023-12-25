@@ -44,6 +44,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/ice/v2"
+	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
 	"github.com/tgragnato/snowflake.git/v2/common/event"
 	"github.com/tgragnato/snowflake.git/v2/common/messages"
@@ -396,6 +397,13 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
+
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
+	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
+	// These two lines of code functionally revert a new change in pion by silently ignoring
+	// when net.Interfaces() fails, rather than throwing an error
+	vnet, _ := stdnet.NewNet()
+	settingsEngine.SetNet(vnet)
 
 	if sf.EphemeralMinPort != 0 && sf.EphemeralMaxPort != 0 {
 		err := settingsEngine.SetEphemeralUDPPortRange(sf.EphemeralMinPort, sf.EphemeralMaxPort)
