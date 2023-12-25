@@ -26,7 +26,7 @@ import (
 
 const (
 	brokerErrorUnexpected string = "Unexpected error, no answer."
-	readLimit                    = 100000 //Maximum number of bytes to be read from an HTTP response
+	readLimit             int64  = 100000 //Maximum number of bytes to be read from an HTTP response
 )
 
 // RendezvousMethod represents a way of communicating with the broker: sending
@@ -54,7 +54,8 @@ type BrokerChannel struct {
 // ProxyFromEnvironment setting.
 func createBrokerTransport(proxy *url.URL) http.RoundTripper {
 	tlsConfig := &tls.Config{
-		RootCAs: certs.GetRootCAs(),
+		RootCAs:    certs.GetRootCAs(),
+		MinVersion: tls.VersionTLS13,
 	}
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	transport.Proxy = nil

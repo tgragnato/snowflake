@@ -99,55 +99,6 @@ func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 
 }
 
-// Performs two tests from RFC 5780 to determine whether the filtering type
-// of the client's NAT is port-dependent.
-// Returns true if the filtering is port-dependent and false otherwise
-// Note: This function is no longer used because a client's NAT type is
-// determined only by their mapping type, but the functionality might
-// be useful in the future and remains here.
-func isRestrictedFiltering(addrStr string, proxy *url.URL) (bool, error) {
-	var xorAddr stun.XORMappedAddress
-
-	mapTestConn, err := connect(addrStr, proxy)
-	if err != nil {
-		log.Printf("Error creating STUN connection: %s", err.Error())
-		return false, err
-	}
-
-	defer mapTestConn.Close()
-
-	// Test I: Regular binding request
-	message := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
-
-	resp, err := mapTestConn.RoundTrip(message, mapTestConn.PrimaryAddr)
-	if err == ErrTimedOut {
-		log.Printf("Error: no response from server")
-		return false, err
-	}
-	if err != nil {
-		log.Printf("Error: %s", err.Error())
-		return false, err
-	}
-
-	// Decoding XOR-MAPPED-ADDRESS attribute from message.
-	if err = xorAddr.GetFrom(resp); err != nil {
-		log.Printf("Error retrieving XOR-MAPPED-ADDRESS from resonse: %s", err.Error())
-		return false, err
-	}
-
-	// Test III: Request port change
-	message.Add(stun.AttrChangeRequest, []byte{0x00, 0x00, 0x00, 0x02})
-
-	_, err = mapTestConn.RoundTrip(message, mapTestConn.PrimaryAddr)
-	if err != ErrTimedOut && err != nil {
-		// something else went wrong
-		log.Printf("Error reading response from server: %s", err.Error())
-		return false, err
-	}
-
-	return err == ErrTimedOut, nil
-}
-
 // Given an address string, returns a StunServerConn
 func connect(addrStr string, proxyAddr *url.URL) (*StunServerConn, error) {
 	// Creating a "connection" to STUN server.

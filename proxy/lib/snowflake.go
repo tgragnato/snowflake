@@ -808,7 +808,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		currentNATTypeTestResult = NATRestricted
 	}
 
-	currentNATTypeToStore := NATUnknown
+	var currentNATTypeToStore string
 	switch currentNATTypeLoaded + "->" + currentNATTypeTestResult {
 	case NATUnrestricted + "->" + NATUnknown:
 		currentNATTypeToStore = NATUnrestricted
