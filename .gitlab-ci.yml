@@ -154,6 +154,82 @@ debian-testing:
   script:
     - *go-test
 
+shadow-integration:
+  # Need golang 1.21 from unstable to build snowflake
+  image: debian:sid-slim
+  variables:
+    SHADOW_VERSION: "v3.1.0"
+    TGEN_VERSION: "v1.1.2"
+  cache:
+    key: sf-integration-$SHADOW_VERSION-$TGEN_VERSION
+    paths:
+      - /opt/
+  script:
+    - apt-get update
+    - apt-get install -y git tor
+    - mkdir -p ~/.local/bin
+    - mkdir -p ~/.local/src
+    - export PATH=$PATH:$CI_PROJECT_DIR/opt/bin/
+
+    # Install shadow and tgen
+    - pushd ~/.local/src
+    - |
+      if [ ! -f opt/shadow/bin/shadow ]
+      then
+        echo "The required version of shadow was not cached, building from source"
+        git clone --branch $SHADOW_VERSION --depth 1 https://github.com/shadow/shadow.git
+        pushd shadow/
+        CONTAINER=debian:sid-slim ci/container_scripts/install_deps.sh
+        CC=gcc CONTAINER=debian:sid-slim ci/container_scripts/install_extra_deps.sh
+        apt-get install -y zlib1g
+        export PATH="$HOME/.cargo/bin:${PATH}"
+        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/
+        ./setup install
+        popd
+      fi
+    - |
+      if [ ! -f opt/shadow/bin/tgen ]
+      then
+        echo "The required version of tgen was not cached, building from source"
+        git clone --branch $TGEN_VERSION --depth 1 https://github.com/shadow/tgen.git
+        pushd tgen/
+        apt-get install -y cmake libglib2.0-dev libigraph-dev
+        mkdir build && cd build
+        cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/
+        make
+        make install
+        popd
+      fi
+      install $CI_PROJECT_DIR/opt/bin/tgen ~/.local/bin/tgen
+    - popd
+
+    # Install snowflake binaries to .local folder
+    - |
+      for app in "proxy" "client" "server" "broker" "probetest"; do
+        pushd $app
+        go build
+        install $app ~/.local/bin/snowflake-$app
+        popd
+      done
+
+    # Install stun server
+    - GOBIN=~/.local/bin go install github.com/gortc/stund@latest
+
+    # Run a minimal snowflake shadow experiment
+    - git clone --depth 1 https://github.com/cohosh/shadow-snowflake-minimal
+    - pushd shadow-snowflake-minimal/
+    - shadow --log-level=debug --model-unblocked-syscall-latency=true snowflake-minimal.yaml > shadow.log
+
+    # Check to make sure streams succeeded
+    - |
+      if [ $(grep -c "stream-success" shadow.data/hosts/snowflakeclient/tgen.1006.stdout) = 10 ]
+      then
+        echo "All streams in shadow completed successfully"
+      else
+        echo "Shadow simulation failed"
+        exit 1
+      fi
+
 generate_tarball:
   stage: deploy
   image: golang:1.21-$DEBIAN_STABLE
