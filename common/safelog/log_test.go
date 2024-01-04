@@ -107,6 +107,11 @@ func TestLogScrubberMessages(t *testing.T) {
 			"error dialing relay: wss://snowflake.torproject.net/?client_ip=1%3A2%3A3%3A%3Ad%3Ae%3Af = dial tcp xxx",
 			"error dialing relay: wss://snowflake.torproject.net/?client_ip=[scrubbed] = dial tcp xxx\n",
 		},
+		{
+			// multiple space-separated IP addresses
+			"Allowed stations: [10.0.1.1 10.0.1.2 10.0.1.3 10.0.1.4]\n",
+			"Allowed stations: [[scrubbed] [scrubbed] [scrubbed] [scrubbed]]\n",
+		},
 	} {
 		var buff bytes.Buffer
 		log.SetFlags(0) //remove all extra log output for test comparisons
