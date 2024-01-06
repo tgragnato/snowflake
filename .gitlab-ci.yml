@@ -164,6 +164,10 @@ shadow-integration:
     key: sf-integration-$SHADOW_VERSION-$TGEN_VERSION
     paths:
       - /opt/
+  artifacts:
+    paths:
+      - shadow.data.tar.gz
+    when: on_failure
   script:
     - apt-get update
     - apt-get install -y git tor
@@ -219,6 +223,7 @@ shadow-integration:
     - git clone --depth 1 https://github.com/cohosh/shadow-snowflake-minimal
     - pushd shadow-snowflake-minimal/
     - shadow --log-level=debug --model-unblocked-syscall-latency=true snowflake-minimal.yaml > shadow.log
+    - tar -czvf $CI_PROJECT_DIR/shadow.data.tar.gz shadow.data/
 
     # Check to make sure streams succeeded
     - |
