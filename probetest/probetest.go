@@ -24,6 +24,7 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 
+	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -39,6 +40,14 @@ const (
 func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
+	settingsEngine := webrtc.SettingEngine{}
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
+	// to functionally revert a new change in pion by silently ignoring
+	// when net.Interfaces() fails, rather than throwing an error
+	vnet, _ := stdnet.NewNet()
+	settingsEngine.SetNet(vnet)
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
+
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -46,7 +55,7 @@ func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 			},
 		},
 	}
-	pc, err := webrtc.NewPeerConnection(config)
+	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
