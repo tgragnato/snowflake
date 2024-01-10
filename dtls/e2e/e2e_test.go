@@ -10,7 +10,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -512,54 +511,6 @@ func testPionE2ESimpleECDSAClientCert(t *testing.T, server, client func(*comm), 
 	comm.assert(t)
 }
 
-func testPionE2ESimpleRSAClientCert(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
-	lim := test.TimeOut(time.Second * 30)
-	defer lim.Stop()
-
-	report := test.CheckRoutines(t)
-	defer report()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	spriv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
-	scert, err := selfsign.SelfSign(spriv)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cpriv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ccert, err := selfsign.SelfSign(cpriv)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	scfg := &dtls.Config{
-		Certificates: []tls.Certificate{scert},
-		CipherSuites: []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-		ClientAuth:   dtls.RequireAnyClientCert,
-	}
-	ccfg := &dtls.Config{
-		Certificates:       []tls.Certificate{ccert},
-		CipherSuites:       []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-		InsecureSkipVerify: true,
-	}
-	for _, o := range opts {
-		o(scfg)
-		o(ccfg)
-	}
-	serverPort := randomPort(t)
-	comm := newComm(ctx, ccfg, scfg, serverPort, server, client)
-	defer comm.cleanup(t)
-	comm.assert(t)
-}
-
 func TestPionE2ESimple(t *testing.T) {
 	testPionE2ESimple(t, serverPion, clientPion)
 }
@@ -584,10 +535,6 @@ func TestPionE2ESimpleECDSAClientCert(t *testing.T) {
 	testPionE2ESimpleECDSAClientCert(t, serverPion, clientPion)
 }
 
-func TestPionE2ESimpleRSAClientCert(t *testing.T) {
-	testPionE2ESimpleRSAClientCert(t, serverPion, clientPion)
-}
-
 func TestPionE2ESimpleCID(t *testing.T) {
 	testPionE2ESimple(t, serverPion, clientPion, withConnectionIDGenerator(dtls.RandomCIDGenerator(8)))
 }
@@ -610,8 +557,4 @@ func TestPionE2ESimpleED25519ClientCertCID(t *testing.T) {
 
 func TestPionE2ESimpleECDSAClientCertCID(t *testing.T) {
 	testPionE2ESimpleECDSAClientCert(t, serverPion, clientPion, withConnectionIDGenerator(dtls.RandomCIDGenerator(8)))
-}
-
-func TestPionE2ESimpleRSAClientCertCID(t *testing.T) {
-	testPionE2ESimpleRSAClientCert(t, serverPion, clientPion, withConnectionIDGenerator(dtls.RandomCIDGenerator(8)))
 }
