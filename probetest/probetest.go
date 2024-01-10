@@ -32,12 +32,21 @@ import (
 const (
 	readLimit          = 100000                         //Maximum number of bytes to be read from an HTTP request
 	dataChannelTimeout = 20 * time.Second               //time after which we assume proxy data channel will not open
-	stunUrl            = "stun:stun.l.google.com:19302" //default STUN URL
+	defaultStunUrl     = "stun:stun.l.google.com:19302" //default STUN URL
 )
+
+type ProbeHandler struct {
+	stunURL string
+	handle  func(string, http.ResponseWriter, *http.Request)
+}
+
+func (h ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.handle(h.stunURL, w, r)
+}
 
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
-func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
+func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
@@ -51,7 +60,7 @@ func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{stunUrl},
+				URLs: []string{stunURL},
 			},
 		},
 	}
@@ -99,7 +108,7 @@ func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 	return pc, nil
 }
 
-func probeHandler(w http.ResponseWriter, r *http.Request) {
+func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	resp, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if nil != err {
@@ -127,7 +136,7 @@ func probeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dataChan := make(chan struct{})
-	pc, err := makePeerConnectionFromOffer(sdp, dataChan)
+	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChan)
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -180,6 +189,7 @@ func main() {
 	var disableTLS bool
 	var certFilename, keyFilename string
 	var unsafeLogging bool
+	var stunURL string
 
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
 	flag.StringVar(&acmeHostnamesCommas, "acme-hostnames", "", "comma-separated hostnames for TLS certificate")
@@ -189,6 +199,7 @@ func main() {
 	flag.StringVar(&addr, "addr", ":8443", "address to listen on")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
+	flag.StringVar(&stunURL, "stun", defaultStunUrl, "STUN server to use for NAT traversal")
 	flag.Parse()
 
 	var logOutput io.Writer = os.Stderr
@@ -201,7 +212,7 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
-	http.HandleFunc("/probe", probeHandler)
+	http.Handle("/probe", ProbeHandler{stunURL, probeHandler})
 
 	server := http.Server{
 		Addr: addr,
