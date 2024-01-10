@@ -429,13 +429,13 @@ func TestHandshakeWithInvalidRecord(t *testing.T) {
 	}
 	go func() {
 		client, err := testClient(ctx, dtlsnet.PacketConnFromConn(caWithInvalidRecord), caWithInvalidRecord.RemoteAddr(), &Config{
-			CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+			CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 		}, true)
 		clientErr <- result{client, err}
 	}()
 
 	server, errServer := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 	}, true)
 
 	errClient := <-clientErr
@@ -471,8 +471,8 @@ func TestExportKeyingMaterial(t *testing.T) {
 	var rand [28]byte
 	exportLabel := "EXTRACTOR-dtls_srtp"
 
-	expectedServerKey := []byte{0x61, 0x09, 0x9d, 0x7d, 0xcb, 0x08, 0x52, 0x2c, 0xe7, 0x7b}
-	expectedClientKey := []byte{0x87, 0xf0, 0x40, 0x02, 0xf6, 0x1c, 0xf1, 0xfe, 0x8c, 0x77}
+	expectedServerKey := []byte{0x30, 0xef, 0x2b, 0x2d, 0x4f, 0x72, 0xe2, 0x3d, 0x2a, 0x13}
+	expectedClientKey := []byte{0xc7, 0xf9, 0x75, 0x03, 0x6b, 0x44, 0x10, 0x42, 0x34, 0xcf}
 
 	c := &Conn{
 		state: State{
