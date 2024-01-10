@@ -19,8 +19,8 @@ type ClientHelloInfo struct {
 	// client is using SNI (see RFC 4366, Section 3.1).
 	ServerName string
 
-	// CipherSuites lists the CipherSuites supported by the client (e.g.
-	// TLS_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256).
+	// CipherSuites lists the CipherSuites supported by the client
+	// (e.g. TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384).
 	CipherSuites []CipherSuiteID
 }
 
