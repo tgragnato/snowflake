@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/miekg/dns v1.1.57
-	github.com/pion/ice/v2 v2.3.11
+	github.com/pion/ice/v2 v2.3.12
 	github.com/pion/sdp/v3 v3.0.6
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v2 v2.2.4
