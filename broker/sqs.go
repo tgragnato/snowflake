@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/sqsclient"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 )
 
 type sqsHandler struct {
-	SQSClient   *sqs.Client
+	SQSClient   sqsclient.SQSClient
 	SQSQueueURL *string
 	IPC         *IPC
 }

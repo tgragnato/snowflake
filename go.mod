@@ -3,10 +3,10 @@ module gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/
 go 1.21
 
 require (
-	github.com/gorilla/websocket v1.5.1
-	github.com/miekg/dns v1.1.57
 	github.com/aws/aws-sdk-go-v2/config v1.25.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.28.1
+	github.com/gorilla/websocket v1.5.1
+	github.com/miekg/dns v1.1.57
 	github.com/pion/ice/v2 v2.3.11
 	github.com/pion/sdp/v3 v3.0.6
 	github.com/pion/stun v0.6.1
@@ -46,6 +46,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudflare/circl v1.3.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/gaukas/godicttls v0.0.4 // indirect
+	github.com/golang/mock v1.6.0 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
