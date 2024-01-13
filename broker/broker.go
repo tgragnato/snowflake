@@ -23,6 +23,8 @@ import (
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/namematcher"
@@ -283,8 +285,14 @@ func main() {
 
 	// Run SQS Handler to continuously poll and process messages from SQS
 	if brokerSQSQueueName != "" && brokerSQSQueueRegion != "" {
+		log.Printf("Loading SQSHandler using SQS Queue %s in region %s\n", brokerSQSQueueName, brokerSQSQueueRegion)
 		sqsHandlerContext := context.Background()
-		sqsHandler, err := newSQSHandler(sqsHandlerContext, brokerSQSQueueName, brokerSQSQueueRegion, i)
+		cfg, err := config.LoadDefaultConfig(sqsHandlerContext, config.WithRegion(brokerSQSQueueRegion))
+		if err != nil {
+			log.Fatal(err)
+		}
+		client := sqs.NewFromConfig(cfg)
+		sqsHandler, err := newSQSHandler(sqsHandlerContext, client, brokerSQSQueueName, brokerSQSQueueRegion, i)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -16,8 +16,6 @@ import (
 	"sync"
 	"syscall"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
-
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
 
 	sf "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/client/lib"
