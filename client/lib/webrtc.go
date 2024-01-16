@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/pion/transport/v2"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"io"
 	"log"
 	"net/url"
@@ -15,9 +13,12 @@ import (
 	"time"
 
 	"github.com/pion/ice/v2"
+	"github.com/pion/transport/v2"
 	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
+
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.
@@ -45,14 +46,17 @@ type WebRTCPeer struct {
 }
 
 // Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
-func NewWebRTCPeer(config *webrtc.Configuration,
-	broker *BrokerChannel) (*WebRTCPeer, error) {
+func NewWebRTCPeer(
+	config *webrtc.Configuration, broker *BrokerChannel,
+) (*WebRTCPeer, error) {
 	return NewWebRTCPeerWithEventsAndProxy(config, broker, nil, nil)
 }
 
 // Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
-func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
-	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver) (*WebRTCPeer, error) {
+func NewWebRTCPeerWithEvents(
+	config *webrtc.Configuration, broker *BrokerChannel,
+	eventsLogger event.SnowflakeEventReceiver,
+) (*WebRTCPeer, error) {
 	return NewWebRTCPeerWithEventsAndProxy(config, broker, eventsLogger, nil)
 }
 
@@ -61,8 +65,10 @@ func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
 // The creation of the peer handles the signaling to the Snowflake broker, including
 // the exchange of SDP information, the creation of a PeerConnection, and the establishment
 // of a DataChannel to the Snowflake proxy.
-func NewWebRTCPeerWithEventsAndProxy(config *webrtc.Configuration,
-	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver, proxy *url.URL) (*WebRTCPeer, error) {
+func NewWebRTCPeerWithEventsAndProxy(
+	config *webrtc.Configuration, broker *BrokerChannel,
+	eventsLogger event.SnowflakeEventReceiver, proxy *url.URL,
+) (*WebRTCPeer, error) {
 	if eventsLogger == nil {
 		eventsLogger = event.NewSnowflakeEventDispatcher()
 	}

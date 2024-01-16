@@ -78,7 +78,7 @@ const (
 	// client is not going to connect
 	dataChannelTimeout = 20 * time.Second
 
-	//Maximum number of bytes to be read from an HTTP request
+	// Maximum number of bytes to be read from an HTTP request
 	readLimit = 100000
 
 	sessionIDLength = 16
@@ -406,11 +406,11 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 // candidates is complete and the answer is available in LocalDescription.
 // Installs an OnDataChannel callback that creates a webRTCConn and passes it to
 // datachannelHandler.
-func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
-	config webrtc.Configuration,
-	dataChan chan struct{},
-	handler func(conn *webRTCConn, remoteAddr net.Addr)) (*webrtc.PeerConnection, error) {
-
+func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
+	sdp *webrtc.SessionDescription,
+	config webrtc.Configuration, dataChan chan struct{},
+	handler func(conn *webRTCConn, remoteAddr net.Addr),
+) (*webrtc.PeerConnection, error) {
 	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
@@ -523,9 +523,9 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 
 // Create a new PeerConnection. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
-func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
-	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
-
+func (sf *SnowflakeProxy) makeNewPeerConnection(
+	config webrtc.Configuration, dataChan chan struct{},
+) (*webrtc.PeerConnection, error) {
 	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
