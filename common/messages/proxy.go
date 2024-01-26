@@ -1,6 +1,5 @@
 //Package for communication with the snowflake broker
 
-// import "github.com/tgragnato/snowflake.git/v2/common/messages"
 package messages
 
 import (
@@ -9,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tgragnato/snowflake.git/v2/common/nat"
+	"github.com/tgragnato/snowflake/common/nat"
 )
 
 const (

@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgragnato/snowflake.git/v2/common/event"
-	"github.com/tgragnato/snowflake.git/v2/common/safelog"
-	"github.com/tgragnato/snowflake.git/v2/common/version"
-	sf "github.com/tgragnato/snowflake.git/v2/proxy/lib"
+	"github.com/tgragnato/snowflake/common/event"
+	"github.com/tgragnato/snowflake/common/safelog"
+	"github.com/tgragnato/snowflake/common/version"
+	sf "github.com/tgragnato/snowflake/proxy/lib"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/tgragnato/snowflake.git/v2/common/turbotunnel"
+	"github.com/tgragnato/snowflake/common/turbotunnel"
 )
 
 // clientIDMap is a fixed-capacity mapping from ClientIDs to a net.Addr.

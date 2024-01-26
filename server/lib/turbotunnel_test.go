@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/tgragnato/snowflake.git/v2/common/turbotunnel"
+	"github.com/tgragnato/snowflake/common/turbotunnel"
 )
 
 func TestClientIDMap(t *testing.T) {

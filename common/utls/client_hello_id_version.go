@@ -3,7 +3,7 @@ package utls
 import (
 	"strings"
 
-	"github.com/tgragnato/snowflake.git/v2/common/version"
+	"github.com/tgragnato/snowflake/common/version"
 )
 
 func generateVersionOutput() string {

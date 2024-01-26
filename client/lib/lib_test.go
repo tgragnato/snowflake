@@ -7,7 +7,7 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tgragnato/snowflake.git/v2/common/event"
+	"github.com/tgragnato/snowflake/common/event"
 )
 
 type FakeDialer struct {

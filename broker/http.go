@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/tgragnato/snowflake.git/v2/common/messages"
+	"github.com/tgragnato/snowflake/common/messages"
 )
 
 const (

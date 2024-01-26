@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tgragnato/snowflake.git/v2/common/messages"
+	"github.com/tgragnato/snowflake/common/messages"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 )
 

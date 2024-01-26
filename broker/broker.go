@@ -21,15 +21,13 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
-
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/tgragnato/snowflake.git/v2/common/bridgefingerprint"
-	"github.com/tgragnato/snowflake.git/v2/common/namematcher"
-	"github.com/tgragnato/snowflake.git/v2/common/safelog"
+	"github.com/tgragnato/snowflake/common/bridgefingerprint"
+	"github.com/tgragnato/snowflake/common/namematcher"
+	"github.com/tgragnato/snowflake/common/safelog"
 	"golang.org/x/crypto/acme/autocert"
 )
 

@@ -18,11 +18,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/tgragnato/snowflake.git/v2/common/safelog"
-	"github.com/tgragnato/snowflake.git/v2/common/version"
+	"github.com/tgragnato/snowflake/common/safelog"
+	"github.com/tgragnato/snowflake/common/version"
 	"golang.org/x/crypto/acme/autocert"
 
-	sf "github.com/tgragnato/snowflake.git/v2/server/lib"
+	sf "github.com/tgragnato/snowflake/server/lib"
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
 )
 

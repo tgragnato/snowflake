@@ -1,15 +1,14 @@
 //Package for communication with the snowflake broker
 
-// import "github.com/tgragnato/snowflake.git/v2/common/messages"
 package messages
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tgragnato/snowflake.git/v2/common/bridgefingerprint"
 
-	"github.com/tgragnato/snowflake.git/v2/common/nat"
+	"github.com/tgragnato/snowflake/common/bridgefingerprint"
+	"github.com/tgragnato/snowflake/common/nat"
 )
 
 const ClientVersion = "1.0"

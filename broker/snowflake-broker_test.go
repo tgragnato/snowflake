@@ -14,8 +14,8 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tgragnato/snowflake.git/v2/common/amp"
-	"github.com/tgragnato/snowflake.git/v2/common/messages"
+	"github.com/tgragnato/snowflake/common/amp"
+	"github.com/tgragnato/snowflake/common/messages"
 )
 
 func NullLogger() *log.Logger {

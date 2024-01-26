@@ -14,9 +14,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tgragnato/snowflake.git/v2/common/amp"
-	"github.com/tgragnato/snowflake.git/v2/common/messages"
-	"github.com/tgragnato/snowflake.git/v2/common/nat"
+	"github.com/tgragnato/snowflake/common/amp"
+	"github.com/tgragnato/snowflake/common/messages"
+	"github.com/tgragnato/snowflake/common/nat"
+	"github.com/tgragnato/snowflake/common/sqsclient"
 )
 
 // mockTransport's RoundTrip method returns a response with a fake status and

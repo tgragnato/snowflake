@@ -44,12 +44,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tgragnato/snowflake.git/v2/common/turbotunnel"
+	"github.com/tgragnato/snowflake/common/turbotunnel"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
 	"golang.org/x/net/http2"
-
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/turbotunnel"
 )
 
 const (

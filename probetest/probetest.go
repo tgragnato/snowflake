@@ -19,9 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgragnato/snowflake.git/v2/common/messages"
-	"github.com/tgragnato/snowflake.git/v2/common/safelog"
-	"github.com/tgragnato/snowflake.git/v2/common/util"
+	"github.com/tgragnato/snowflake/common/messages"
+	"github.com/tgragnato/snowflake/common/safelog"
+	"github.com/tgragnato/snowflake/common/util"
 
 	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
@@ -31,7 +31,7 @@ import (
 const (
 	readLimit          = 100000                        //Maximum number of bytes to be read from an HTTP request
 	dataChannelTimeout = 20 * time.Second              //time after which we assume proxy data channel will not open
-	stunUrl            = "stun:stun.tgragnato.it:3478" //default STUN URL
+	defaultStunUrl     = "stun:stun.tgragnato.it:3478" //default STUN URL
 )
 
 type ProbeHandler struct {

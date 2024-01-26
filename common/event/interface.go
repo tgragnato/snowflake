@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v3"
-	"github.com/tgragnato/snowflake.git/v2/common/safelog"
+	"github.com/tgragnato/snowflake/common/safelog"
 )
 
 type SnowflakeEvent interface {

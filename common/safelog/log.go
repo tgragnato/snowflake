@@ -1,6 +1,5 @@
 //Package for a safer logging wrapper around the standard logging package
 
-// import "github.com/tgragnato/snowflake.git/v2/common/safelog"
 package safelog
 
 import (

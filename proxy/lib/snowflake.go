@@ -46,12 +46,12 @@ import (
 	"github.com/pion/ice/v2"
 	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
-	"github.com/tgragnato/snowflake.git/v2/common/event"
-	"github.com/tgragnato/snowflake.git/v2/common/messages"
-	"github.com/tgragnato/snowflake.git/v2/common/namematcher"
-	"github.com/tgragnato/snowflake.git/v2/common/task"
-	"github.com/tgragnato/snowflake.git/v2/common/util"
-	"github.com/tgragnato/snowflake.git/v2/common/websocketconn"
+	"github.com/tgragnato/snowflake/common/event"
+	"github.com/tgragnato/snowflake/common/messages"
+	"github.com/tgragnato/snowflake/common/namematcher"
+	"github.com/tgragnato/snowflake/common/task"
+	"github.com/tgragnato/snowflake/common/util"
+	"github.com/tgragnato/snowflake/common/websocketconn"
 )
 
 const (

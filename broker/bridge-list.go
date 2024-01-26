@@ -29,7 +29,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/tgragnato/snowflake.git/v2/common/bridgefingerprint"
+	"github.com/tgragnato/snowflake/common/bridgefingerprint"
 )
 
 var ErrBridgeNotFound = errors.New("bridge not found")
