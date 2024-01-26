@@ -26,8 +26,6 @@ var scrubberPatterns = []*regexp.Regexp{
 	regexp.MustCompile(fullAddrPattern),
 }
 
-var addressRegexp = regexp.MustCompile(addressPattern)
-
 // An io.Writer that can be used as the output for a logger that first
 // sanitizes logs and then writes to the provided io.Writer
 type LogScrubber struct {
