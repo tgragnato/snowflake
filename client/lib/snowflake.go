@@ -62,7 +62,7 @@ const (
 	// WindowSize is the number of packets in the send and receive window of a KCP connection.
 	WindowSize = 65535
 	// StreamSize controls the maximum amount of in flight data between a client and server.
-	StreamSize = 1048576 //1MB
+	StreamSize = 1048576 // 1MB
 )
 
 type dummyAddr struct{}
@@ -87,6 +87,12 @@ type ClientConfig struct {
 	// AmpCacheURL is the full URL of a valid AMP cache. A nonzero value indicates
 	// that AMP cache will be used as the rendezvous method with the broker.
 	AmpCacheURL string
+	// SQSQueueURL is the full URL of an AWS SQS Queue. A nonzero value indicates
+	// that SQS queue will be used as the rendezvous method with the broker.
+	SQSQueueURL string
+	// Access Key ID and Secret Key of the credentials used to access the AWS SQS Qeueue
+	SQSAccessKeyID string
+	SQSSecretKey   string
 	// FrontDomain is the full URL of an optional front domain that can be used with either
 	// the AMP cache or HTTP domain fronting rendezvous method.
 	FrontDomain string
@@ -124,7 +130,6 @@ type ClientConfig struct {
 // keepLocalAddresses is a flag to enable sending local network addresses (for testing purposes)
 // max is the maximum number of snowflakes the client should gather for each SOCKS connection
 func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
-
 	log.Println("\n\n\n --- Starting Snowflake Client ---")
 
 	iceServers := parseIceServers(config.ICEAddresses)
@@ -213,6 +218,7 @@ func (t *Transport) Dial() (net.Conn, error) {
 	cleanup = nil
 	return &SnowflakeConn{Stream: stream, sess: sess, pconn: pconn, snowflakes: snowflakes}, nil
 }
+
 func (t *Transport) AddSnowflakeEventListener(receiver event.SnowflakeEventReceiver) {
 	t.eventDispatcher.AddSnowflakeEventListener(receiver)
 }
@@ -245,13 +251,12 @@ func (conn *SnowflakeConn) Close() error {
 	conn.pconn.Close()
 	log.Printf("---- SnowflakeConn: discarding finished session ---")
 	conn.sess.Close()
-	return nil //TODO: return errors if any of the above do
+	return nil // TODO: return errors if any of the above do
 }
 
 // loop through all provided STUN servers until we exhaust the list or find
 // one that is compatible with RFC 5780
 func updateNATType(servers []webrtc.ICEServer, broker *BrokerChannel, proxy *url.URL) {
-
 	var restrictedNAT bool
 	var err error
 	for _, server := range servers {

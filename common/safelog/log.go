@@ -21,7 +21,7 @@ const ipv6Full = `(` + ipv6Address + `(` + ipv4Address + `))` +
 	`|(` + ipv6Address + `)` + `|(` + ipv6Compressed + `)`
 const optionalPort = `(:\d{1,5})?`
 const addressPattern = `((` + ipv4Address + `)|(\[(` + ipv6Full + `)\])|(` + ipv6Full + `))` + optionalPort
-const fullAddrPattern = `(^|\s|[^\w:])` + addressPattern + `(\s|(:\s)|[^\w:]|$)`
+const fullAddrPattern = `(?:^|\s|[^\w:])(` + addressPattern + `)(?:\s|(:\s)|[^\w:]|$)`
 
 var scrubberPatterns = []*regexp.Regexp{
 	regexp.MustCompile(fullAddrPattern),
@@ -46,9 +46,18 @@ func Scrub(b []byte) []byte {
 	for _, pattern := range scrubberPatterns {
 		// this is a workaround since go does not yet support look ahead or look
 		// behind for regular expressions.
-		scrubbedBytes = pattern.ReplaceAllFunc(scrubbedBytes, func(b []byte) []byte {
-			return addressRegexp.ReplaceAll(b, []byte("[scrubbed]"))
-		})
+		var newBytes []byte
+		index := 0
+		for {
+			loc := pattern.FindSubmatchIndex(scrubbedBytes[index:])
+			if loc == nil {
+				break
+			}
+			newBytes = append(newBytes, scrubbedBytes[index:index+loc[2]]...)
+			newBytes = append(newBytes, []byte("[scrubbed]")...)
+			index = index + loc[3]
+		}
+		scrubbedBytes = append(newBytes, scrubbedBytes[index:]...)
 	}
 	return scrubbedBytes
 }

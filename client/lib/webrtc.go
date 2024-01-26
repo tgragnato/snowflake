@@ -45,14 +45,17 @@ type WebRTCPeer struct {
 }
 
 // Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
-func NewWebRTCPeer(config *webrtc.Configuration,
-	broker *BrokerChannel) (*WebRTCPeer, error) {
+func NewWebRTCPeer(
+	config *webrtc.Configuration, broker *BrokerChannel,
+) (*WebRTCPeer, error) {
 	return NewWebRTCPeerWithEventsAndProxy(config, broker, nil, nil)
 }
 
 // Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
-func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
-	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver) (*WebRTCPeer, error) {
+func NewWebRTCPeerWithEvents(
+	config *webrtc.Configuration, broker *BrokerChannel,
+	eventsLogger event.SnowflakeEventReceiver,
+) (*WebRTCPeer, error) {
 	return NewWebRTCPeerWithEventsAndProxy(config, broker, eventsLogger, nil)
 }
 
@@ -61,8 +64,10 @@ func NewWebRTCPeerWithEvents(config *webrtc.Configuration,
 // The creation of the peer handles the signaling to the Snowflake broker, including
 // the exchange of SDP information, the creation of a PeerConnection, and the establishment
 // of a DataChannel to the Snowflake proxy.
-func NewWebRTCPeerWithEventsAndProxy(config *webrtc.Configuration,
-	broker *BrokerChannel, eventsLogger event.SnowflakeEventReceiver, proxy *url.URL) (*WebRTCPeer, error) {
+func NewWebRTCPeerWithEventsAndProxy(
+	config *webrtc.Configuration, broker *BrokerChannel,
+	eventsLogger event.SnowflakeEventReceiver, proxy *url.URL,
+) (*WebRTCPeer, error) {
 	if eventsLogger == nil {
 		eventsLogger = event.NewSnowflakeEventDispatcher()
 	}

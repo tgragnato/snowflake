@@ -429,11 +429,11 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 // candidates is complete and the answer is available in LocalDescription.
 // Installs an OnDataChannel callback that creates a webRTCConn and passes it to
 // datachannelHandler.
-func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
-	config webrtc.Configuration,
-	dataChan chan struct{},
-	handler func(conn *webRTCConn, remoteAddr net.Addr)) (*webrtc.PeerConnection, error) {
-
+func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
+	sdp *webrtc.SessionDescription,
+	config webrtc.Configuration, dataChan chan struct{},
+	handler func(conn *webRTCConn, remoteAddr net.Addr),
+) (*webrtc.PeerConnection, error) {
 	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
@@ -546,9 +546,9 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(sdp *webrtc.SessionDescrip
 
 // Create a new PeerConnection. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
-func (sf *SnowflakeProxy) makeNewPeerConnection(config webrtc.Configuration,
-	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
-
+func (sf *SnowflakeProxy) makeNewPeerConnection(
+	config webrtc.Configuration, dataChan chan struct{},
+) (*webrtc.PeerConnection, error) {
 	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {

@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	"container/heap"
+	"context"
 	"crypto/tls"
 	"flag"
 	"io"
@@ -20,6 +21,10 @@ import (
 	"syscall"
 	"time"
 
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tgragnato/snowflake.git/v2/common/bridgefingerprint"
@@ -190,6 +195,7 @@ func main() {
 	var geoipDatabase string
 	var geoip6Database string
 	var bridgeListFilePath, allowedRelayPattern, presumedPatternForLegacyClient string
+	var brokerSQSQueueName, brokerSQSQueueRegion string
 	var disableTLS bool
 	var certFilename, keyFilename string
 	var disableGeoip bool
@@ -209,6 +215,8 @@ func main() {
 	flag.StringVar(&bridgeListFilePath, "bridge-list-path", "", "file path for bridgeListFile")
 	flag.StringVar(&allowedRelayPattern, "allowed-relay-pattern", "", "allowed pattern for relay host name")
 	flag.StringVar(&presumedPatternForLegacyClient, "default-relay-pattern", "", "presumed pattern for legacy client")
+	flag.StringVar(&brokerSQSQueueName, "broker-sqs-name", "", "name of broker SQS queue to listen for incoming messages on")
+	flag.StringVar(&brokerSQSQueueRegion, "broker-sqs-region", "", "name of AWS region of broker SQS queue")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.BoolVar(&disableGeoip, "disable-geoip", false, "don't use geoip for stats collection")
 	flag.StringVar(&metricsFilename, "metrics-log", "", "path to metrics logging output")
@@ -279,6 +287,22 @@ func main() {
 
 	server := http.Server{
 		Addr: addr,
+	}
+
+	// Run SQS Handler to continuously poll and process messages from SQS
+	if brokerSQSQueueName != "" && brokerSQSQueueRegion != "" {
+		log.Printf("Loading SQSHandler using SQS Queue %s in region %s\n", brokerSQSQueueName, brokerSQSQueueRegion)
+		sqsHandlerContext := context.Background()
+		cfg, err := config.LoadDefaultConfig(sqsHandlerContext, config.WithRegion(brokerSQSQueueRegion))
+		if err != nil {
+			log.Fatal(err)
+		}
+		client := sqs.NewFromConfig(cfg)
+		sqsHandler, err := newSQSHandler(sqsHandlerContext, client, brokerSQSQueueName, brokerSQSQueueRegion, i)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go sqsHandler.PollAndHandleMessages(sqsHandlerContext)
 	}
 
 	sigChan := make(chan os.Signal, 1)

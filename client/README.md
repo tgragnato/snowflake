@@ -29,7 +29,7 @@ go build
 
 ### Running the Snowflake client with Tor
 
-The Snowflake client can be configured with either command line options or SOCKS options. We have a few example `torrc` files in this directory. We recommend the following `torrc` options by default:
+The Snowflake client can be configured with SOCKS options. We have a few example `torrc` files in this directory. We recommend the following `torrc` options by default:
 ```
 UseBridges 1
 
@@ -38,14 +38,18 @@ ClientTransportPlugin snowflake exec ./client \
 -front cdn.sstatic.net \
 -ice stun:stun.tgragnato.it:3478
 
-Bridge snowflake 192.0.2.3:1
+Bridge snowflake 192.0.2.3:80 2B280B23E1107BB62ABFC40DDCC8824814F80A72 fingerprint=2B280B23E1107BB62ABFC40DDCC8824814F80A72 url=https://snowflake-broker.torproject.net.global.prod.fastly.net/ fronts=foursquare.com,github.githubassets.com ice=stun:stun.l.google.com:19302,stun:stun.antisip.com:3478,stun:stun.bluesip.net:3478,stun:stun.dus.net:3478,stun:stun.epygi.com:3478,stun:stun.sonetel.com:3478,stun:stun.uls.co.za:3478,stun:stun.voipgate.com:3478,stun:stun.voys.nl:3478 utls-imitate=hellorandomizedalpn
 ```
 
-`-url` is the URL of a broker instance. If you would like to try out Snowflake with your own broker, simply provide the URL of your broker instance with this option.
+`fingerprint=` is the fingerprint of bridge that the client will ultimately be connecting to.
 
-`-front` is an optional front domain for the broker request.
+`url=` is the URL of a broker instance. If you would like to try out Snowflake with your own broker, simply provide the URL of your broker instance with this option.
 
-`-ice` is a comma-separated list of ICE servers. These must be STUN (over UDP) servers with the form stun:<var>host</var>[:<var>port</var>]. We recommend using servers that have implemented NAT discovery. See our wiki page on [NAT traversal](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/wikis/NAT-matching) for more information.
+`fronts=` is an optional, comma-seperated list front domains for the broker request.
+
+`ice=` is a comma-separated list of ICE servers. These must be STUN (over UDP) servers with the form stun:<var>host</var>[:<var>port</var>]. We recommend using servers that have implemented NAT discovery. See our wiki page on [NAT traversal](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/wikis/NAT-matching) for more information.
+
+`utls-imitate=` configuration instructs the client to use fingerprinting resistance when connecting when rendez-vous'ing with the broker.
 
 To bootstrap Tor, run:
 ```

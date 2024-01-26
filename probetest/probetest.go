@@ -23,6 +23,7 @@ import (
 	"github.com/tgragnato/snowflake.git/v2/common/safelog"
 	"github.com/tgragnato/snowflake.git/v2/common/util"
 
+	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -33,19 +34,36 @@ const (
 	stunUrl            = "stun:stun.tgragnato.it:3478" //default STUN URL
 )
 
+type ProbeHandler struct {
+	stunURL string
+	handle  func(string, http.ResponseWriter, *http.Request)
+}
+
+func (h ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.handle(h.stunURL, w, r)
+}
+
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
-func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
+func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
+
+	settingsEngine := webrtc.SettingEngine{}
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
+	// to functionally revert a new change in pion by silently ignoring
+	// when net.Interfaces() fails, rather than throwing an error
+	vnet, _ := stdnet.NewNet()
+	settingsEngine.SetNet(vnet)
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
 
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{stunUrl},
+				URLs: []string{stunURL},
 			},
 		},
 	}
-	pc, err := webrtc.NewPeerConnection(config)
+	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
@@ -89,7 +107,7 @@ func makePeerConnectionFromOffer(sdp *webrtc.SessionDescription,
 	return pc, nil
 }
 
-func probeHandler(w http.ResponseWriter, r *http.Request) {
+func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	resp, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if nil != err {
@@ -117,7 +135,7 @@ func probeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dataChan := make(chan struct{})
-	pc, err := makePeerConnectionFromOffer(sdp, dataChan)
+	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChan)
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -168,6 +186,7 @@ func main() {
 	var disableTLS bool
 	var certFilename, keyFilename string
 	var unsafeLogging bool
+	var stunURL string
 
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
 	flag.StringVar(&acmeHostnamesCommas, "acme-hostnames", "", "comma-separated hostnames for TLS certificate")
@@ -177,6 +196,7 @@ func main() {
 	flag.StringVar(&addr, "addr", ":8443", "address to listen on")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
+	flag.StringVar(&stunURL, "stun", defaultStunUrl, "STUN server to use for NAT traversal")
 	flag.Parse()
 
 	var logOutput io.Writer = os.Stderr
@@ -189,7 +209,7 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
-	http.HandleFunc("/probe", probeHandler)
+	http.Handle("/probe", ProbeHandler{stunURL, probeHandler})
 
 	server := http.Server{
 		Addr: addr,
