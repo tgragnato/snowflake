@@ -172,7 +172,7 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response []byte
-	err = i.ClientOffers(arg, &response)
+	err = i.ClientOffers(arg, &response, RendezvousHttp)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)

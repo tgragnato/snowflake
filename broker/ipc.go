@@ -161,7 +161,7 @@ func sendClientResponse(resp *messages.ClientPollResponse, response *[]byte) err
 	}
 }
 
-func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
+func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte, rendezvousMethod RendezvousMethod) error {
 	startTime := time.Now()
 
 	req, err := messages.DecodeClientPollRequest(arg.Body)
@@ -195,12 +195,12 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		snowflake.offerChannel <- offer
 	} else {
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientDeniedCount++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied"}).Inc()
+		i.ctx.metrics.clientDeniedCount[rendezvousMethod]++
+		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied", "rendezvous_method": string(rendezvousMethod)}).Inc()
 		if offer.natType == NATUnrestricted {
-			i.ctx.metrics.clientUnrestrictedDeniedCount++
+			i.ctx.metrics.clientUnrestrictedDeniedCount[rendezvousMethod]++
 		} else {
-			i.ctx.metrics.clientRestrictedDeniedCount++
+			i.ctx.metrics.clientRestrictedDeniedCount[rendezvousMethod]++
 		}
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
@@ -211,8 +211,8 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	select {
 	case answer := <-snowflake.answerChannel:
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientProxyMatchCount++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched"}).Inc()
+		i.ctx.metrics.clientProxyMatchCount[rendezvousMethod]++
+		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched", "rendezvous_method": string(rendezvousMethod)}).Inc()
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)

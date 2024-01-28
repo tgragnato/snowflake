@@ -82,6 +82,96 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
         A count of the number of times a client successfully received a
         proxy from the broker, rounded up to the nearest multiple of 8.
 
+    "client-http-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client has requested a proxy using
+        the HTTP rendezvous method from the broker but no proxies were 
+        available, rounded up to the nearest multiple of 8.
+
+    "client-http-restricted-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with a restricted or
+        unknown NAT type has requested a proxy using the HTTP rendezvous 
+        method from the broker but no proxies were available, rounded up to 
+        the nearest multiple of 8.
+
+    "client-http-unrestricted-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with an unrestricted NAT
+        type has requested a proxy using the HTTP rendezvous method from 
+        the broker but no proxies were available, rounded up to the nearest 
+        multiple of 8.
+
+    "client-snowflake-http-match-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client successfully received a
+        proxy using the HTTP rendezvous method from the broker, rounded 
+        up to the nearest multiple of 8.
+    
+    "client-ampcache-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client has requested a proxy using
+        the ampcache rendezvous method from the broker but no proxies were 
+        available, rounded up to the nearest multiple of 8.
+
+    "client-ampcache-restricted-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with a restricted or
+        unknown NAT type has requested a proxy using the ampcache rendezvous 
+        method from the broker but no proxies were available, rounded up to 
+        the nearest multiple of 8.
+
+    "client-ampcache-unrestricted-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with an unrestricted NAT
+        type has requested a proxy using the ampcache rendezvous method from 
+        the broker but no proxies were available, rounded up to the nearest 
+        multiple of 8.
+
+    "client-snowflake-ampcache-match-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client successfully received a
+        proxy using the ampcache rendezvous method from the broker, rounded 
+        up to the nearest multiple of 8.
+    
+    "client-sqs-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client has requested a proxy using
+        the sqs rendezvous method from the broker but no proxies were 
+        available, rounded up to the nearest multiple of 8.
+
+    "client-sqs-restricted-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with a restricted or
+        unknown NAT type has requested a proxy using the sqs rendezvous 
+        method from the broker but no proxies were available, rounded up to 
+        the nearest multiple of 8.
+
+    "client-sqs-unrestricted-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with an unrestricted NAT
+        type has requested a proxy using the sqs rendezvous method from 
+        the broker but no proxies were available, rounded up to the nearest 
+        multiple of 8.
+
+    "client-snowflake-sqs-match-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client successfully received a
+        proxy using the sqs rendezvous method from the broker, rounded 
+        up to the nearest multiple of 8.
+
     "snowflake-ips-nat-restricted" NUM NL
         [At most once.]
 
