@@ -37,7 +37,7 @@ func ampClientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 			Body:       encPollReq,
 			RemoteAddr: "",
 		}
-		err = i.ClientOffers(arg, &response)
+		err = i.ClientOffers(arg, &response, RendezvousAmpCache)
 	} else {
 		response, err = (&messages.ClientPollResponse{
 			Error: "cannot decode URL path",

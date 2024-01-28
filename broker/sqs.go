@@ -148,7 +148,7 @@ func (r *sqsHandler) handleMessage(context context.Context, message *types.Messa
 		Body:       encPollReq,
 		RemoteAddr: "",
 	}
-	err = r.IPC.ClientOffers(arg, &response)
+	err = r.IPC.ClientOffers(arg, &response, RendezvousSqs)
 
 	if err != nil {
 		log.Printf("SQSHandler: error encountered when handling message: %v\n", err)
