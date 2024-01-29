@@ -161,7 +161,8 @@ func sendClientResponse(resp *messages.ClientPollResponse, response *[]byte) err
 	}
 }
 
-func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte, rendezvousMethod RendezvousMethod) error {
+func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
+
 	startTime := time.Now()
 
 	req, err := messages.DecodeClientPollRequest(arg.Body)
@@ -195,12 +196,12 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte, rendezvousMethod 
 		snowflake.offerChannel <- offer
 	} else {
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientDeniedCount[rendezvousMethod]++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied", "rendezvous_method": string(rendezvousMethod)}).Inc()
+		i.ctx.metrics.clientDeniedCount[arg.RendezvousMethod]++
+		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied", "rendezvous_method": string(arg.RendezvousMethod)}).Inc()
 		if offer.natType == NATUnrestricted {
-			i.ctx.metrics.clientUnrestrictedDeniedCount[rendezvousMethod]++
+			i.ctx.metrics.clientUnrestrictedDeniedCount[arg.RendezvousMethod]++
 		} else {
-			i.ctx.metrics.clientRestrictedDeniedCount[rendezvousMethod]++
+			i.ctx.metrics.clientRestrictedDeniedCount[arg.RendezvousMethod]++
 		}
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
@@ -211,8 +212,8 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte, rendezvousMethod 
 	select {
 	case answer := <-snowflake.answerChannel:
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientProxyMatchCount[rendezvousMethod]++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched", "rendezvous_method": string(rendezvousMethod)}).Inc()
+		i.ctx.metrics.clientProxyMatchCount[arg.RendezvousMethod]++
+		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched", "rendezvous_method": string(arg.RendezvousMethod)}).Inc()
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
