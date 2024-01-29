@@ -36,14 +36,6 @@ type CountryStats struct {
 	counts map[string]int
 }
 
-type RendezvousMethod string
-
-const (
-	RendezvousHttp     RendezvousMethod = "http"
-	RendezvousAmpCache RendezvousMethod = "ampcache"
-	RendezvousSqs      RendezvousMethod = "sqs"
-)
-
 // Implements Observable
 type Metrics struct {
 	logger  *log.Logger
@@ -52,10 +44,10 @@ type Metrics struct {
 	countryStats                  CountryStats
 	clientRoundtripEstimate       time.Duration
 	proxyIdleCount                uint
-	clientDeniedCount             map[RendezvousMethod]uint
-	clientRestrictedDeniedCount   map[RendezvousMethod]uint
-	clientUnrestrictedDeniedCount map[RendezvousMethod]uint
-	clientProxyMatchCount         map[RendezvousMethod]uint
+	clientDeniedCount             map[messages.RendezvousMethod]uint
+	clientRestrictedDeniedCount   map[messages.RendezvousMethod]uint
+	clientUnrestrictedDeniedCount map[messages.RendezvousMethod]uint
+	clientProxyMatchCount         map[messages.RendezvousMethod]uint
 
 	proxyPollWithRelayURLExtension         uint
 	proxyPollWithoutRelayURLExtension      uint
@@ -160,10 +152,10 @@ func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) error {
 func NewMetrics(metricsLogger *log.Logger) (*Metrics, error) {
 	m := new(Metrics)
 
-	m.clientDeniedCount = make(map[RendezvousMethod]uint)
-	m.clientRestrictedDeniedCount = make(map[RendezvousMethod]uint)
-	m.clientUnrestrictedDeniedCount = make(map[RendezvousMethod]uint)
-	m.clientProxyMatchCount = make(map[RendezvousMethod]uint)
+	m.clientDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientRestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientUnrestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientProxyMatchCount = make(map[messages.RendezvousMethod]uint)
 
 	m.countryStats = CountryStats{
 		counts:          make(map[string]int),
@@ -215,7 +207,7 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("client-unrestricted-denied-count", binCount(sumMapValues(&m.clientUnrestrictedDeniedCount)))
 	m.logger.Println("client-snowflake-match-count", binCount(sumMapValues(&m.clientProxyMatchCount)))
 
-	for _, rendezvousMethod := range [3]RendezvousMethod{RendezvousHttp, RendezvousAmpCache, RendezvousSqs} {
+	for _, rendezvousMethod := range [3]messages.RendezvousMethod{messages.RendezvousHttp, messages.RendezvousAmpCache, messages.RendezvousSqs} {
 		m.logger.Printf("client-%s-denied-count %d\n", rendezvousMethod, binCount(m.clientDeniedCount[rendezvousMethod]))
 		m.logger.Printf("client-%s-restricted-denied-count %d\n", rendezvousMethod, binCount(m.clientRestrictedDeniedCount[rendezvousMethod]))
 		m.logger.Printf("client-%s-unrestricted-denied-count %d\n", rendezvousMethod, binCount(m.clientUnrestrictedDeniedCount[rendezvousMethod]))
@@ -231,13 +223,13 @@ func (m *Metrics) printMetrics() {
 // Restores all metrics to original values
 func (m *Metrics) zeroMetrics() {
 	m.proxyIdleCount = 0
-	m.clientDeniedCount = make(map[RendezvousMethod]uint)
-	m.clientRestrictedDeniedCount = make(map[RendezvousMethod]uint)
-	m.clientUnrestrictedDeniedCount = make(map[RendezvousMethod]uint)
+	m.clientDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientRestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientUnrestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
 	m.proxyPollRejectedWithRelayURLExtension = 0
 	m.proxyPollWithRelayURLExtension = 0
 	m.proxyPollWithoutRelayURLExtension = 0
-	m.clientProxyMatchCount = make(map[RendezvousMethod]uint)
+	m.clientProxyMatchCount = make(map[messages.RendezvousMethod]uint)
 	m.countryStats.counts = make(map[string]int)
 	for pType := range m.countryStats.proxies {
 		m.countryStats.proxies[pType] = make(map[string]bool)
@@ -253,7 +245,7 @@ func binCount(count uint) uint {
 	return uint((math.Ceil(float64(count) / 8)) * 8)
 }
 
-func sumMapValues(m *map[RendezvousMethod]uint) uint {
+func sumMapValues(m *map[messages.RendezvousMethod]uint) uint {
 	var s uint = 0
 	for _, v := range *m {
 		s += v
