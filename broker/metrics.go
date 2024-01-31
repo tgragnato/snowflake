@@ -189,7 +189,11 @@ func (m *Metrics) logMetrics() {
 
 func (m *Metrics) printMetrics() {
 	m.lock.Lock()
-	m.logger.Println("snowflake-stats-end", time.Now().UTC().Format("2006-01-02 15:04:05"), fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())))
+	m.logger.Println(
+		"snowflake-stats-end",
+		time.Now().UTC().Format("2006-01-02 15:04:05"),
+		fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())),
+	)
 	m.logger.Println("snowflake-ips", m.countryStats.Display())
 	total := len(m.countryStats.unknown)
 	for pType, addresses := range m.countryStats.proxies {
@@ -207,11 +211,14 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("client-unrestricted-denied-count", binCount(sumMapValues(&m.clientUnrestrictedDeniedCount)))
 	m.logger.Println("client-snowflake-match-count", binCount(sumMapValues(&m.clientProxyMatchCount)))
 
-	for _, rendezvousMethod := range [3]messages.RendezvousMethod{messages.RendezvousHttp, messages.RendezvousAmpCache, messages.RendezvousSqs} {
-		m.logger.Printf("client-%s-denied-count %d\n", rendezvousMethod, binCount(m.clientDeniedCount[rendezvousMethod]))
-		m.logger.Printf("client-%s-restricted-denied-count %d\n", rendezvousMethod, binCount(m.clientRestrictedDeniedCount[rendezvousMethod]))
-		m.logger.Printf("client-%s-unrestricted-denied-count %d\n", rendezvousMethod, binCount(m.clientUnrestrictedDeniedCount[rendezvousMethod]))
-		m.logger.Printf("client-snowflake-%s-match-count %d\n", rendezvousMethod, binCount(m.clientProxyMatchCount[rendezvousMethod]))
+	for _, rendezvousMethod := range [3]messages.RendezvousMethod{
+		messages.RendezvousHttp,
+		messages.RendezvousAmpCache,
+		messages.RendezvousSqs,
+	} {
+		m.logger.Printf("client-%s-count %d\n", rendezvousMethod, binCount(
+			m.clientDeniedCount[rendezvousMethod]+m.clientProxyMatchCount[rendezvousMethod],
+		))
 	}
 
 	m.logger.Println("snowflake-ips-nat-restricted", len(m.countryStats.natRestricted))

@@ -194,18 +194,9 @@ func TestSQS(t *testing.T) {
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 8
+client-http-count 0
+client-ampcache-count 0
+client-sqs-count 8
 `)
 								wg.Done()
 							}

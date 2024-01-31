@@ -157,18 +157,9 @@ func TestBroker(t *testing.T) {
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
-client-http-denied-count 8
-client-http-restricted-denied-count 8
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
 `)
 			})
 
@@ -193,18 +184,9 @@ client-snowflake-sqs-match-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 8
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
 `)
 			})
 
@@ -278,18 +260,9 @@ client-snowflake-sqs-match-count 0
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
-client-http-denied-count 8
-client-http-restricted-denied-count 8
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
 `)
 			})
 
@@ -314,18 +287,9 @@ client-snowflake-sqs-match-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 8
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
 `)
 			})
 
@@ -376,18 +340,9 @@ client-snowflake-sqs-match-count 0
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 8
-client-ampcache-restricted-denied-count 8
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 0
+client-ampcache-count 8
+client-sqs-count 0
 `)
 			})
 
@@ -414,18 +369,9 @@ client-snowflake-sqs-match-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 8
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 0
+client-ampcache-count 8
+client-sqs-count 0
 `)
 			})
 
@@ -782,18 +728,9 @@ client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 0
+client-ampcache-count 0
+client-sqs-count 0
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 1
@@ -815,18 +752,9 @@ snowflake-ips-nat-unknown 1
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
-client-http-denied-count 8
-client-http-restricted-denied-count 8
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
 `)
 
 			// Test reset
@@ -846,18 +774,9 @@ client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
-client-http-denied-count 0
-client-http-restricted-denied-count 0
-client-http-unrestricted-denied-count 0
-client-snowflake-http-match-count 0
-client-ampcache-denied-count 0
-client-ampcache-restricted-denied-count 0
-client-ampcache-unrestricted-denied-count 0
-client-snowflake-ampcache-match-count 0
-client-sqs-denied-count 0
-client-sqs-restricted-denied-count 0
-client-sqs-unrestricted-denied-count 0
-client-snowflake-sqs-match-count 0
+client-http-count 0
+client-ampcache-count 0
+client-sqs-count 0
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 0
