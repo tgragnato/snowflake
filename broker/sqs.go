@@ -71,6 +71,8 @@ func (r *sqsHandler) cleanupClientQueues(ctx context.Context) {
 				})
 				if err != nil {
 					log.Printf("SQSHandler: encountered error while retrieving client queues to clean up: %v\n", err)
+					// client queues will be cleaned up the next time the cleanup operation is triggered automatically
+					break
 				}
 				queueURLsList = append(queueURLsList, res.QueueUrls...)
 				if res.NextToken == nil {
