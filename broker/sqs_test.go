@@ -21,8 +21,9 @@ import (
 func TestSQS(t *testing.T) {
 
 	Convey("Context", t, func() {
-		ctx := NewBrokerContext(NullLogger())
-		i := &IPC{ctx}
+		buf := new(bytes.Buffer)
+		ipcCtx := NewBrokerContext(log.New(buf, "", 0))
+		i := &IPC{ipcCtx}
 
 		var logBuffer bytes.Buffer
 		log.SetOutput(&logBuffer)
@@ -187,6 +188,16 @@ func TestSQS(t *testing.T) {
 							numTimes += 1
 							if numTimes == 1 {
 								c.So(input.MessageBody, ShouldEqual, aws.String("{\"answer\":\"fake answer\"}"))
+								// Ensure that match is correctly recorded in metrics
+								ipcCtx.metrics.printMetrics()
+								c.So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-snowflake-match-count 8
+client-http-count 0
+client-ampcache-count 0
+client-sqs-count 8
+`)
 								wg.Done()
 							}
 							return &sqs.SendMessageOutput{}, nil
@@ -194,7 +205,7 @@ func TestSQS(t *testing.T) {
 					)
 					runSQSHandler(sqsHandlerContext)
 
-					snowflake := ctx.AddSnowflake("fake", "", NATUnrestricted, 0)
+					snowflake := ipcCtx.AddSnowflake("fake", "", NATUnrestricted, 0)
 
 					offer := <-snowflake.offerChannel
 					So(offer.sdp, ShouldResemble, []byte("fake"))

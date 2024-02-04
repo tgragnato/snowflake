@@ -34,8 +34,9 @@ func ampClientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 	encPollReq, err = amp.DecodePath(path)
 	if err == nil {
 		arg := messages.Arg{
-			Body:       encPollReq,
-			RemoteAddr: "",
+			Body:             encPollReq,
+			RemoteAddr:       "",
+			RendezvousMethod: messages.RendezvousAmpCache,
 		}
 		err = i.ClientOffers(arg, &response)
 	} else {

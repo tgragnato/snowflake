@@ -85,7 +85,8 @@ func TestBroker(t *testing.T) {
 	copy(defaultBridge[:], defaultBridgeValue)
 
 	Convey("Context", t, func() {
-		ctx := NewBrokerContext(NullLogger())
+		buf := new(bytes.Buffer)
+		ctx := NewBrokerContext(log.New(buf, "", 0))
 		i := &IPC{ctx}
 
 		Convey("Adds Snowflake", func() {
@@ -145,6 +146,17 @@ func TestBroker(t *testing.T) {
 				clientOffers(i, w, r)
 				So(w.Code, ShouldEqual, http.StatusOK)
 				So(w.Body.String(), ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
+
+				// Ensure that denial is correctly recorded in metrics
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
+`)
 			})
 
 			Convey("with a proxy answer if available.", func() {
@@ -161,6 +173,17 @@ func TestBroker(t *testing.T) {
 				<-done
 				So(w.Body.String(), ShouldEqual, `{"answer":"test answer"}`)
 				So(w.Code, ShouldEqual, http.StatusOK)
+
+				// Ensure that match is correctly recorded in metrics
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-snowflake-match-count 8
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
+`)
 			})
 
 			Convey("with unrestricted proxy to unrestricted client if there are no restricted proxies", func() {
@@ -226,6 +249,17 @@ func TestBroker(t *testing.T) {
 				clientOffers(i, w, r)
 				So(w.Code, ShouldEqual, http.StatusServiceUnavailable)
 				So(w.Body.String(), ShouldEqual, "")
+
+				// Ensure that denial is correctly recorded in metrics
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
+`)
 			})
 
 			Convey("with a proxy answer if available.", func() {
@@ -242,6 +276,17 @@ func TestBroker(t *testing.T) {
 				<-done
 				So(w.Body.String(), ShouldEqual, "fake answer")
 				So(w.Code, ShouldEqual, http.StatusOK)
+
+				// Ensure that match is correctly recorded in metrics
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-snowflake-match-count 8
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
+`)
 			})
 
 			Convey("Times out when no proxy responds.", func() {
@@ -284,6 +329,17 @@ func TestBroker(t *testing.T) {
 				body, err := decodeAMPArmorToString(w.Body)
 				So(err, ShouldBeNil)
 				So(body, ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
+
+				// Ensure that denial is correctly recorded in metrics
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-http-count 0
+client-ampcache-count 8
+client-sqs-count 0
+`)
 			})
 
 			Convey("with a proxy answer if available.", func() {
@@ -302,6 +358,17 @@ func TestBroker(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(body, ShouldEqual, `{"answer":"fake answer"}`)
 				So(w.Code, ShouldEqual, http.StatusOK)
+
+				// Ensure that match is correctly recorded in metrics
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-snowflake-match-count 8
+client-http-count 0
+client-ampcache-count 8
+client-sqs-count 0
+`)
 			})
 
 			Convey("Times out when no proxy responds.", func() {
@@ -648,7 +715,22 @@ func TestMetrics(t *testing.T) {
 			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-standalone 1\n")
 			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-badge 1\n")
 			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-webext 1\n")
-			So(metricsStr, ShouldEndWith, "\nsnowflake-ips-total 4\nsnowflake-idle-count 8\nsnowflake-proxy-poll-with-relay-url-count 0\nsnowflake-proxy-poll-without-relay-url-count 8\nsnowflake-proxy-rejected-for-relay-url-count 0\nclient-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0\nsnowflake-ips-nat-restricted 0\nsnowflake-ips-nat-unrestricted 0\nsnowflake-ips-nat-unknown 1\n")
+			So(metricsStr, ShouldEndWith, `snowflake-ips-total 4
+snowflake-idle-count 8
+snowflake-proxy-poll-with-relay-url-count 0
+snowflake-proxy-poll-without-relay-url-count 8
+snowflake-proxy-rejected-for-relay-url-count 0
+client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-http-count 0
+client-ampcache-count 0
+client-sqs-count 0
+snowflake-ips-nat-restricted 0
+snowflake-ips-nat-unrestricted 0
+snowflake-ips-nat-unknown 1
+`)
 		})
 
 		//Test addition of client failures
@@ -662,7 +744,14 @@ func TestMetrics(t *testing.T) {
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-http-count 8
+client-ampcache-count 0
+client-sqs-count 0
+`)
 
 			// Test reset
 			buf.Reset()
@@ -672,7 +761,22 @@ func TestMetrics(t *testing.T) {
 			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-standalone 0\n")
 			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-badge 0\n")
 			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-webext 0\n")
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-total 0\nsnowflake-idle-count 0\nsnowflake-proxy-poll-with-relay-url-count 0\nsnowflake-proxy-poll-without-relay-url-count 0\nsnowflake-proxy-rejected-for-relay-url-count 0\nclient-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0\nsnowflake-ips-nat-restricted 0\nsnowflake-ips-nat-unrestricted 0\nsnowflake-ips-nat-unknown 0\n")
+			So(buf.String(), ShouldContainSubstring, `snowflake-ips-total 0
+snowflake-idle-count 0
+snowflake-proxy-poll-with-relay-url-count 0
+snowflake-proxy-poll-without-relay-url-count 0
+snowflake-proxy-rejected-for-relay-url-count 0
+client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-http-count 0
+client-ampcache-count 0
+client-sqs-count 0
+snowflake-ips-nat-restricted 0
+snowflake-ips-nat-unrestricted 0
+snowflake-ips-nat-unknown 0
+`)
 		})
 		//Test addition of client matches
 		Convey("for client-proxy match", func() {

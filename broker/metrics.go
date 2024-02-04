@@ -44,10 +44,10 @@ type Metrics struct {
 	countryStats                  CountryStats
 	clientRoundtripEstimate       time.Duration
 	proxyIdleCount                uint
-	clientDeniedCount             uint
-	clientRestrictedDeniedCount   uint
-	clientUnrestrictedDeniedCount uint
-	clientProxyMatchCount         uint
+	clientDeniedCount             map[messages.RendezvousMethod]uint
+	clientRestrictedDeniedCount   map[messages.RendezvousMethod]uint
+	clientUnrestrictedDeniedCount map[messages.RendezvousMethod]uint
+	clientProxyMatchCount         map[messages.RendezvousMethod]uint
 
 	proxyPollWithRelayURLExtension         uint
 	proxyPollWithoutRelayURLExtension      uint
@@ -152,6 +152,11 @@ func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) error {
 func NewMetrics(metricsLogger *log.Logger) (*Metrics, error) {
 	m := new(Metrics)
 
+	m.clientDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientRestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientUnrestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientProxyMatchCount = make(map[messages.RendezvousMethod]uint)
+
 	m.countryStats = CountryStats{
 		counts:          make(map[string]int),
 		proxies:         make(map[string]map[string]bool),
@@ -184,7 +189,11 @@ func (m *Metrics) logMetrics() {
 
 func (m *Metrics) printMetrics() {
 	m.lock.Lock()
-	m.logger.Println("snowflake-stats-end", time.Now().UTC().Format("2006-01-02 15:04:05"), fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())))
+	m.logger.Println(
+		"snowflake-stats-end",
+		time.Now().UTC().Format("2006-01-02 15:04:05"),
+		fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())),
+	)
 	m.logger.Println("snowflake-ips", m.countryStats.Display())
 	total := len(m.countryStats.unknown)
 	for pType, addresses := range m.countryStats.proxies {
@@ -196,10 +205,22 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("snowflake-proxy-poll-with-relay-url-count", binCount(m.proxyPollWithRelayURLExtension))
 	m.logger.Println("snowflake-proxy-poll-without-relay-url-count", binCount(m.proxyPollWithoutRelayURLExtension))
 	m.logger.Println("snowflake-proxy-rejected-for-relay-url-count", binCount(m.proxyPollRejectedWithRelayURLExtension))
-	m.logger.Println("client-denied-count", binCount(m.clientDeniedCount))
-	m.logger.Println("client-restricted-denied-count", binCount(m.clientRestrictedDeniedCount))
-	m.logger.Println("client-unrestricted-denied-count", binCount(m.clientUnrestrictedDeniedCount))
-	m.logger.Println("client-snowflake-match-count", binCount(m.clientProxyMatchCount))
+
+	m.logger.Println("client-denied-count", binCount(sumMapValues(&m.clientDeniedCount)))
+	m.logger.Println("client-restricted-denied-count", binCount(sumMapValues(&m.clientRestrictedDeniedCount)))
+	m.logger.Println("client-unrestricted-denied-count", binCount(sumMapValues(&m.clientUnrestrictedDeniedCount)))
+	m.logger.Println("client-snowflake-match-count", binCount(sumMapValues(&m.clientProxyMatchCount)))
+
+	for _, rendezvousMethod := range [3]messages.RendezvousMethod{
+		messages.RendezvousHttp,
+		messages.RendezvousAmpCache,
+		messages.RendezvousSqs,
+	} {
+		m.logger.Printf("client-%s-count %d\n", rendezvousMethod, binCount(
+			m.clientDeniedCount[rendezvousMethod]+m.clientProxyMatchCount[rendezvousMethod],
+		))
+	}
+
 	m.logger.Println("snowflake-ips-nat-restricted", len(m.countryStats.natRestricted))
 	m.logger.Println("snowflake-ips-nat-unrestricted", len(m.countryStats.natUnrestricted))
 	m.logger.Println("snowflake-ips-nat-unknown", len(m.countryStats.natUnknown))
@@ -209,13 +230,13 @@ func (m *Metrics) printMetrics() {
 // Restores all metrics to original values
 func (m *Metrics) zeroMetrics() {
 	m.proxyIdleCount = 0
-	m.clientDeniedCount = 0
-	m.clientRestrictedDeniedCount = 0
-	m.clientUnrestrictedDeniedCount = 0
+	m.clientDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientRestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
+	m.clientUnrestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
 	m.proxyPollRejectedWithRelayURLExtension = 0
 	m.proxyPollWithRelayURLExtension = 0
 	m.proxyPollWithoutRelayURLExtension = 0
-	m.clientProxyMatchCount = 0
+	m.clientProxyMatchCount = make(map[messages.RendezvousMethod]uint)
 	m.countryStats.counts = make(map[string]int)
 	for pType := range m.countryStats.proxies {
 		m.countryStats.proxies[pType] = make(map[string]bool)
@@ -229,6 +250,14 @@ func (m *Metrics) zeroMetrics() {
 // Rounds up a count to the nearest multiple of 8.
 func binCount(count uint) uint {
 	return uint((math.Ceil(float64(count) / 8)) * 8)
+}
+
+func sumMapValues(m *map[messages.RendezvousMethod]uint) uint {
+	var s uint = 0
+	for _, v := range *m {
+		s += v
+	}
+	return s
 }
 
 type PromMetrics struct {
@@ -310,7 +339,7 @@ func initPrometheus() *PromMetrics {
 			Name:      "rounded_client_poll_total",
 			Help:      "The number of snowflake client polls, rounded up to a multiple of 8",
 		},
-		[]string{"nat", "status"},
+		[]string{"nat", "status", "rendezvous_method"},
 	)
 
 	// We need to register our metrics so they can be exported.

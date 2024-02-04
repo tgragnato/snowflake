@@ -4,9 +4,18 @@ import (
 	"errors"
 )
 
+type RendezvousMethod string
+
+const (
+	RendezvousHttp     RendezvousMethod = "http"
+	RendezvousAmpCache RendezvousMethod = "ampcache"
+	RendezvousSqs      RendezvousMethod = "sqs"
+)
+
 type Arg struct {
-	Body       []byte
-	RemoteAddr string
+	Body             []byte
+	RemoteAddr       string
+	RendezvousMethod RendezvousMethod
 }
 
 var (

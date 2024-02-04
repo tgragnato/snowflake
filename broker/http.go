@@ -166,8 +166,9 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 	}
 
 	arg := messages.Arg{
-		Body:       body,
-		RemoteAddr: "",
+		Body:             body,
+		RemoteAddr:       "",
+		RendezvousMethod: messages.RendezvousHttp,
 	}
 
 	var response []byte
