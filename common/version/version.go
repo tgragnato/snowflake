@@ -1,10 +1,12 @@
 package version
 
-import "fmt"
-import "runtime/debug"
+import (
+	"fmt"
+	"runtime/debug"
+)
 
 var version = func() string {
-	ver := "2.8.1"
+	ver := "2.9.0"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {

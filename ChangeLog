@@ -1,3 +1,15 @@
+Changes in version v2.9.0 - 2024-02-05
+- Issue 40285: Add vcs revision to version string
+- Issue 40294: Update recommended torrc options in client README
+- Issue 40306: Scrub space-separated IP addresses
+- Add proxy commandline option for probe server URL
+- Use SetNet setting in probest to ignore net.Interfaces error
+- Add probetest commandline option for STUN URL
+- Issue 26151: Implement SQS rendezvous in client and broker
+- Add broker metrics to track rendezvous method
+- Cosmetic code quality fixes
+- Bump versions of dependencies
+
 Changes in version v2.8.1 - 2023-12-21
 - Issue 40276: Reduce allocations in encapsulation.ReadData
 - Issue 40310: Remove excessive logging for closed proxy connections
