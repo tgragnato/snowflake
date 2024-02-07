@@ -67,7 +67,7 @@ require (
 	github.com/pion/srtp/v2 v2.0.18 // indirect
 	github.com/pion/stun v0.6.1 // indirect
 	github.com/pion/transport/v3 v3.0.1 // indirect
-	github.com/pion/turn/v2 v2.1.4 // indirect
+	github.com/pion/turn/v2 v2.1.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common v0.46.0 // indirect
