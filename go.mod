@@ -3,11 +3,14 @@ module gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/
 go 1.21
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.23.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.3
+	github.com/aws/aws-sdk-go-v2/credentials v1.16.2
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.28.1
+	github.com/golang/mock v1.6.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/miekg/dns v1.1.57
-	github.com/pion/ice/v2 v2.3.11
+	github.com/pion/ice/v2 v2.3.13
 	github.com/pion/sdp/v3 v3.0.6
 	github.com/pion/stun v0.6.1
 	github.com/pion/transport/v2 v2.2.4
@@ -22,16 +25,14 @@ require (
 	github.com/xtaci/smux v1.5.24
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
-	golang.org/x/crypto v0.17.0
-	golang.org/x/net v0.19.0
+	golang.org/x/crypto v0.18.0
+	golang.org/x/net v0.20.0
 	golang.org/x/sys v0.16.0
 	google.golang.org/protobuf v1.32.0
 )
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.23.0 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.16.2 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.3 // indirect
@@ -46,9 +47,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudflare/circl v1.3.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/gaukas/godicttls v0.0.4 // indirect
-	github.com/golang/mock v1.6.0 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
@@ -62,7 +60,7 @@ require (
 	github.com/pion/dtls/v2 v2.2.7 // indirect
 	github.com/pion/interceptor v0.1.25 // indirect
 	github.com/pion/logging v0.2.2 // indirect
-	github.com/pion/mdns v0.0.9 // indirect
+	github.com/pion/mdns v0.0.12 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.12 // indirect
 	github.com/pion/rtp v1.8.3 // indirect
