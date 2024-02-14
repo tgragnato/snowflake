@@ -157,7 +157,7 @@ debian-testing:
 shadow-integration:
   image: golang:1.21-$DEBIAN_STABLE
   variables:
-    SHADOW_VERSION: "v3.1.0"
+    SHADOW_VERSION: "193924aae0dab30ffda0abe29467f552949849fa"
     TGEN_VERSION: "v1.1.2"
   cache:
     key: sf-integration-$SHADOW_VERSION-$TGEN_VERSION
@@ -180,8 +180,9 @@ shadow-integration:
       if [ ! -f opt/shadow/bin/shadow ]
       then
         echo "The required version of shadow was not cached, building from source"
-        git clone --branch $SHADOW_VERSION --depth 1 https://github.com/shadow/shadow.git
+        git clone --shallow-since=2021-08-01 https://github.com/shadow/shadow.git
         pushd shadow/
+        git checkout $SHADOW_VERSION
         CONTAINER=debian:stable-slim ci/container_scripts/install_deps.sh
         CC=gcc CONTAINER=debian:stable-slim ci/container_scripts/install_extra_deps.sh
         export PATH="$HOME/.cargo/bin:${PATH}"
