@@ -155,8 +155,7 @@ debian-testing:
     - *go-test
 
 shadow-integration:
-  # Need golang 1.21 from unstable to build snowflake
-  image: debian:sid-slim
+  image: golang:1.21-$DEBIAN_STABLE
   variables:
     SHADOW_VERSION: "v3.1.0"
     TGEN_VERSION: "v1.1.2"
@@ -183,9 +182,8 @@ shadow-integration:
         echo "The required version of shadow was not cached, building from source"
         git clone --branch $SHADOW_VERSION --depth 1 https://github.com/shadow/shadow.git
         pushd shadow/
-        CONTAINER=debian:sid-slim ci/container_scripts/install_deps.sh
-        CC=gcc CONTAINER=debian:sid-slim ci/container_scripts/install_extra_deps.sh
-        apt-get install -y zlib1g
+        CONTAINER=debian:stable-slim ci/container_scripts/install_deps.sh
+        CC=gcc CONTAINER=debian:stable-slim ci/container_scripts/install_extra_deps.sh
         export PATH="$HOME/.cargo/bin:${PATH}"
         ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/
         ./setup install
