@@ -207,6 +207,11 @@ shadow-integration:
       install $CI_PROJECT_DIR/opt/bin/tgen ~/.local/bin/tgen
     - popd
 
+    # Apply snowflake patch(es)
+    - |
+      git clone --depth 1 https://github.com/cohosh/shadow-snowflake-minimal
+      git am -3 shadow-snowflake-minimal/*.patch
+
     # Install snowflake binaries to .local folder
     - |
       for app in "proxy" "client" "server" "broker" "probetest"; do
@@ -220,7 +225,6 @@ shadow-integration:
     - GOBIN=~/.local/bin go install github.com/gortc/stund@latest
 
     # Run a minimal snowflake shadow experiment
-    - git clone --depth 1 https://github.com/cohosh/shadow-snowflake-minimal
     - pushd shadow-snowflake-minimal/
     - shadow --log-level=debug --model-unblocked-syscall-latency=true snowflake-minimal.yaml > shadow.log
     - tar -czvf $CI_PROJECT_DIR/shadow.data.tar.gz shadow.data/
