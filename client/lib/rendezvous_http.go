@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -71,7 +70,7 @@ func (r *httpRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 }
 
 func limitedRead(r io.Reader, limit int64) ([]byte, error) {
-	p, err := ioutil.ReadAll(&io.LimitedReader{R: r, N: limit + 1})
+	p, err := io.ReadAll(&io.LimitedReader{R: r, N: limit + 1})
 	if err != nil {
 		return p, err
 	} else if int64(len(p)) == limit+1 {

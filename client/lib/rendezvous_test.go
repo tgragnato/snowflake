@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"testing"
@@ -32,7 +31,7 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{
 		Status:     fmt.Sprintf("%d %s", t.statusCode, http.StatusText(t.statusCode)),
 		StatusCode: t.statusCode,
-		Body:       ioutil.NopCloser(bytes.NewReader(t.body)),
+		Body:       io.NopCloser(bytes.NewReader(t.body)),
 	}, nil
 }
 

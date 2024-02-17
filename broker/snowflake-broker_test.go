@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +21,7 @@ import (
 
 func NullLogger() *log.Logger {
 	logger := log.New(os.Stdout, "", 0)
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 	return logger
 }
 
@@ -78,7 +77,7 @@ func decodeAMPArmorToString(r io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p, err := ioutil.ReadAll(dec)
+	p, err := io.ReadAll(dec)
 	return string(p), err
 }
 
@@ -460,7 +459,7 @@ client-sqs-count 0
 				So(err, ShouldBeNil)
 				proxyAnswers(i, w, r)
 				So(w.Code, ShouldEqual, http.StatusOK)
-				b, err := ioutil.ReadAll(w.Body)
+				b, err := io.ReadAll(w.Body)
 				So(err, ShouldBeNil)
 				So(b, ShouldResemble, []byte(`{"Status":"client gone"}`))
 			})
