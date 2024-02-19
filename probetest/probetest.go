@@ -13,7 +13,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -110,7 +109,7 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 
 func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	resp, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
+	resp, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if nil != err {
 		log.Println("Invalid data.")
 		w.WriteHeader(http.StatusBadRequest)

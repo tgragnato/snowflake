@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -94,7 +93,7 @@ func debugHandler(i *IPC, w http.ResponseWriter, r *http.Request) {
 For snowflake proxies to request a client from the Broker.
 */
 func proxyPolls(i *IPC, w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if err != nil {
 		log.Println("Invalid data.", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
@@ -132,7 +131,7 @@ snowflake proxy, which responds with the SDP answer to be sent in
 the HTTP response back to the client.
 */
 func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if err != nil {
 		log.Printf("Error reading client request: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
@@ -212,7 +211,7 @@ an offer from proxyHandler to respond with an answer in an HTTP POST,
 which the broker will pass back to the original client.
 */
 func proxyAnswers(i *IPC, w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if err != nil {
 		log.Println("Invalid data.", err.Error())
 		w.WriteHeader(http.StatusBadRequest)

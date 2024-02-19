@@ -31,7 +31,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -163,7 +162,7 @@ func genSessionID() string {
 }
 
 func limitedRead(r io.Reader, limit int64) ([]byte, error) {
-	p, err := ioutil.ReadAll(&io.LimitedReader{R: r, N: limit + 1})
+	p, err := io.ReadAll(&io.LimitedReader{R: r, N: limit + 1})
 	if err != nil {
 		return p, err
 	} else if int64(len(p)) == limit+1 {

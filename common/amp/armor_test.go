@@ -2,7 +2,6 @@ package amp
 
 import (
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"strings"
 	"testing"
@@ -13,7 +12,7 @@ func armorDecodeToString(src string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p, err := ioutil.ReadAll(dec)
+	p, err := io.ReadAll(dec)
 	return string(p), err
 }
 

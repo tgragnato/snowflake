@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -320,8 +319,8 @@ func main() {
 		// This environment variable means we should treat EOF on stdin
 		// just like SIGTERM: https://bugs.torproject.org/15435.
 		go func() {
-			if _, err := io.Copy(ioutil.Discard, os.Stdin); err != nil {
-				log.Printf("error copying os.Stdin to ioutil.Discard: %v", err)
+			if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
+				log.Printf("error copying os.Stdin to io.Discard: %v", err)
 			}
 			log.Printf("synthesizing SIGTERM because of stdin close")
 			sigChan <- syscall.SIGTERM
