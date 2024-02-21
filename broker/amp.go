@@ -7,6 +7,7 @@ import (
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/amp"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 )
 
 // ampClientOffers is the AMP-speaking endpoint for client poll messages,
@@ -35,7 +36,7 @@ func ampClientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		arg := messages.Arg{
 			Body:             encPollReq,
-			RemoteAddr:       "",
+			RemoteAddr:       util.GetClientIp(r),
 			RendezvousMethod: messages.RendezvousAmpCache,
 		}
 		err = i.ClientOffers(arg, &response)

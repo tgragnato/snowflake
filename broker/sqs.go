@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/sqsclient"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 )
 
 const (
@@ -144,9 +145,27 @@ func (r *sqsHandler) handleMessage(context context.Context, message *types.Messa
 	answerSQSURL := res.QueueUrl
 
 	encPollReq = []byte(*message.Body)
+
+	// Get best guess Client IP for geolocating
+	remoteAddr := ""
+	req, err := messages.DecodeClientPollRequest(encPollReq)
+	if err != nil {
+		log.Printf("SQSHandler: error encounted when decoding client poll request %s: %v\n", *clientID, err)
+	} else {
+		sdp, err := util.DeserializeSessionDescription(req.Offer)
+		if err != nil {
+			log.Printf("SQSHandler: error encounted when deserializing session desc %s: %v\n", *clientID, err)
+		} else {
+			candidateAddrs := util.GetCandidateAddrs(sdp.SDP)
+			if len(candidateAddrs) > 0 {
+				remoteAddr = candidateAddrs[0].String()
+			}
+		}
+	}
+
 	arg := messages.Arg{
 		Body:             encPollReq,
-		RemoteAddr:       "",
+		RemoteAddr:       remoteAddr,
 		RendezvousMethod: messages.RendezvousSqs,
 	}
 	err = r.IPC.ClientOffers(arg, &response)

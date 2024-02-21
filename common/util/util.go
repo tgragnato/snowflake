@@ -3,11 +3,16 @@ package util
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
+	"net/http"
+	"slices"
+	"sort"
 
 	"github.com/pion/ice/v2"
 	"github.com/pion/sdp/v3"
 	"github.com/pion/webrtc/v3"
+	"github.com/realclientip/realclientip-go"
 )
 
 func SerializeSessionDescription(desc *webrtc.SessionDescription) (string, error) {
@@ -96,4 +101,67 @@ func StripLocalAddresses(str string) string {
 		return str
 	}
 	return string(bts)
+}
+
+// Attempts to retrieve the client IP of where the HTTP request originating.
+// There is no standard way to do this since the original client IP can be included in a number of different headers,
+// depending on the proxies and load balancers between the client and the server. We attempt to check as many of these
+// headers as possible to determine a "best guess" of the client IP
+// Using this as a reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded
+func GetClientIp(req *http.Request) string {
+	// We check the "Fowarded" header first, followed by the "X-Forwarded-For" header, and then use the "RemoteAddr" as
+	// a last resort. We use the leftmost address since it is the closest one to the client.
+	strat := realclientip.NewChainStrategy(
+		realclientip.Must(realclientip.NewLeftmostNonPrivateStrategy("Forwarded")),
+		realclientip.Must(realclientip.NewLeftmostNonPrivateStrategy("X-Forwarded-For")),
+		realclientip.RemoteAddrStrategy{},
+	)
+	clientIp := strat.ClientIP(req.Header, req.RemoteAddr)
+	return clientIp
+}
+
+// Returns a list of IP addresses of ICE candidates, roughly in descending order for accuracy for geolocation
+func GetCandidateAddrs(sdpStr string) []net.IP {
+	var desc sdp.SessionDescription
+	err := desc.Unmarshal([]byte(sdpStr))
+	if err != nil {
+		log.Printf("GetCandidateAddrs: failed to unmarshal SDP: %v\n", err)
+		return []net.IP{}
+	}
+
+	iceCandidates := make([]ice.Candidate, 0)
+
+	for _, m := range desc.MediaDescriptions {
+		for _, a := range m.Attributes {
+			if a.IsICECandidate() {
+				c, err := ice.UnmarshalCandidate(a.Value)
+				if err == nil {
+					iceCandidates = append(iceCandidates, c)
+				}
+			}
+		}
+	}
+
+	// ICE candidates are first sorted in asecending order of priority, to match convention of providing a custom Less
+	// function to sort
+	sort.Slice(iceCandidates, func(i, j int) bool {
+		if iceCandidates[i].Type() != iceCandidates[j].Type() {
+			// Sort by candidate type first, in the order specified in https://datatracker.ietf.org/doc/html/rfc8445#section-5.1.2.2
+			// Higher priority candidate types are more efficient, which likely means they are closer to the client
+			// itself, providing a more accurate result for geolocation
+			return ice.CandidateType(iceCandidates[i].Type().Preference()) < ice.CandidateType(iceCandidates[j].Type().Preference())
+		}
+		// Break ties with the ICE candidate's priority property
+		return iceCandidates[i].Priority() < iceCandidates[j].Priority()
+	})
+	slices.Reverse(iceCandidates)
+
+	sortedIpAddr := make([]net.IP, 0)
+	for _, c := range iceCandidates {
+		ip := net.ParseIP(c.Address())
+		if ip != nil {
+			sortedIpAddr = append(sortedIpAddr, ip)
+		}
+	}
+	return sortedIpAddr
 }

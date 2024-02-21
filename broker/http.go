@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 )
 
 const (
@@ -102,7 +103,7 @@ func proxyPolls(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	arg := messages.Arg{
 		Body:       body,
-		RemoteAddr: r.RemoteAddr,
+		RemoteAddr: util.GetClientIp(r),
 	}
 
 	var response []byte
@@ -167,7 +168,7 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	arg := messages.Arg{
 		Body:             body,
-		RemoteAddr:       "",
+		RemoteAddr:       util.GetClientIp(r),
 		RendezvousMethod: messages.RendezvousHttp,
 	}
 
@@ -227,7 +228,7 @@ func proxyAnswers(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	arg := messages.Arg{
 		Body:       body,
-		RemoteAddr: "",
+		RemoteAddr: util.GetClientIp(r),
 	}
 
 	var response []byte
