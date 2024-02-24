@@ -21,16 +21,16 @@ jobs:
       fail-fast: false
       matrix:
         language: ['go']
-        go-version: [ '1.21', '1.22' ]
 
     steps:
+
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Go ${{ matrix.go-version }}
+    - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version: '1.22'
         cache: false
 
     - name: Initialize CodeQL
