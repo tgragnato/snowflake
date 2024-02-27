@@ -1,3 +1,8 @@
+Changes in version v2.9.1 - 2024-02-27
+- Issue 40335: Fix release job
+- Change deprecated io/ioutil package to io package
+- Bump versions of dependencies
+
 Changes in version v2.9.0 - 2024-02-05
 - Issue 40285: Add vcs revision to version string
 - Issue 40294: Update recommended torrc options in client README

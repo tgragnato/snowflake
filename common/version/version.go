@@ -6,7 +6,7 @@ import (
 )
 
 var version = func() string {
-	ver := "2.9.0"
+	ver := "2.9.1"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {
