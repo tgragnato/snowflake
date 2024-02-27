@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.3
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.3
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.30.2
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.1
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/miekg/dns v1.1.58
