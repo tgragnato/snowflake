@@ -19,7 +19,7 @@ require (
 	github.com/prometheus/client_model v0.6.0
 	github.com/refraction-networking/utls v1.6.3
 	github.com/smartystreets/goconvey v1.8.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
 	github.com/xtaci/kcp-go/v5 v5.6.7
 	github.com/xtaci/smux v1.5.24
@@ -56,12 +56,12 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pion/datachannel v1.5.5 // indirect
-	github.com/pion/dtls/v2 v2.2.9 // indirect
+	github.com/pion/dtls/v2 v2.2.10 // indirect
 	github.com/pion/interceptor v0.1.25 // indirect
 	github.com/pion/logging v0.2.2 // indirect
 	github.com/pion/mdns v0.0.12 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/rtcp v1.2.13 // indirect
+	github.com/pion/rtcp v1.2.14 // indirect
 	github.com/pion/rtp v1.8.3 // indirect
 	github.com/pion/sctp v1.8.12 // indirect
 	github.com/pion/srtp/v2 v2.0.18 // indirect
