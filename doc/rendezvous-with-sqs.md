@@ -16,13 +16,12 @@ The machine on which the broker is being run must be equiped with the correct AW
 ## Client
 To run the client with this rendezvous method, use the following CLI flags (they are all required):
 - `sqsqueue` - URL of the SQS queue to use as a proxy for signalling
-- `sqsakid` - AWS Access Key ID of credentials for accessing the SQS queue
-- `sqsskey` - AWS Secrety Key of credentials for accessing the SQS queue
+- `sqscreds` - Encoded credentials for accessing the SQS queue
 
 `sqsqueue` should correspond to the URL of the SQS queue that the broker is listening on. 
 For the example above, the following value can be used:
 
-`-sqsqueue https://sqs.us-east-1.amazonaws.com/893902434899/snowflake-broker -sqsakid some-aws-access-key-id -sqsskey some-aws-secret-key`
+`-sqsqueue https://sqs.us-east-1.amazonaws.com/893902434899/snowflake-broker -sqscreds some-encoded-sqs-creds`
 
 *Public access to SQS queues is not allowed, so there needs to be some form of authentication to be able to access the queue. Limited permission credentials will be provided by the Snowflake team to access the corresponding SQS queue.*
 
