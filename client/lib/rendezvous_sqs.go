@@ -19,12 +19,11 @@ import (
 )
 
 type sqsRendezvous struct {
-	transport   http.RoundTripper
-	sqsClientID string
-	sqsClient   sqsclient.SQSClient
-	sqsURL      *url.URL
-	timeout     time.Duration
-	numRetries  int
+	transport  http.RoundTripper
+	sqsClient  sqsclient.SQSClient
+	sqsURL     *url.URL
+	timeout    time.Duration
+	numRetries int
 }
 
 func newSQSRendezvous(sqsQueue string, sqsAccessKeyId string, sqsSecretKey string, transport http.RoundTripper) (*sqsRendezvous, error) {
@@ -32,13 +31,6 @@ func newSQSRendezvous(sqsQueue string, sqsAccessKeyId string, sqsSecretKey strin
 	if err != nil {
 		return nil, err
 	}
-
-	var id [8]byte
-	_, err = rand.Read(id[:])
-	if err != nil {
-		log.Fatal(err)
-	}
-	clientID := hex.EncodeToString(id[:])
 
 	queueURL := sqsURL.String()
 	hostName := sqsURL.Hostname()
@@ -61,26 +53,32 @@ func newSQSRendezvous(sqsQueue string, sqsAccessKeyId string, sqsSecretKey strin
 	client := sqs.NewFromConfig(cfg)
 
 	log.Println("Queue URL: ", queueURL)
-	log.Println("SQS Client ID: ", clientID)
 
 	return &sqsRendezvous{
-		transport:   transport,
-		sqsClientID: clientID,
-		sqsClient:   client,
-		sqsURL:      sqsURL,
-		timeout:     time.Second,
-		numRetries:  5,
+		transport:  transport,
+		sqsClient:  client,
+		sqsURL:     sqsURL,
+		timeout:    time.Second,
+		numRetries: 5,
 	}, nil
 }
 
 func (r *sqsRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 	log.Println("Negotiating via SQS Queue rendezvous...")
 
-	_, err := r.sqsClient.SendMessage(context.TODO(), &sqs.SendMessageInput{
+	var id [8]byte
+	_, err := rand.Read(id[:])
+	if err != nil {
+		return nil, err
+	}
+	sqsClientID := hex.EncodeToString(id[:])
+	log.Println("SQS Client ID for rendezvous: " + sqsClientID)
+
+	_, err = r.sqsClient.SendMessage(context.TODO(), &sqs.SendMessageInput{
 		MessageAttributes: map[string]types.MessageAttributeValue{
 			"ClientID": {
 				DataType:    aws.String("String"),
-				StringValue: aws.String(r.sqsClientID),
+				StringValue: aws.String(sqsClientID),
 			},
 		},
 		MessageBody: aws.String(string(encPollReq)),
@@ -98,7 +96,7 @@ func (r *sqsRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 		// may not be created yet. We will retry up to 5 times before we error out.
 		var res *sqs.GetQueueUrlOutput
 		res, err = r.sqsClient.GetQueueUrl(context.TODO(), &sqs.GetQueueUrlInput{
-			QueueName: aws.String("snowflake-client-" + r.sqsClientID),
+			QueueName: aws.String("snowflake-client-" + sqsClientID),
 		})
 		if err != nil {
 			log.Println(err)
