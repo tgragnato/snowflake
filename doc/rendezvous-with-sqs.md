@@ -36,7 +36,7 @@ For the example above, the following value can be used:
 1. On startup, the **broker** ensures that an SQS queue with the name of the `broker-sqs-name` parameter exists. It will create such a queue if it doesn’t exist. Afterwards, it will enter a loop of continuously:
     - polling for new messages
     - cleaning up client queues
-2. **Client** sends SDP Offer to the SQS queue at the URL provided by the `sqsqueue` parameter using a message with a unique ID corresponding to the client along with the contents of the SDP Offer
+2. **Client** sends SDP Offer to the SQS queue at the URL provided by the `sqsqueue` parameter using a message with a unique ID (clientID) corresponding to the client along with the contents of the SDP Offer. The client will randomly generate a new ClientID to use each rendezvous attempt.
 3. The **broker** will receive this message during its polling and process it.
     -  A client SQS queue with the name `"snowflake-client" + clientID` will be created for the broker to send messages to the client. This is needed because if a queue shared between all clients was used for outgoing messages from the server, then clients would have to pick off the top message, check if it is addressed to them, and then process the message if it is. This means clients would possibly have to check many messages before they find the one addressed to them.
     - When the broker has a response for the client, it will send a message to the client queue with the details of the SDP answer.
