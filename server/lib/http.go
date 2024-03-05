@@ -3,6 +3,7 @@ package snowflake_server
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -15,10 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/tgragnato/snowflake/common/encapsulation"
 	"github.com/tgragnato/snowflake/common/turbotunnel"
-	"github.com/tgragnato/snowflake/common/websocketconn"
+	"nhooyr.io/websocket"
 )
 
 const requestTimeout = 10 * time.Second
@@ -38,10 +38,6 @@ const clientIDAddrMapCapacity = 98304
 // How long to wait for ListenAndServe or ListenAndServeTLS to return an error
 // before deciding that it's not going to return.
 const listenAndServeErrorTimeout = 100 * time.Millisecond
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
 
 // clientIDAddrMap stores short-term mappings from ClientIDs to IP addresses.
 // When we call pt.DialOr, tor wants us to provide a USERADDR string that
@@ -95,14 +91,14 @@ func (handler *httpHandler) lookupPacketConn(clientID turbotunnel.ClientID) *tur
 }
 
 func (handler *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+	defer ws.CloseNow()
 
-	conn := websocketconn.New(ws)
-	defer conn.Close()
+	conn := websocket.NetConn(context.Background(), ws, websocket.MessageBinary)
 
 	// Pass the address of client as the remote address of incoming connection
 	clientIPParam := r.URL.Query().Get("client_ip")

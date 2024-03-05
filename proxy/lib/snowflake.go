@@ -42,7 +42,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/pion/ice/v2"
 	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
@@ -51,7 +50,7 @@ import (
 	"github.com/tgragnato/snowflake/common/namematcher"
 	"github.com/tgragnato/snowflake/common/task"
 	"github.com/tgragnato/snowflake/common/util"
-	"github.com/tgragnato/snowflake/common/websocketconn"
+	"nhooyr.io/websocket"
 )
 
 const (
@@ -373,13 +372,13 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 		log.Printf("no remote address given in websocket")
 	}
 
-	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	ws, _, err := websocket.Dial(context.Background(), u.String(), &websocket.DialOptions{})
 	if err != nil {
 		log.Printf("error dialing relay: %s = %s", u.String(), err)
 		return
 	}
 
-	wsConn := websocketconn.New(ws)
+	wsConn := websocket.NetConn(context.Background(), ws, websocket.MessageBinary)
 	log.Printf("Connected to relay: %v", relayURL)
 	defer wsConn.Close()
 	copyLoop(conn, wsConn, sf.shutdown)

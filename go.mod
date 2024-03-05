@@ -8,7 +8,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.1
 	github.com/golang/mock v1.6.0
-	github.com/gorilla/websocket v1.5.1
 	github.com/miekg/dns v1.1.58
 	github.com/pion/ice/v2 v2.3.14
 	github.com/pion/sdp/v3 v3.0.6
@@ -29,6 +28,7 @@ require (
 	golang.org/x/net v0.22.0
 	golang.org/x/sys v0.18.0
 	google.golang.org/protobuf v1.32.0
+	nhooyr.io/websocket v1.8.10
 )
 
 require (
