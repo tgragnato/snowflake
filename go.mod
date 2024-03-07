@@ -17,7 +17,7 @@ require (
 	github.com/pion/webrtc/v3 v3.2.24
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/refraction-networking/utls v1.6.2
+	github.com/refraction-networking/utls v1.6.3
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.8.4
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
