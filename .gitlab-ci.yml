@@ -171,6 +171,9 @@ shadow-integration:
     paths:
       - shadow.data.tar.gz
     when: on_failure
+  tags:
+    - amd64
+    - tpa
   script:
     - apt-get update
     - apt-get install -y git tor
