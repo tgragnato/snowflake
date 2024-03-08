@@ -279,13 +279,14 @@ func TestAMPCacheRendezvous(t *testing.T) {
 
 func TestSQSRendezvous(t *testing.T) {
 	Convey("SQS Rendezvous", t, func() {
+		var sendMessageInput *sqs.SendMessageInput
+		var getQueueUrlInput *sqs.GetQueueUrlInput
 
 		Convey("Construct SQS queue rendezvous", func() {
 			transport := &mockTransport{http.StatusOK, []byte{}}
 			rend, err := newSQSRendezvous("https://sqs.us-east-1.amazonaws.com", "some-access-key-id", "some-secret-key", transport)
 
 			So(err, ShouldBeNil)
-			So(rend.sqsClientID, ShouldNotBeNil)
 			So(rend.sqsClient, ShouldNotBeNil)
 			So(rend.sqsURL, ShouldNotBeNil)
 			So(rend.sqsURL.String(), ShouldResemble, "https://sqs.us-east-1.amazonaws.com")
@@ -294,37 +295,32 @@ func TestSQSRendezvous(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockSqsClient := sqsclient.NewMockSQSClient(ctrl)
 		responseQueueURL := "https://sqs.us-east-1.amazonaws.com/testing"
-		sqsClientID := "test123"
 		sqsUrl, _ := url.Parse("https://sqs.us-east-1.amazonaws.com/broker")
 		fakeEncPollResp := makeEncPollResp(
 			`{"answer": "{\"type\":\"answer\",\"sdp\":\"fake\"}" }`,
 			"",
 		)
 		sqsRendezvous := sqsRendezvous{
-			transport:   &mockTransport{http.StatusOK, []byte{}},
-			sqsClientID: sqsClientID,
-			sqsClient:   mockSqsClient,
-			sqsURL:      sqsUrl,
-			timeout:     0,
-			numRetries:  5,
+			transport:  &mockTransport{http.StatusOK, []byte{}},
+			sqsClient:  mockSqsClient,
+			sqsURL:     sqsUrl,
+			timeout:    0,
+			numRetries: 5,
 		}
 
 		Convey("sqsRendezvous.Exchange responds with answer", func() {
-			mockSqsClient.EXPECT().SendMessage(gomock.Any(), &sqs.SendMessageInput{
-				MessageAttributes: map[string]types.MessageAttributeValue{
-					"ClientID": {
-						DataType:    aws.String("String"),
-						StringValue: aws.String(sqsClientID),
-					},
-				},
-				MessageBody: aws.String(string(fakeEncPollResp)),
-				QueueUrl:    aws.String(sqsUrl.String()),
+			sqsClientId := ""
+			mockSqsClient.EXPECT().SendMessage(gomock.Any(), gomock.AssignableToTypeOf(sendMessageInput)).Do(func(ctx interface{}, input *sqs.SendMessageInput, optFns ...interface{}) {
+				So(*input.MessageBody, ShouldEqual, string(fakeEncPollResp))
+				So(*input.QueueUrl, ShouldEqual, sqsUrl.String())
+				sqsClientId = *input.MessageAttributes["ClientID"].StringValue
 			})
-			mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), &sqs.GetQueueUrlInput{
-				QueueName: aws.String("snowflake-client-" + sqsClientID),
-			}).Return(&sqs.GetQueueUrlOutput{
-				QueueUrl: aws.String(responseQueueURL),
-			}, nil)
+			mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), gomock.AssignableToTypeOf(getQueueUrlInput)).DoAndReturn(func(ctx interface{}, input *sqs.GetQueueUrlInput, optFns ...interface{}) (*sqs.GetQueueUrlOutput, error) {
+				So(*input.QueueName, ShouldEqual, "snowflake-client-"+sqsClientId)
+				return &sqs.GetQueueUrlOutput{
+					QueueUrl: aws.String(responseQueueURL),
+				}, nil
+			})
 			mockSqsClient.EXPECT().ReceiveMessage(gomock.Any(), gomock.Eq(&sqs.ReceiveMessageInput{
 				QueueUrl:            &responseQueueURL,
 				MaxNumberOfMessages: 1,
@@ -340,20 +336,17 @@ func TestSQSRendezvous(t *testing.T) {
 		})
 
 		Convey("sqsRendezvous.Exchange cannot get queue url", func() {
-			mockSqsClient.EXPECT().SendMessage(gomock.Any(), &sqs.SendMessageInput{
-				MessageAttributes: map[string]types.MessageAttributeValue{
-					"ClientID": {
-						DataType:    aws.String("String"),
-						StringValue: aws.String(sqsClientID),
-					},
-				},
-				MessageBody: aws.String(string(fakeEncPollResp)),
-				QueueUrl:    aws.String(sqsUrl.String()),
+			sqsClientId := ""
+			mockSqsClient.EXPECT().SendMessage(gomock.Any(), gomock.AssignableToTypeOf(sendMessageInput)).Do(func(ctx interface{}, input *sqs.SendMessageInput, optFns ...interface{}) {
+				So(*input.MessageBody, ShouldEqual, string(fakeEncPollResp))
+				So(*input.QueueUrl, ShouldEqual, sqsUrl.String())
+				sqsClientId = *input.MessageAttributes["ClientID"].StringValue
 			})
 			for i := 0; i < sqsRendezvous.numRetries; i++ {
-				mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), &sqs.GetQueueUrlInput{
-					QueueName: aws.String("snowflake-client-" + sqsClientID),
-				}).Return(nil, errors.New("test error"))
+				mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), gomock.AssignableToTypeOf(getQueueUrlInput)).DoAndReturn(func(ctx interface{}, input *sqs.GetQueueUrlInput, optFns ...interface{}) (*sqs.GetQueueUrlOutput, error) {
+					So(*input.QueueName, ShouldEqual, "snowflake-client-"+sqsClientId)
+					return nil, errors.New("test error")
+				})
 			}
 
 			answer, err := sqsRendezvous.Exchange(fakeEncPollResp)
@@ -364,21 +357,18 @@ func TestSQSRendezvous(t *testing.T) {
 		})
 
 		Convey("sqsRendezvous.Exchange does not receive answer", func() {
-			mockSqsClient.EXPECT().SendMessage(gomock.Any(), &sqs.SendMessageInput{
-				MessageAttributes: map[string]types.MessageAttributeValue{
-					"ClientID": {
-						DataType:    aws.String("String"),
-						StringValue: aws.String(sqsClientID),
-					},
-				},
-				MessageBody: aws.String(string(fakeEncPollResp)),
-				QueueUrl:    aws.String(sqsUrl.String()),
+			sqsClientId := ""
+			mockSqsClient.EXPECT().SendMessage(gomock.Any(), gomock.AssignableToTypeOf(sendMessageInput)).Do(func(ctx interface{}, input *sqs.SendMessageInput, optFns ...interface{}) {
+				So(*input.MessageBody, ShouldEqual, string(fakeEncPollResp))
+				So(*input.QueueUrl, ShouldEqual, sqsUrl.String())
+				sqsClientId = *input.MessageAttributes["ClientID"].StringValue
 			})
-			mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), &sqs.GetQueueUrlInput{
-				QueueName: aws.String("snowflake-client-" + sqsClientID),
-			}).Return(&sqs.GetQueueUrlOutput{
-				QueueUrl: aws.String(responseQueueURL),
-			}, nil)
+			mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), gomock.AssignableToTypeOf(getQueueUrlInput)).DoAndReturn(func(ctx interface{}, input *sqs.GetQueueUrlInput, optFns ...interface{}) (*sqs.GetQueueUrlOutput, error) {
+				So(*input.QueueName, ShouldEqual, "snowflake-client-"+sqsClientId)
+				return &sqs.GetQueueUrlOutput{
+					QueueUrl: aws.String(responseQueueURL),
+				}, nil
+			})
 			for i := 0; i < sqsRendezvous.numRetries; i++ {
 				mockSqsClient.EXPECT().ReceiveMessage(gomock.Any(), gomock.Eq(&sqs.ReceiveMessageInput{
 					QueueUrl:            &responseQueueURL,
