@@ -237,7 +237,7 @@ shadow-integration:
 
     # Check to make sure streams succeeded
     - |
-      if [ $(grep -c "stream-success" shadow.data/hosts/snowflakeclient/tgen.1006.stdout) = 10 ]
+      if [ $(grep -c "stream-success" shadow.data/hosts/snowflakeclient/tgen.*.stdout) = 10 ]
       then
         echo "All streams in shadow completed successfully"
       else
