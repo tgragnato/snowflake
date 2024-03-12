@@ -16,7 +16,8 @@ require (
 	github.com/pion/transport/v2 v2.2.4
 	github.com/pion/webrtc/v3 v3.2.29
 	github.com/prometheus/client_golang v1.18.0
-	github.com/prometheus/client_model v0.5.0
+	github.com/prometheus/client_model v0.6.0
+	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.6.3
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.9.0
@@ -72,7 +73,6 @@ require (
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/quic-go/quic-go v0.40.1 // indirect
-	github.com/realclientip/realclientip-go v1.0.0 // indirect
 	github.com/smarty/assertions v1.15.0 // indirect
 	github.com/templexxx/cpu v0.1.0 // indirect
 	github.com/templexxx/xorsimd v0.4.2 // indirect
