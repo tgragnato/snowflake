@@ -157,8 +157,11 @@ client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
 client-http-count 8
+client-http-ips ??=8
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
+client-sqs-ips 
 `)
 			})
 
@@ -184,8 +187,11 @@ client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
 client-http-count 8
+client-http-ips ??=8
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
+client-sqs-ips 
 `)
 			})
 
@@ -260,8 +266,11 @@ client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
 client-http-count 8
+client-http-ips ??=8
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
+client-sqs-ips 
 `)
 			})
 
@@ -287,8 +296,11 @@ client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
 client-http-count 8
+client-http-ips ??=8
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
+client-sqs-ips 
 `)
 			})
 
@@ -340,8 +352,11 @@ client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
 client-http-count 0
+client-http-ips 
 client-ampcache-count 8
+client-ampcache-ips ??=8
 client-sqs-count 0
+client-sqs-ips 
 `)
 			})
 
@@ -369,8 +384,11 @@ client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
 client-http-count 0
+client-http-ips 
 client-ampcache-count 8
+client-ampcache-ips ??=8
 client-sqs-count 0
+client-sqs-ips 
 `)
 			})
 
@@ -728,8 +746,11 @@ client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
 client-http-count 0
+client-http-ips 
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
+client-sqs-ips 
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 1
@@ -742,6 +763,7 @@ snowflake-ips-nat-unknown 1
 			data, err := createClientOffer(sdp, NATUnknown, "")
 			So(err, ShouldBeNil)
 			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
+			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
 
 			clientOffers(i, w, r)
@@ -752,9 +774,11 @@ client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
 client-http-count 8
+client-http-ips CA=8
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
-`)
+client-sqs-ips `)
 
 			// Test reset
 			buf.Reset()
@@ -774,8 +798,11 @@ client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
 client-http-count 0
+client-http-ips 
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 0
+client-sqs-ips 
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 0

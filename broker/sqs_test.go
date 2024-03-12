@@ -195,8 +195,11 @@ client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
 client-http-count 0
+client-http-ips 
 client-ampcache-count 0
+client-ampcache-ips 
 client-sqs-count 8
+client-sqs-ips ??=8
 `)
 								wg.Done()
 							}
