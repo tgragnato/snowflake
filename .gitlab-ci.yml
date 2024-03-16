@@ -280,10 +280,13 @@ release-job:
       links:
         - name: '${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.tar.gz'
           url: '${CI_PROJECT_URL}/-/jobs/${TAR_JOB_ID}/artifacts/file/${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.tar.gz'
- 
+
+# Build the container only if the commit is to main, or it is a tag.
+# If the commit is to main, then the docker image tag should be set to `latest`.
+# If it is a tag, then the docker image tag should be set to the tag name.
 build-container:
   variables:
-    TAG: latest
+    TAG: $CI_COMMIT_TAG # Will not be set on a non-tag build, will be set later 
   stage: container-build
   parallel:
     matrix:
@@ -296,16 +299,20 @@ build-container:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
-    - if [ -n "$CI_COMMIT_TAG" ]; then TAG="$CI_COMMIT_TAG"; fi
+    - if [ $CI_COMMIT_REF_NAME == "main" ]; then export TAG='latest'; fi
     - >-
+      echo "Building Docker image with tag: $TAG"
       /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
       --destination "${CI_REGISTRY_IMAGE}:${TAG}_${ARCH}"
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_COMMIT_TAG
 
 merge-manifests:
   variables:
-    TAG: latest
+    TAG: $CI_COMMIT_TAG
   stage: container-build
   needs:
     - job: build-container
@@ -314,7 +321,7 @@ merge-manifests:
       name: mplatform/manifest-tool:alpine
       entrypoint: [""]
   script:
-    - if [ -n "$CI_COMMIT_TAG" ]; then export TAG="$CI_COMMIT_TAG"; fi
+    - if [ $CI_COMMIT_REF_NAME == "main" ]; then export TAG='latest'; fi
     - >-
       manifest-tool
       --username="${CI_REGISTRY_USER}"
@@ -323,3 +330,44 @@ merge-manifests:
       --platforms linux/amd64,linux/arm64,linux/s390x
       --template "${CI_REGISTRY_IMAGE}:${TAG}_ARCH"
       --target "${CI_REGISTRY_IMAGE}:${TAG}"
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "main"
+      when: always
+    - if: $CI_COMMIT_TAG
+      when: always
+
+# If this is a tag, then we want to additionally tag the image as `stable`
+tag-container-release:
+  stage: container-build
+  image: quay.io/podman/stable
+  allow_failure: false
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    RELEASE_TAG: $CI_REGISTRY_IMAGE:stable
+  script:
+    - echo "Tagging docker image with stable tag"
+    - echo -n "$CI_JOB_TOKEN" | podman login -u gitlab-ci-token --password-stdin $CI_REGISTRY
+    - podman pull $IMAGE_TAG || true
+    - podman tag $IMAGE_TAG $RELEASE_TAG
+    - podman push $RELEASE_TAG
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+
+clean-image-tags:
+  stage: container-build
+  needs:
+    - job: merge-manifests
+      artifacts: false
+  image: containers.torproject.org/tpo/tpa/base-images:bookworm
+  before_script:
+    - *apt-template
+    - apt-get install -y jq curl
+  script:
+    - "REGISTRY_ID=$(curl --silent --request GET --header \"JOB-TOKEN: ${CI_JOB_TOKEN}\" \"https://gitlab.torproject.org/api/v4/projects/${CI_PROJECT_ID}/registry/repositories\" | jq '.[].id')"
+    - "curl --request DELETE --data \"name_regex_delete=(latest|${CI_COMMIT_TAG})_.*\" --header \"JOB-TOKEN: ${CI_JOB_TOKEN}\" \"https://gitlab.torproject.org/api/v4/projects/${CI_PROJECT_ID}/registry/repositories/${REGISTRY_ID}/tags\""
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "main"
+      when: always
+    - if: $CI_COMMIT_TAG
+      when: always
