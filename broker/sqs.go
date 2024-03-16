@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/tgragnato/snowflake/common/messages"
 	"github.com/tgragnato/snowflake/common/sqsclient"
+	"github.com/tgragnato/snowflake/common/util"
 )
 
 const (

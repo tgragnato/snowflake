@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	sqscreds "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/sqscreds/lib"
+	sqscreds "github.com/tgragnato/snowflake/common/sqscreds/lib"
 )
 
 // This script can be run to generate the encoded SQS credentials to pass as a CLI param or SOCKS option to the client

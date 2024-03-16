@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/tgragnato/snowflake/common/messages"
+	"github.com/tgragnato/snowflake/common/util"
 )
 
 const (
