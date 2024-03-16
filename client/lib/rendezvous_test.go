@@ -284,7 +284,7 @@ func TestSQSRendezvous(t *testing.T) {
 
 		Convey("Construct SQS queue rendezvous", func() {
 			transport := &mockTransport{http.StatusOK, []byte{}}
-			rend, err := newSQSRendezvous("https://sqs.us-east-1.amazonaws.com", "some-access-key-id", "some-secret-key", transport)
+			rend, err := newSQSRendezvous("https://sqs.us-east-1.amazonaws.com", "eyJhd3MtYWNjZXNzLWtleS1pZCI6InRlc3QtYWNjZXNzLWtleSIsImF3cy1zZWNyZXQta2V5IjoidGVzdC1zZWNyZXQta2V5In0=", transport)
 
 			So(err, ShouldBeNil)
 			So(rend.sqsClient, ShouldNotBeNil)

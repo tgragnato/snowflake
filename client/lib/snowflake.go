@@ -90,9 +90,8 @@ type ClientConfig struct {
 	// SQSQueueURL is the full URL of an AWS SQS Queue. A nonzero value indicates
 	// that SQS queue will be used as the rendezvous method with the broker.
 	SQSQueueURL string
-	// Access Key ID and Secret Key of the credentials used to access the AWS SQS Qeueue
-	SQSAccessKeyID string
-	SQSSecretKey   string
+	// Base64 encoded string of the credentials containing access Key ID and secret key used to access the AWS SQS Qeueue
+	SQSCredsStr string
 	// FrontDomain is the full URL of an optional front domain that can be used with either
 	// the AMP cache or HTTP domain fronting rendezvous method.
 	FrontDomain string

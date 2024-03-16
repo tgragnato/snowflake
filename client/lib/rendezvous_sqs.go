@@ -26,8 +26,13 @@ type sqsRendezvous struct {
 	numRetries int
 }
 
-func newSQSRendezvous(sqsQueue string, sqsAccessKeyId string, sqsSecretKey string, transport http.RoundTripper) (*sqsRendezvous, error) {
+func newSQSRendezvous(sqsQueue string, sqsCredsStr string, transport http.RoundTripper) (*sqsRendezvous, error) {
 	sqsURL, err := url.Parse(sqsQueue)
+	if err != nil {
+		return nil, err
+	}
+
+	sqsCreds, err := sqscreds.AwsCredsFromBase64(sqsCredsStr)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +48,7 @@ func newSQSRendezvous(sqsQueue string, sqsAccessKeyId string, sqsSecretKey strin
 	region := res[1]
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(sqsAccessKeyId, sqsSecretKey, ""),
+			credentials.NewStaticCredentialsProvider(sqsCreds.AwsAccessKeyId, sqsCreds.AwsSecretKey, ""),
 		),
 		config.WithRegion(region),
 	)

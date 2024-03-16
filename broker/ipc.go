@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"net"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -100,7 +99,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	}
 
 	// Log geoip stats
-	remoteIP, _, err := net.SplitHostPort(arg.RemoteAddr)
+	remoteIP := arg.RemoteAddr
 	if err != nil {
 		log.Println("Warning: cannot process proxy IP: ", err.Error())
 	} else {
@@ -195,13 +194,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		snowflake.offerChannel <- offer
 	} else {
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientDeniedCount[arg.RendezvousMethod]++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "denied", "rendezvous_method": string(arg.RendezvousMethod)}).Inc()
-		if offer.natType == NATUnrestricted {
-			i.ctx.metrics.clientUnrestrictedDeniedCount[arg.RendezvousMethod]++
-		} else {
-			i.ctx.metrics.clientRestrictedDeniedCount[arg.RendezvousMethod]++
-		}
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, false)
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
@@ -211,8 +204,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	select {
 	case answer := <-snowflake.answerChannel:
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientProxyMatchCount[arg.RendezvousMethod]++
-		i.ctx.metrics.promMetrics.ClientPollTotal.With(prometheus.Labels{"nat": offer.natType, "status": "matched", "rendezvous_method": string(arg.RendezvousMethod)}).Inc()
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, true)
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)

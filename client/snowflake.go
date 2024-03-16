@@ -83,11 +83,8 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			if arg, ok := conn.Req.Args.Get("sqsqueue"); ok {
 				config.SQSQueueURL = arg
 			}
-			if arg, ok := conn.Req.Args.Get("sqsakid"); ok {
-				config.SQSAccessKeyID = arg
-			}
-			if arg, ok := conn.Req.Args.Get("sqsskey"); ok {
-				config.SQSSecretKey = arg
+			if arg, ok := conn.Req.Args.Get("sqscreds"); ok {
+				config.SQSCredsStr = arg
 			}
 			if arg, ok := conn.Req.Args.Get("fronts"); ok {
 				if arg != "" {
@@ -167,8 +164,7 @@ func main() {
 	frontDomainsCommas := flag.String("fronts", "", "comma-separated list of front domains")
 	ampCacheURL := flag.String("ampcache", "", "URL of AMP cache to use as a proxy for signaling")
 	sqsQueueURL := flag.String("sqsqueue", "", "URL of SQS Queue to use as a proxy for signaling")
-	sqsAccessKeyId := flag.String("sqsakid", "", "Access Key ID for credentials to access SQS Queue ")
-	sqsSecretKey := flag.String("sqsskey", "", "Secret Key for credentials to access SQS Queue")
+	sqsCredsStr := flag.String("sqscreds", "", "credentials to access SQS Queue")
 	logFilename := flag.String("log", "", "name of log file")
 	logToStateDir := flag.Bool("log-to-state-dir", false, "resolve the log file relative to tor's pt state dir")
 	keepLocalAddresses := flag.Bool("keep-local-addresses", false, "keep local LAN address ICE candidates")
@@ -237,8 +233,7 @@ func main() {
 		BrokerURL:          *brokerURL,
 		AmpCacheURL:        *ampCacheURL,
 		SQSQueueURL:        *sqsQueueURL,
-		SQSAccessKeyID:     *sqsAccessKeyId,
-		SQSSecretKey:       *sqsSecretKey,
+		SQSCredsStr:        *sqsCredsStr,
 		FrontDomains:       frontDomains,
 		ICEAddresses:       iceAddresses,
 		KeepLocalAddresses: *keepLocalAddresses || *oldKeepLocalAddresses,

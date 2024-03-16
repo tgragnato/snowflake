@@ -95,11 +95,11 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 		if config.AmpCacheURL != "" || config.BrokerURL != "" {
 			log.Fatalln("Multiple rendezvous methods specified. " + rendezvousErrorMsg)
 		}
-		if config.SQSAccessKeyID == "" || config.SQSSecretKey == "" {
-			log.Fatalln("sqsakid and sqsskey must be specified to use SQS rendezvous method.")
+		if config.SQSCredsStr == "" {
+			log.Fatalln("sqscreds must be specified to use SQS rendezvous method.")
 		}
 		log.Println("Through SQS queue at:", config.SQSQueueURL)
-		rendezvous, err = newSQSRendezvous(config.SQSQueueURL, config.SQSAccessKeyID, config.SQSSecretKey, brokerTransport)
+		rendezvous, err = newSQSRendezvous(config.SQSQueueURL, config.SQSCredsStr, brokerTransport)
 	} else if config.AmpCacheURL != "" && config.BrokerURL != "" {
 		log.Println("Through AMP cache at:", config.AmpCacheURL)
 		rendezvous, err = newAMPCacheRendezvous(
