@@ -1,3 +1,12 @@
+Changes in version v2.9.2 - 2024-03-18
+- Issue 40288: Add integration testing with Shadow
+- Issue 40345: Automatically build and push containers to our registry
+- Issue 40339: Fix client ID reuse bug in SQS rendezvous
+- Issue 40341: Modify SQS rendezvous arguments to use b64 encoded parameters
+- Issue 40330: Add new metrics at the broker for per-country rendezvous stats
+- Issue 40345: Update docker container tags
+- Bump versions of dependencies
+
 Changes in version v2.9.1 - 2024-02-27
 - Issue 40335: Fix release job
 - Change deprecated io/ioutil package to io package
