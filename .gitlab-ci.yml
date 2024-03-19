@@ -339,6 +339,9 @@ merge-manifests:
 # If this is a tag, then we want to additionally tag the image as `stable`
 tag-container-release:
   stage: container-build
+  needs:
+    - job: merge-manifests
+      artifacts: false
   image: quay.io/podman/stable
   allow_failure: false
   variables:
