@@ -150,7 +150,7 @@ func (handler *httpHandler) turbotunnelMode(conn net.Conn, addr net.Addr) error 
 		return fmt.Errorf("reading ClientID: %v", err)
 	}
 
-	// Store a a short-term mapping from the ClientID to the client IP
+	// Store a short-term mapping from the ClientID to the client IP
 	// address attached to this WebSocket connection. tor will want us to
 	// provide a client IP address when we call pt.DialOr. But a KCP session
 	// does not necessarily correspond to any single IP address--it's
