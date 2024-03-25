@@ -71,7 +71,7 @@ require (
 	github.com/pion/turn/v2 v2.1.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/common v0.51.0 // indirect
+	github.com/prometheus/common v0.51.1 // indirect
 	github.com/prometheus/procfs v0.13.0 // indirect
 	github.com/quic-go/quic-go v0.42.0 // indirect
 	github.com/smarty/assertions v1.15.1 // indirect
