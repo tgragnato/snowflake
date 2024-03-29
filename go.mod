@@ -10,7 +10,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.58
 	github.com/pion/ice/v2 v2.3.14
-	github.com/pion/sdp/v3 v3.0.8
+	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v2 v2.2.4
 	github.com/pion/webrtc/v3 v3.2.29
