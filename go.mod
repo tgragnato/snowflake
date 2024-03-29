@@ -13,7 +13,7 @@ require (
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v2 v2.2.4
-	github.com/pion/webrtc/v3 v3.2.29
+	github.com/pion/webrtc/v3 v3.2.31
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.6.0
 	github.com/realclientip/realclientip-go v1.0.0
@@ -63,7 +63,7 @@ require (
 	github.com/pion/mdns v0.0.12 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.14 // indirect
-	github.com/pion/rtp v1.8.4 // indirect
+	github.com/pion/rtp v1.8.5 // indirect
 	github.com/pion/sctp v1.8.13 // indirect
 	github.com/pion/srtp/v2 v2.0.18 // indirect
 	github.com/pion/stun v0.6.1 // indirect
