@@ -190,11 +190,11 @@ func ciphersOpenSSL(cfg *dtls.Config) string {
 }
 
 func writeTempPEM(cfg *dtls.Config) (string, string, error) {
-	certOut, err := io.TempFile("", "cert.pem")
+	certOut, err := os.CreateTemp("", "cert.pem")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
-	keyOut, err := io.TempFile("", "key.pem")
+	keyOut, err := os.CreateTemp("", "key.pem")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
