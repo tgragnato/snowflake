@@ -23,8 +23,8 @@ import (
 	"github.com/tgragnato/snowflake/common/safelog"
 	"github.com/tgragnato/snowflake/common/util"
 
-	"github.com/pion/transport/v2/stdnet"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/transport/v3/stdnet"
+	"github.com/pion/webrtc/v4"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -49,7 +49,7 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
-	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
 	// to functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error
 	vnet, _ := stdnet.NewNet()

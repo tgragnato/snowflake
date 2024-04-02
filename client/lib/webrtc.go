@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pion/ice/v2"
-	"github.com/pion/transport/v2"
-	"github.com/pion/transport/v2/stdnet"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/ice/v3"
+	"github.com/pion/transport/v3"
+	"github.com/pion/transport/v3/stdnet"
+	"github.com/pion/webrtc/v4"
 	"github.com/tgragnato/snowflake/common/event"
 	"github.com/tgragnato/snowflake/common/proxy"
 )
@@ -213,7 +213,7 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 	s := webrtc.SettingEngine{}
 	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
-	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error

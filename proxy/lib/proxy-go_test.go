@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/tgragnato/snowflake/common/messages"
 	"github.com/tgragnato/snowflake/common/util"

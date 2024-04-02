@@ -42,9 +42,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pion/ice/v2"
-	"github.com/pion/transport/v2/stdnet"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/ice/v3"
+	"github.com/pion/transport/v3/stdnet"
+	"github.com/pion/webrtc/v4"
 	"github.com/tgragnato/snowflake/common/event"
 	"github.com/tgragnato/snowflake/common/messages"
 	"github.com/tgragnato/snowflake/common/namematcher"
@@ -397,7 +397,7 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
 
-	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error

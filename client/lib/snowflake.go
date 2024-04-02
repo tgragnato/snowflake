@@ -37,7 +37,7 @@ import (
 	"time"
 
 	"github.com/pion/stun/v2"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"github.com/tgragnato/snowflake/common/encapsulation"
 	"github.com/tgragnato/snowflake/common/event"
 	"github.com/tgragnato/snowflake/common/nat"

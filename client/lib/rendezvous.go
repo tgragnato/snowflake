@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	utls "github.com/refraction-networking/utls"
 	"github.com/tgragnato/snowflake/common/certs"
 	"github.com/tgragnato/snowflake/common/event"
