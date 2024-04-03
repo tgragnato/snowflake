@@ -9,13 +9,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.4
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.58
-	github.com/pion/ice/v3 v3.0.4
+	github.com/pion/ice/v3 v3.0.5
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v3 v3.0.2
-	github.com/pion/webrtc/v4 v4.0.0-beta.15
+	github.com/pion/webrtc/v4 v4.0.0-beta.16
 	github.com/prometheus/client_golang v1.19.0
-	github.com/prometheus/client_model v0.6.0
+	github.com/prometheus/client_model v0.6.1
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.6.3
 	github.com/smartystreets/goconvey v1.8.1
@@ -26,7 +26,7 @@ require (
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
 	golang.org/x/crypto v0.21.0
-	golang.org/x/net v0.22.0
+	golang.org/x/net v0.23.0
 	golang.org/x/sys v0.18.0
 	google.golang.org/protobuf v1.33.0
 	nhooyr.io/websocket v1.8.10
@@ -64,12 +64,12 @@ require (
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.14 // indirect
 	github.com/pion/rtp v1.8.5 // indirect
-	github.com/pion/sctp v1.8.13 // indirect
+	github.com/pion/sctp v1.8.14 // indirect
 	github.com/pion/srtp/v3 v3.0.1 // indirect
 	github.com/pion/turn/v3 v3.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/common v0.51.1 // indirect
+	github.com/prometheus/common v0.52.2 // indirect
 	github.com/prometheus/procfs v0.13.0 // indirect
 	github.com/quic-go/quic-go v0.42.0 // indirect
 	github.com/smarty/assertions v1.15.1 // indirect
@@ -77,7 +77,7 @@ require (
 	github.com/templexxx/xorsimd v0.4.2 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20230325130830-408dc5853f86 // indirect
-	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
