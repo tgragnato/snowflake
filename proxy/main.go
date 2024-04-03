@@ -35,6 +35,7 @@ func main() {
 		"the time interval to output summary, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\". ")
 	disableStatsLogger := flag.Bool("disable-stats-logger", false, "disable the exposing mechanism for stats using logs")
 	enableMetrics := flag.Bool("metrics", false, "enable the exposing mechanism for stats using metrics")
+	metricsAddress := flag.String("metrics-address", "localhost", "set listen address for metrics service")
 	metricsPort := flag.Int("metrics-port", 9999, "set port for the metrics service")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
 	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "ICE UDP ephemeral ports range (format:\"<min>:<max>\")")
@@ -133,7 +134,7 @@ func main() {
 	if *enableMetrics {
 		metrics := sf.NewMetrics()
 
-		err := metrics.Start(net.JoinHostPort("localhost", strconv.Itoa(*metricsPort)))
+		err := metrics.Start(net.JoinHostPort(*metricsAddress, strconv.Itoa(*metricsPort)))
 		if err != nil {
 			log.Fatalf("could not enable metrics: %v", err)
 		}
