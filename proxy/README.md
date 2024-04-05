@@ -35,18 +35,28 @@ Usage of ./proxy:
         a pattern to specify allowed hostname pattern for relay URL. (default "snowflake.torproject.net$")
   -broker string
         broker URL (default "https://snowflake-broker.torproject.net/")
+  -disableStatsLogger
+        disable the exposing mechanism for stats using logs
   -ephemeral-ports-range string
         ICE UDP ephemeral ports range (format:"<min>:<max>")
+  -enableMetrics
+        enable the exposing mechanism for stats using metrics at "/internal/metrics"
   -keep-local-addresses
         keep local LAN address ICE candidates
   -log string
         log filename
+  -metricsAddress string
+        set listening address for metrics service by either hostname or ip-address (default localhost)
+  -metricsPort
+        set port for the metrics service (default 9999)
   -nat-retest-interval duration
         the time interval in second before NAT type is retested, 0s disables retest. Valid time units are "s", "m", "h".  (default 24h0m0s)
   -relay string
         websocket relay URL (default "wss://snowflake.torproject.net/")
   -outbound-address string
         bind a specific outbound address. Replace all host candidates with this address without validation. 
+  -probeURL string
+        NAT check probe server URL (default "https://snowflake-broker.torproject.net:8443/probe")
   -stun string
         STUN URL (default "stun:stun.tgragnato.it:3478")
   -summary-interval duration
