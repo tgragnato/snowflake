@@ -13,7 +13,7 @@ require (
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v3 v3.0.2
-	github.com/pion/webrtc/v4 v4.0.0-beta.16
+	github.com/pion/webrtc/v4 v4.0.0-beta.17
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.6.1
 	github.com/realclientip/realclientip-go v1.0.0
@@ -58,7 +58,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pion/datachannel v1.5.6 // indirect
 	github.com/pion/dtls/v2 v2.2.10 // indirect
-	github.com/pion/interceptor v0.1.28 // indirect
+	github.com/pion/interceptor v0.1.29 // indirect
 	github.com/pion/logging v0.2.2 // indirect
 	github.com/pion/mdns/v2 v2.0.7 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
