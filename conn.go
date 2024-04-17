@@ -607,10 +607,6 @@ func (c *Conn) readAndBuffer(ctx context.Context) error {
 			hasHandshake = true
 		}
 
-		var e *alertError
-		if errors.As(err, &e) && e.IsFatalOrCloseNotify() {
-			return e
-		}
 		if err != nil {
 			return err
 		}
@@ -642,10 +638,11 @@ func (c *Conn) handleQueuedPackets(ctx context.Context) error {
 			}
 		}
 		var e *alertError
-		if errors.As(err, &e) && e.IsFatalOrCloseNotify() {
-			return e
-		}
-		if err != nil {
+		if errors.As(err, &e) {
+			if e.IsFatalOrCloseNotify() {
+				return e
+			}
+		} else if err != nil {
 			return err
 		}
 	}
