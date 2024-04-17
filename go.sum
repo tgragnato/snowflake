@@ -94,8 +94,8 @@ github.com/pion/datachannel v1.5.6 h1:1IxKJntfSlYkpUj8LlYRSWpYiTTC02nUrOE8T3DqGe
 github.com/pion/datachannel v1.5.6/go.mod h1:1eKT6Q85pRnr2mHiWHxJwO50SfZRtWHTsNIVb/NfGW4=
 github.com/pion/ice/v3 v3.0.6 h1:UC5vZCMhmve7yv+Y6E5eTnRTl+t9LLtmeBYQ9038Zm8=
 github.com/pion/ice/v3 v3.0.6/go.mod h1:4eMTUKQEjC1fGQGB6qUzy2ux9Pc1v9EsO3hNaii+kXI=
-github.com/pion/interceptor v0.1.28 h1:Ei54N/U3vinRuZFf6kpGCigOXbP74/PorWKOyQiI4G4=
-github.com/pion/interceptor v0.1.28/go.mod h1:ri+LGNjRUc5xUNtDEPzfdkmSqISixVTBF/z/Zms/6T4=
+github.com/pion/interceptor v0.1.29 h1:39fsnlP1U8gw2JzOFWdfCU82vHvhW9o0rZnZF56wF+M=
+github.com/pion/interceptor v0.1.29/go.mod h1:ri+LGNjRUc5xUNtDEPzfdkmSqISixVTBF/z/Zms/6T4=
 github.com/pion/logging v0.2.2 h1:M9+AIj/+pxNsDfAT64+MAVgJO0rsyLnoJKCqf//DoeY=
 github.com/pion/logging v0.2.2/go.mod h1:k0/tDVsRCX2Mb2ZEmTqNa7CWsQPc+YYCB7Q+5pahoms=
 github.com/pion/mdns/v2 v2.0.7 h1:c9kM8ewCgjslaAmicYMFQIde2H9/lrZpjBkN8VwoVtM=
@@ -122,8 +122,8 @@ github.com/pion/transport/v3 v3.0.2 h1:r+40RJR25S9w3jbA6/5uEPTzcdn7ncyU44RWCbHkL
 github.com/pion/transport/v3 v3.0.2/go.mod h1:nIToODoOlb5If2jF9y2Igfx3PFYWfuXi37m0IlWa/D0=
 github.com/pion/turn/v3 v3.0.2 h1:iBonAIIKRwkVUJBFiFd/kSjytP7FlX0HwCyBDJPRDdU=
 github.com/pion/turn/v3 v3.0.2/go.mod h1:vw0Dz420q7VYAF3J4wJKzReLHIo2LGp4ev8nXQexYsc=
-github.com/pion/webrtc/v4 v4.0.0-beta.16 h1:FYzly1p5k0Jzi9ZDWlEaPeqXq8qqc9T5afToLVJf8YQ=
-github.com/pion/webrtc/v4 v4.0.0-beta.16/go.mod h1:75pRrJRrcwTuIkO/2zkzh4/pEzy3xkZVrS6+0C/0CCA=
+github.com/pion/webrtc/v4 v4.0.0-beta.17 h1:KdAbozM+lQ3Dz1NJ0JATRDQ4W02WUhWwIkvjyBRODL0=
+github.com/pion/webrtc/v4 v4.0.0-beta.17/go.mod h1:I/Z0MFtc6Ok7mN7kZmA1xqU7KA9ycZZx/6eXz5+yD+4=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
