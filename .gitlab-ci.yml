@@ -54,7 +54,6 @@ variables:
         golang-golang-x-sys-dev
         golang-golang-x-text-dev
         golang-golang-x-xerrors-dev
-        lbzip2
 
 # use Go installed as part of the official, Debian-based Docker images
 .golang-docker-debian-template: &golang-docker-debian-template
@@ -63,7 +62,6 @@ variables:
     - apt-get -qy install --no-install-recommends
         ca-certificates
         git
-        lbzip2
 
 .go-test: &go-test
   - gofmt -d .
@@ -115,7 +113,6 @@ android:
         unzip
         wget
         ca-certificates
-        lbzip2
 
     - ndk=android-ndk-r21e-linux-x86_64.zip
     - wget --continue --no-verbose https://dl.google.com/android/repository/$ndk
