@@ -3200,7 +3200,7 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 		cfg := &Config{}
 		cfg.Certificates = []tls.Certificate{serverCert}
 
-		dconn, err := createConn(cb, cfg, false)
+		dconn, err := createConn(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), cfg, false)
 		if err != nil {
 			t.Error(err)
 			return
