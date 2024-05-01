@@ -3187,8 +3187,8 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 	defer cancel()
 
 	ca, cb := dpipe.Pipe()
-	defer ca.Close()
-	defer cb.Close()
+	defer ca.Close() //nolint:errcheck
+	defer cb.Close() //nolint:errcheck
 
 	done := make(chan struct{})
 	go func() {
@@ -3216,7 +3216,6 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 				t.Log(qlen)
 				time.Sleep(1 * time.Second)
 			}
-
 		}()
 		if _, err := handshakeConn(ctx, dconn, cfg, false, nil); err == nil {
 			t.Error("expected handshake to fail")
@@ -3249,12 +3248,12 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ca.Write(packet)
+		ca.Write(packet) // nolint
 		if i%100 == 0 {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
 	time.Sleep(1 * time.Second)
-	ca.Close()
+	ca.Close() // nolint
 	<-done
 }
