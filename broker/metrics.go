@@ -16,6 +16,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safeprom"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
 )
 
@@ -330,14 +331,14 @@ func sumMapValues(m *map[messages.RendezvousMethod]uint) uint {
 type PromMetrics struct {
 	registry         *prometheus.Registry
 	ProxyTotal       *prometheus.CounterVec
-	ProxyPollTotal   *RoundedCounterVec
-	ClientPollTotal  *RoundedCounterVec
+	ProxyPollTotal   *safeprom.RoundedCounterVec
+	ClientPollTotal  *safeprom.RoundedCounterVec
 	AvailableProxies *prometheus.GaugeVec
 
-	ProxyPollWithRelayURLExtensionTotal    *RoundedCounterVec
-	ProxyPollWithoutRelayURLExtensionTotal *RoundedCounterVec
+	ProxyPollWithRelayURLExtensionTotal    *safeprom.RoundedCounterVec
+	ProxyPollWithoutRelayURLExtensionTotal *safeprom.RoundedCounterVec
 
-	ProxyPollRejectedForRelayURLExtensionTotal *RoundedCounterVec
+	ProxyPollRejectedForRelayURLExtensionTotal *safeprom.RoundedCounterVec
 }
 
 // Initialize metrics for prometheus exporter
@@ -364,7 +365,7 @@ func initPrometheus() *PromMetrics {
 		[]string{"type", "nat"},
 	)
 
-	promMetrics.ProxyPollTotal = NewRoundedCounterVec(
+	promMetrics.ProxyPollTotal = safeprom.NewRoundedCounterVec(
 		prometheus.CounterOpts{
 			Namespace: prometheusNamespace,
 			Name:      "rounded_proxy_poll_total",
@@ -373,7 +374,7 @@ func initPrometheus() *PromMetrics {
 		[]string{"nat", "status"},
 	)
 
-	promMetrics.ProxyPollWithRelayURLExtensionTotal = NewRoundedCounterVec(
+	promMetrics.ProxyPollWithRelayURLExtensionTotal = safeprom.NewRoundedCounterVec(
 		prometheus.CounterOpts{
 			Namespace: prometheusNamespace,
 			Name:      "rounded_proxy_poll_with_relay_url_extension_total",
@@ -382,7 +383,7 @@ func initPrometheus() *PromMetrics {
 		[]string{"nat", "type"},
 	)
 
-	promMetrics.ProxyPollWithoutRelayURLExtensionTotal = NewRoundedCounterVec(
+	promMetrics.ProxyPollWithoutRelayURLExtensionTotal = safeprom.NewRoundedCounterVec(
 		prometheus.CounterOpts{
 			Namespace: prometheusNamespace,
 			Name:      "rounded_proxy_poll_without_relay_url_extension_total",
@@ -391,7 +392,7 @@ func initPrometheus() *PromMetrics {
 		[]string{"nat", "type"},
 	)
 
-	promMetrics.ProxyPollRejectedForRelayURLExtensionTotal = NewRoundedCounterVec(
+	promMetrics.ProxyPollRejectedForRelayURLExtensionTotal = safeprom.NewRoundedCounterVec(
 		prometheus.CounterOpts{
 			Namespace: prometheusNamespace,
 			Name:      "rounded_proxy_poll_rejected_relay_url_extension_total",
@@ -400,7 +401,7 @@ func initPrometheus() *PromMetrics {
 		[]string{"nat", "type"},
 	)
 
-	promMetrics.ClientPollTotal = NewRoundedCounterVec(
+	promMetrics.ClientPollTotal = safeprom.NewRoundedCounterVec(
 		prometheus.CounterOpts{
 			Namespace: prometheusNamespace,
 			Name:      "rounded_client_poll_total",

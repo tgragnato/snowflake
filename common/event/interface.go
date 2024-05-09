@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v3"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/safelog"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 )
 
 type SnowflakeEvent interface {
