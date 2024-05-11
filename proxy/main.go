@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/safelog"
 	"github.com/tgragnato/snowflake/common/version"
 	sf "github.com/tgragnato/snowflake/proxy/lib"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 )
 
 func main() {

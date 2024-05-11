@@ -18,9 +18,9 @@ import (
 	sf "github.com/tgragnato/snowflake/client/lib"
 	"github.com/tgragnato/snowflake/common/event"
 	"github.com/tgragnato/snowflake/common/proxy"
-	"github.com/tgragnato/snowflake/common/safelog"
 	"github.com/tgragnato/snowflake/common/version"
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 )
 
 const (

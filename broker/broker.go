@@ -27,7 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tgragnato/snowflake/common/bridgefingerprint"
 	"github.com/tgragnato/snowflake/common/namematcher"
-	"github.com/tgragnato/snowflake/common/safelog"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 	"golang.org/x/crypto/acme/autocert"
 )
 

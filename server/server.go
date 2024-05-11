@@ -18,12 +18,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/tgragnato/snowflake/common/safelog"
 	"github.com/tgragnato/snowflake/common/version"
-	"golang.org/x/crypto/acme/autocert"
-
 	sf "github.com/tgragnato/snowflake/server/lib"
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 const ptMethodName = "snowflake"
