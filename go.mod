@@ -15,9 +15,7 @@ require (
 	github.com/pion/transport/v3 v3.0.2
 	github.com/pion/webrtc/v4 v4.0.0-beta.19
 	github.com/prometheus/client_golang v1.19.1
-	github.com/prometheus/client_model v0.6.1
 	github.com/realclientip/realclientip-go v1.0.0
-	github.com/refraction-networking/utls v1.6.6
 	github.com/refraction-networking/utls v1.6.6
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.9.0
@@ -29,8 +27,12 @@ require (
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.25.0
 	golang.org/x/sys v0.20.0
-	google.golang.org/protobuf v1.34.1
 	nhooyr.io/websocket v1.8.11
+)
+
+require (
+	github.com/prometheus/client_model v0.6.1 // indirect
+	google.golang.org/protobuf v1.34.1 // indirect
 )
 
 require (
@@ -42,7 +44,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.7 // indirect
 	github.com/aws/smithy-go v1.20.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
