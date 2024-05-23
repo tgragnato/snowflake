@@ -7,6 +7,13 @@ updates:
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
+    labels:
+      - "dependencies"
+      - "go"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
   - package-ecosystem: "gomod"
     directory: "/dtls"
     schedule:
@@ -14,7 +21,21 @@ updates:
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
+    labels:
+      - "dependencies"
+      - "go"
+      - "dtls"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
