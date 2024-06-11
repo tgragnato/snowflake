@@ -32,7 +32,7 @@ require (
 
 require (
 	github.com/prometheus/client_model v0.6.1 // indirect
-	google.golang.org/protobuf v1.34.1 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 )
 
 require (
