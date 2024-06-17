@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.19
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.32.6
 	github.com/golang/mock v1.6.0
-	github.com/gorilla/websocket v1.5.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.59
 	github.com/pion/ice/v2 v2.3.24
 	github.com/pion/sdp/v3 v3.0.9
