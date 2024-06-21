@@ -36,6 +36,8 @@ type Periodic struct {
 	Interval time.Duration
 	// Execute is the task function
 	Execute func() error
+	// OnError handles the error of the task
+	OnError func(error)
 
 	access  sync.Mutex
 	timer   *time.Timer
@@ -55,10 +57,15 @@ func (t *Periodic) checkedExecute() error {
 	}
 
 	if err := t.Execute(); err != nil {
-		t.access.Lock()
-		t.running = false
-		t.access.Unlock()
-		return err
+		if t.OnError != nil {
+			t.OnError(err)
+		} else {
+			// default error handling is to shut down the task
+			t.access.Lock()
+			t.running = false
+			t.access.Unlock()
+			return err
+		}
 	}
 
 	t.access.Lock()
