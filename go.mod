@@ -13,7 +13,7 @@ require (
 	github.com/pion/ice/v2 v2.3.24
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun v0.6.1
-	github.com/pion/transport/v2 v2.2.4
+	github.com/pion/transport/v2 v2.2.5
 	github.com/pion/webrtc/v3 v3.2.42
 	github.com/prometheus/client_golang v1.19.1
 	github.com/realclientip/realclientip-go v1.0.0
