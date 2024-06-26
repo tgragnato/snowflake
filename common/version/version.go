@@ -8,10 +8,20 @@ import (
 var version = func() string {
 	ver := "2.9.2"
 	if info, ok := debug.ReadBuildInfo(); ok {
+		var revision string
+		var modified string
 		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				return fmt.Sprintf("%v (%v)", ver, setting.Value[:8])
+			switch setting.Key {
+			case "vcs.revision":
+				revision = setting.Value[:8]
+			case "vcs.modified":
+				if setting.Value == "true" {
+					modified = "*"
+				}
 			}
+		}
+		if revision != "" {
+			return fmt.Sprintf("%v (%v%v)", ver, revision, modified)
 		}
 	}
 	return ver
