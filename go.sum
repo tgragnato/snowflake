@@ -24,8 +24,8 @@ github.com/aws/aws-sdk-go-v2/service/sqs v1.34.0 h1:YWyd8KPykQE9YS7M+RTAlVyOmUxX
 github.com/aws/aws-sdk-go-v2/service/sqs v1.34.0/go.mod h1:4kCM5tMCkys9PFbuGHP+LjpxlsA5oMRUs3QvnWo11BM=
 github.com/aws/aws-sdk-go-v2/service/sso v1.22.0 h1:lPIAPCRoJkmotLTU/9B6icUFlYDpEuWjKeL79XROv1M=
 github.com/aws/aws-sdk-go-v2/service/sso v1.22.0/go.mod h1:lcQG/MmxydijbeTOp04hIuJwXGWPZGI3bwdFDGRTv14=
-github.com/aws/aws-sdk-go-v2/service/ssooidc v1.25.1 h1:1uEFNNskK/I1KoZ9Q8wJxMz5V9jyBlsiaNrM7vA3YUQ=
-github.com/aws/aws-sdk-go-v2/service/ssooidc v1.25.1/go.mod h1:z0P8K+cBIsFXUr5rzo/psUeJ20XjPN0+Nn8067Nd+E4=
+github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.0 h1:/4r71ghx+hX9spr884cqXHPEmPzqH/J3K7fkE1yfcmw=
+github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.0/go.mod h1:z0P8K+cBIsFXUr5rzo/psUeJ20XjPN0+Nn8067Nd+E4=
 github.com/aws/aws-sdk-go-v2/service/sts v1.30.0 h1:9ja34PaKybhCJjVKvxtDsUjbATUJGN+eF6QnO58u5cI=
 github.com/aws/aws-sdk-go-v2/service/sts v1.30.0/go.mod h1:N2mQiucsO0VwK9CYuS4/c2n6Smeh1v47Rz3dWCPFLdE=
 github.com/aws/smithy-go v1.20.2 h1:tbp628ireGtzcHDDmLT/6ADHidqnwgF57XOXZe6tp4Q=
