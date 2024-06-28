@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.0
-	github.com/aws/aws-sdk-go-v2/config v1.27.21
+	github.com/aws/aws-sdk-go-v2/config v1.27.22
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.22
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.0
 	github.com/golang/mock v1.6.0
