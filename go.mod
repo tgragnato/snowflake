@@ -68,7 +68,7 @@ require (
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.14 // indirect
 	github.com/pion/rtp v1.8.6 // indirect
-	github.com/pion/sctp v1.8.16 // indirect
+	github.com/pion/sctp v1.8.17 // indirect
 	github.com/pion/srtp/v3 v3.0.1 // indirect
 	github.com/pion/turn/v3 v3.0.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
