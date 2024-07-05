@@ -141,8 +141,8 @@ github.com/prometheus/procfs v0.15.1 h1:YagwOFzUgYfKKHX6Dr+sHT7km/hxC76UB0leargg
 github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoGhij/e3PBqk=
 github.com/realclientip/realclientip-go v1.0.0 h1:+yPxeC0mEaJzq1BfCt2h4BxlyrvIIBzR6suDc3BEF1U=
 github.com/realclientip/realclientip-go v1.0.0/go.mod h1:CXnUdVwFRcXFJIRb/dTYqbT7ud48+Pi2pFm80bxDmcI=
-github.com/refraction-networking/utls v1.6.6 h1:igFsYBUJPYM8Rno9xUuDoM5GQrVEqY4llzEXOkL43Ig=
-github.com/refraction-networking/utls v1.6.6/go.mod h1:BC3O4vQzye5hqpmDTWUqi4P5DDhzJfkV1tdqtawQIH0=
+github.com/refraction-networking/utls v1.6.7 h1:zVJ7sP1dJx/WtVuITug3qYUq034cDq9B2MR1K67ULZM=
+github.com/refraction-networking/utls v1.6.7/go.mod h1:BC3O4vQzye5hqpmDTWUqi4P5DDhzJfkV1tdqtawQIH0=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
 github.com/smarty/assertions v1.16.0 h1:EvHNkdRA4QHMrn75NZSoUQ/mAUXAYWfatfB01yTCzfY=
