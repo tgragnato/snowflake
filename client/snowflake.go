@@ -263,6 +263,7 @@ func main() {
 			pt.ProxyDone()
 		}
 	}
+	pt.ReportVersion("snowflake", version.GetVersion())
 	listeners := make([]net.Listener, 0)
 	shutdown := make(chan struct{})
 	var wg sync.WaitGroup
