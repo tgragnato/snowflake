@@ -9,11 +9,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.61
-	github.com/pion/ice/v3 v3.0.9
+	github.com/pion/ice/v3 v3.0.10
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v3 v3.0.2
-	github.com/pion/webrtc/v4 v4.0.0-beta.21
+	github.com/pion/webrtc/v4 v4.0.0-beta.23
 	github.com/prometheus/client_golang v1.19.1
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.6.7
