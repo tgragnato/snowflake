@@ -9,10 +9,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.61
-	github.com/pion/ice/v3 v3.0.10
+	github.com/pion/ice/v3 v3.0.12
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
-	github.com/pion/transport/v3 v3.0.2
+	github.com/pion/transport/v3 v3.0.5
 	github.com/pion/webrtc/v4 v4.0.0-beta.23
 	github.com/prometheus/client_golang v1.19.1
 	github.com/realclientip/realclientip-go v1.0.0
@@ -33,6 +33,7 @@ require (
 require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/wlynxg/anet v0.0.3 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
 
@@ -60,7 +61,7 @@ require (
 	github.com/klauspost/reedsolomon v1.12.3 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pion/datachannel v1.5.8 // indirect
-	github.com/pion/dtls/v2 v2.2.11 // indirect
+	github.com/pion/dtls/v2 v2.2.12 // indirect
 	github.com/pion/interceptor v0.1.29 // indirect
 	github.com/pion/logging v0.2.2 // indirect
 	github.com/pion/mdns/v2 v2.0.7 // indirect
