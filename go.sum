@@ -118,8 +118,8 @@ github.com/pion/transport/v3 v3.0.5 h1:ofVrcbPNqVPuKaTO5AMFnFuJ1ZX7ElYiWzC5PCf9Y
 github.com/pion/transport/v3 v3.0.5/go.mod h1:HvJr2N/JwNJAfipsRleqwFoR3t/pWyHeZUs89v3+t5s=
 github.com/pion/turn/v3 v3.0.3 h1:1e3GVk8gHZLPBA5LqadWYV60lmaKUaHCkm9DX9CkGcE=
 github.com/pion/turn/v3 v3.0.3/go.mod h1:vw0Dz420q7VYAF3J4wJKzReLHIo2LGp4ev8nXQexYsc=
-github.com/pion/webrtc/v4 v4.0.0-beta.23 h1:Qlrv1GYordckXBNQ0tAE75lOXq1LUmjbxz+gTIDXB70=
-github.com/pion/webrtc/v4 v4.0.0-beta.23/go.mod h1:I3kk0MN+7cfDQxad/DjN8UX/YtaaJUimFCu6TYwQrxI=
+github.com/pion/webrtc/v4 v4.0.0-beta.24 h1:YHI6mk1vUw6Txc1BH9JI5oy356ZeH72FB51FNF9VwMk=
+github.com/pion/webrtc/v4 v4.0.0-beta.24/go.mod h1:qpjUqcKJBI9tyIXpY/CeMdi5gD+uBPnfveKRNsfnP1o=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
