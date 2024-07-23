@@ -12,7 +12,7 @@ require (
 	github.com/pion/ice/v3 v3.0.10
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
-	github.com/pion/transport/v3 v3.0.2
+	github.com/pion/transport/v3 v3.0.5
 	github.com/pion/webrtc/v4 v4.0.0-beta.23
 	github.com/prometheus/client_golang v1.19.1
 	github.com/realclientip/realclientip-go v1.0.0
@@ -33,6 +33,7 @@ require (
 require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/wlynxg/anet v0.0.3 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
 
