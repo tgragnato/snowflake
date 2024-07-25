@@ -4,6 +4,7 @@
 package dtls
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/tls"
@@ -12,8 +13,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v3/pkg/protocol/handshake"
+	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/protocol/handshake"
 	"github.com/pion/logging"
 )
 
@@ -115,6 +116,15 @@ type Config struct {
 	ServerName string
 
 	LoggerFactory logging.LoggerFactory
+
+	// ConnectContextMaker is a function to make a context used in Dial(),
+	// Client(), Server(), and Accept(). If nil, the default ConnectContextMaker
+	// is used. It can be implemented as following.
+	//
+	// 	func ConnectContextMaker() (context.Context, func()) {
+	// 		return context.WithTimeout(context.Background(), 30*time.Second)
+	// 	}
+	ConnectContextMaker func() (context.Context, func())
 
 	// MTU is the length at which handshake messages will be fragmented to
 	// fit within the maximum transmission unit (default is 1200 bytes)

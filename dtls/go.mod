@@ -1,4 +1,4 @@
-module github.com/pion/dtls/v3
+module github.com/pion/dtls/v2
 
 go 1.21
 

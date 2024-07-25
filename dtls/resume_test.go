@@ -13,19 +13,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
-	dtlsnet "github.com/pion/dtls/v3/pkg/net"
+	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
 	"github.com/pion/transport/v3/test"
 )
 
 var errMessageMissmatch = errors.New("messages missmatch")
 
 func TestResumeClient(t *testing.T) {
-	DoTestResume(t, Client, Server)
+	DoTestResume(t, ClientResume, ServerResume)
 }
 
 func TestResumeServer(t *testing.T) {
-	DoTestResume(t, Server, Client)
+	DoTestResume(t, ServerResume, ClientResume)
 }
 
 func fatal(t *testing.T, errChan chan error, err error) {

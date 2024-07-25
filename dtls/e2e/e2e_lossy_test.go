@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v3"
-	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
-	dtlsnet "github.com/pion/dtls/v3/pkg/net"
+	"github.com/pion/dtls/v2"
+	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
 	transportTest "github.com/pion/transport/v3/test"
 )
 
@@ -164,7 +164,7 @@ func TestPionE2ELossy(t *testing.T) {
 					cfg.Certificates = []tls.Certificate{clientCert}
 				}
 
-				client, startupErr := dtls.Client(dtlsnet.PacketConnFromConn(br.GetConn0()), br.GetConn0().RemoteAddr(), cfg)
+				client, startupErr := dtls.ClientResume(dtlsnet.PacketConnFromConn(br.GetConn0()), br.GetConn0().RemoteAddr(), cfg)
 				clientDone <- runResult{client, startupErr}
 			}()
 
@@ -184,7 +184,7 @@ func TestPionE2ELossy(t *testing.T) {
 					cfg.FlightInterval = time.Hour
 				}
 
-				server, startupErr := dtls.Server(dtlsnet.PacketConnFromConn(br.GetConn1()), br.GetConn1().RemoteAddr(), cfg)
+				server, startupErr := dtls.ServerResume(dtlsnet.PacketConnFromConn(br.GetConn1()), br.GetConn1().RemoteAddr(), cfg)
 				serverDone <- runResult{server, startupErr}
 			}()
 

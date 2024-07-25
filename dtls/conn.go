@@ -14,13 +14,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pion/dtls/v3/internal/closer"
-	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v3/pkg/crypto/signaturehash"
-	"github.com/pion/dtls/v3/pkg/protocol"
-	"github.com/pion/dtls/v3/pkg/protocol/alert"
-	"github.com/pion/dtls/v3/pkg/protocol/handshake"
-	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
+	"github.com/pion/dtls/v2/internal/closer"
+	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
+	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/dtls/v2/pkg/protocol"
+	"github.com/pion/dtls/v2/pkg/protocol/alert"
+	"github.com/pion/dtls/v2/pkg/protocol/handshake"
+	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
 	"github.com/pion/logging"
 	"github.com/pion/transport/v3/deadline"
 	"github.com/pion/transport/v3/netctx"
@@ -306,11 +307,16 @@ func Dial(network string, rAddr *net.UDPAddr, config *Config) (*Conn, error) {
 		return nil, err
 	}
 
-	return Client(pConn, rAddr, config)
+	return ClientResume(pConn, rAddr, config)
 }
 
 // Client establishes a DTLS connection over an existing connection.
-func Client(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func Client(conn net.Conn, config *Config) (*Conn, error) {
+	packetConn := dtlsnet.PacketConnFromConn(conn)
+	rAddr := conn.RemoteAddr()
+	return ClientResume(packetConn, rAddr, config)
+}
+func ClientResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	switch {
 	case config == nil:
 		return nil, errNoConfigProvided
@@ -321,8 +327,20 @@ func Client(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) 
 	return createConn(conn, rAddr, config, true, nil)
 }
 
+// ClientWithContext establishes a DTLS connection over an existing connection.
+func ClientWithContext(ctx context.Context, conn net.Conn, config *Config) (*Conn, error) {
+	packetConn := dtlsnet.PacketConnFromConn(conn)
+	rAddr := conn.RemoteAddr()
+	return ClientResume(packetConn, rAddr, config)
+}
+
 // Server listens for incoming DTLS connections.
-func Server(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func Server(conn net.Conn, config *Config) (*Conn, error) {
+	packetConn := dtlsnet.PacketConnFromConn(conn)
+	rAddr := conn.RemoteAddr()
+	return ServerResume(packetConn, rAddr, config)
+}
+func ServerResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	if config == nil {
 		return nil, errNoConfigProvided
 	}
