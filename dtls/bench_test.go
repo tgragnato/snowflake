@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
+	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/logging"
 	"github.com/pion/transport/v3/dpipe"
 	"github.com/pion/transport/v3/test"
@@ -40,7 +40,7 @@ func TestSimpleReadWrite(t *testing.T) {
 			return
 		}
 		buf := make([]byte, 1024)
-		if _, sErr = server.Read(buf); sErr != nil {
+		if _, sErr = server.Read(buf); sErr != nil { //nolint:contextcheck
 			t.Error(sErr)
 		}
 		gotHello <- struct{}{}

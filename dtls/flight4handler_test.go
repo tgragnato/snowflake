@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v2/internal/ciphersuite"
-	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
-	"github.com/pion/dtls/v2/pkg/protocol/alert"
-	"github.com/pion/dtls/v2/pkg/protocol/handshake"
+	"github.com/pion/dtls/v3/internal/ciphersuite"
+	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
+	"github.com/pion/dtls/v3/pkg/crypto/signaturehash"
+	"github.com/pion/dtls/v3/pkg/protocol/alert"
+	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 	"github.com/pion/transport/v3/test"
 )
 
@@ -27,7 +27,7 @@ func (f *flight4TestMockFlightConn) notify(context.Context, alert.Level, alert.D
 	return nil
 }
 func (f *flight4TestMockFlightConn) writePackets(context.Context, []*packet) error { return nil }
-func (f *flight4TestMockFlightConn) recvHandshake() <-chan chan struct{}           { return nil }
+func (f *flight4TestMockFlightConn) recvHandshake() <-chan recvHandshakeState      { return nil }
 func (f *flight4TestMockFlightConn) setLocalEpoch(uint16)                          {}
 func (f *flight4TestMockFlightConn) handleQueuedPackets(context.Context) error     { return nil }
 func (f *flight4TestMockFlightConn) sessionKey() []byte                            { return nil }

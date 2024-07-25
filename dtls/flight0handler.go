@@ -7,11 +7,11 @@ import (
 	"context"
 	"crypto/rand"
 
-	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v2/pkg/protocol"
-	"github.com/pion/dtls/v2/pkg/protocol/alert"
-	"github.com/pion/dtls/v2/pkg/protocol/extension"
-	"github.com/pion/dtls/v2/pkg/protocol/handshake"
+	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v3/pkg/protocol"
+	"github.com/pion/dtls/v3/pkg/protocol/alert"
+	"github.com/pion/dtls/v3/pkg/protocol/extension"
+	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 )
 
 func flight0Parse(_ context.Context, _ flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
@@ -25,7 +25,7 @@ func flight0Parse(_ context.Context, _ flightConn, state *State, cache *handshak
 
 	// Connection Identifiers must be negotiated afresh on session resumption.
 	// https://datatracker.ietf.org/doc/html/rfc9146#name-the-connection_id-extension
-	state.localConnectionID = nil
+	state.setLocalConnectionID(nil)
 	state.remoteConnectionID = nil
 
 	state.handshakeRecvSequence = seq
@@ -87,7 +87,7 @@ func flight0Parse(_ context.Context, _ flightConn, state *State, cache *handshak
 	// If the client doesn't support connection IDs, the server should not
 	// expect one to be sent.
 	if state.remoteConnectionID == nil {
-		state.localConnectionID = nil
+		state.setLocalConnectionID(nil)
 	}
 
 	if cfg.extendedMasterSecret == RequireExtendedMasterSecret && !state.extendedMasterSecret {

@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
+	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/transport/v3/dpipe"
 	"github.com/pion/transport/v3/test"
 )
@@ -52,9 +52,6 @@ func TestContextConfig(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	config := &Config{
-		ConnectContextMaker: func() (context.Context, func()) {
-			return context.WithTimeout(context.Background(), 40*time.Millisecond)
-		},
 		Certificates: []tls.Certificate{cert},
 	}
 
@@ -64,71 +61,52 @@ func TestContextConfig(t *testing.T) {
 	}{
 		"Dial": {
 			f: func() (func() (net.Conn, error), func()) {
+				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 				return func() (net.Conn, error) {
-						return Dial("udp", addr, config)
-					}, func() {
-					}
-			},
-			order: []byte{0, 1, 2},
-		},
-		"DialWithContext": {
-			f: func() (func() (net.Conn, error), func()) {
-				ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-				return func() (net.Conn, error) {
-						return DialWithContext(ctx, "udp", addr, config)
+						conn, err := Dial("udp", addr, config)
+						if err != nil {
+							return nil, err
+						}
+						return conn, conn.HandshakeContext(ctx)
 					}, func() {
 						cancel()
 					}
 			},
-			order: []byte{0, 2, 1},
+			order: []byte{0, 1, 2},
 		},
 		"Client": {
 			f: func() (func() (net.Conn, error), func()) {
 				ca, _ := dpipe.Pipe()
+				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 				return func() (net.Conn, error) {
-						return ClientResume(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						conn, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						if err != nil {
+							return nil, err
+						}
+						return conn, conn.HandshakeContext(ctx)
 					}, func() {
 						_ = ca.Close()
+						cancel()
 					}
 			},
 			order: []byte{0, 1, 2},
-		},
-		"ClientWithContext": {
-			f: func() (func() (net.Conn, error), func()) {
-				ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-				ca, _ := dpipe.Pipe()
-				return func() (net.Conn, error) {
-						return ClientWithContextResume(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
-					}, func() {
-						cancel()
-						_ = ca.Close()
-					}
-			},
-			order: []byte{0, 2, 1},
 		},
 		"Server": {
 			f: func() (func() (net.Conn, error), func()) {
 				ca, _ := dpipe.Pipe()
+				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 				return func() (net.Conn, error) {
-						return ServerResume(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						conn, err := Server(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						if err != nil {
+							return nil, err
+						}
+						return conn, conn.HandshakeContext(ctx)
 					}, func() {
 						_ = ca.Close()
+						cancel()
 					}
 			},
 			order: []byte{0, 1, 2},
-		},
-		"ServerWithContext": {
-			f: func() (func() (net.Conn, error), func()) {
-				ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-				ca, _ := dpipe.Pipe()
-				return func() (net.Conn, error) {
-						return ServerWithContext(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
-					}, func() {
-						cancel()
-						_ = ca.Close()
-					}
-			},
-			order: []byte{0, 2, 1},
 		},
 	}
 

@@ -6,10 +6,10 @@ package dtls
 import (
 	"net"
 
-	"github.com/pion/dtls/v2/internal/net/udp"
-	dtlsnet "github.com/pion/dtls/v2/pkg/net"
-	"github.com/pion/dtls/v2/pkg/protocol"
-	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
+	"github.com/pion/dtls/v3/internal/net/udp"
+	dtlsnet "github.com/pion/dtls/v3/pkg/net"
+	"github.com/pion/dtls/v3/pkg/protocol"
+	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 )
 
 // Listen creates a DTLS listener
@@ -67,14 +67,12 @@ type listener struct {
 
 // Accept waits for and returns the next connection to the listener.
 // You have to either close or read on all connection that are created.
-// Connection handshake will timeout using ConnectContextMaker in the Config.
-// If you want to specify the timeout duration, set ConnectContextMaker.
 func (l *listener) Accept() (net.Conn, error) {
 	c, raddr, err := l.parent.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return ServerResume(c, raddr, l.config)
+	return Server(c, raddr, l.config)
 }
 
 // Close closes the listener.

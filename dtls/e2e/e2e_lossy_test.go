@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v2"
-	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/dtls/v3"
+	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
+	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	transportTest "github.com/pion/transport/v3/test"
 )
 
@@ -45,10 +45,11 @@ func TestPionE2ELossy(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		LossChanceRange int
-		DoClientAuth    bool
-		CipherSuites    []dtls.CipherSuiteID
-		MTU             int
+		LossChanceRange             int
+		DoClientAuth                bool
+		CipherSuites                []dtls.CipherSuiteID
+		MTU                         int
+		DisableServerFlightInterval bool
 	}{
 		{
 			LossChanceRange: 0,
@@ -109,6 +110,20 @@ func TestPionE2ELossy(t *testing.T) {
 			MTU:             100,
 			DoClientAuth:    true,
 		},
+		// Incoming retransmitted handshakes should cause us to retransmit. Disabling the FlightInterval on one side
+		// means that a incoming re-transmissions causes the retransmission to be fired
+		{
+			LossChanceRange:             10,
+			DisableServerFlightInterval: true,
+		},
+		{
+			LossChanceRange:             20,
+			DisableServerFlightInterval: true,
+		},
+		{
+			LossChanceRange:             50,
+			DisableServerFlightInterval: true,
+		},
 	} {
 		name := fmt.Sprintf("Loss%d_MTU%d", test.LossChanceRange, test.MTU)
 		if test.DoClientAuth {
@@ -117,6 +132,10 @@ func TestPionE2ELossy(t *testing.T) {
 		for _, ciph := range test.CipherSuites {
 			name += "_With" + ciph.String()
 		}
+		if test.DisableServerFlightInterval {
+			name += "_WithNoServerFlightInterval"
+		}
+
 		test := test
 		t.Run(name, func(t *testing.T) {
 			// Limit runtime in case of deadlocks
@@ -134,32 +153,38 @@ func TestPionE2ELossy(t *testing.T) {
 
 			go func() {
 				cfg := &dtls.Config{
-					FlightInterval:     flightInterval,
-					CipherSuites:       test.CipherSuites,
-					InsecureSkipVerify: true,
-					MTU:                test.MTU,
+					FlightInterval:           flightInterval,
+					CipherSuites:             test.CipherSuites,
+					InsecureSkipVerify:       true,
+					MTU:                      test.MTU,
+					DisableRetransmitBackoff: true,
 				}
 
 				if test.DoClientAuth {
 					cfg.Certificates = []tls.Certificate{clientCert}
 				}
 
-				client, startupErr := dtls.ClientResume(dtlsnet.PacketConnFromConn(br.GetConn0()), br.GetConn0().RemoteAddr(), cfg)
+				client, startupErr := dtls.Client(dtlsnet.PacketConnFromConn(br.GetConn0()), br.GetConn0().RemoteAddr(), cfg)
 				clientDone <- runResult{client, startupErr}
 			}()
 
 			go func() {
 				cfg := &dtls.Config{
-					Certificates:   []tls.Certificate{serverCert},
-					FlightInterval: flightInterval,
-					MTU:            test.MTU,
+					Certificates:             []tls.Certificate{serverCert},
+					FlightInterval:           flightInterval,
+					MTU:                      test.MTU,
+					DisableRetransmitBackoff: true,
 				}
 
 				if test.DoClientAuth {
 					cfg.ClientAuth = dtls.RequireAnyClientCert
 				}
 
-				server, startupErr := dtls.ServerResume(dtlsnet.PacketConnFromConn(br.GetConn1()), br.GetConn1().RemoteAddr(), cfg)
+				if test.DisableServerFlightInterval {
+					cfg.FlightInterval = time.Hour
+				}
+
+				server, startupErr := dtls.Server(dtlsnet.PacketConnFromConn(br.GetConn1()), br.GetConn1().RemoteAddr(), cfg)
 				serverDone <- runResult{server, startupErr}
 			}()
 

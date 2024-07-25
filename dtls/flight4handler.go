@@ -8,16 +8,16 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 
-	"github.com/pion/dtls/v2/internal/ciphersuite"
-	"github.com/pion/dtls/v2/pkg/crypto/clientcertificate"
-	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v2/pkg/crypto/prf"
-	"github.com/pion/dtls/v2/pkg/crypto/signaturehash"
-	"github.com/pion/dtls/v2/pkg/protocol"
-	"github.com/pion/dtls/v2/pkg/protocol/alert"
-	"github.com/pion/dtls/v2/pkg/protocol/extension"
-	"github.com/pion/dtls/v2/pkg/protocol/handshake"
-	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
+	"github.com/pion/dtls/v3/internal/ciphersuite"
+	"github.com/pion/dtls/v3/pkg/crypto/clientcertificate"
+	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v3/pkg/crypto/prf"
+	"github.com/pion/dtls/v3/pkg/crypto/signaturehash"
+	"github.com/pion/dtls/v3/pkg/protocol"
+	"github.com/pion/dtls/v3/pkg/protocol/alert"
+	"github.com/pion/dtls/v3/pkg/protocol/extension"
+	"github.com/pion/dtls/v3/pkg/protocol/handshake"
+	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 )
 
 func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) { //nolint:gocognit
@@ -255,8 +255,8 @@ func flight4Generate(_ flightConn, state *State, _ *handshakeCache, cfg *handsha
 	// parsing the ClientHello, so avoid setting local connection ID if the
 	// client won't send it.
 	if cfg.connectionIDGenerator != nil && state.remoteConnectionID != nil {
-		state.localConnectionID = cfg.connectionIDGenerator()
-		extensions = append(extensions, &extension.ConnectionID{CID: state.localConnectionID})
+		state.setLocalConnectionID(cfg.connectionIDGenerator())
+		extensions = append(extensions, &extension.ConnectionID{CID: state.getLocalConnectionID()})
 	}
 
 	var pkts []*packet
@@ -300,6 +300,7 @@ func flight4Generate(_ flightConn, state *State, _ *handshakeCache, cfg *handsha
 		certificate, err := cfg.getCertificate(&ClientHelloInfo{
 			ServerName:   state.serverName,
 			CipherSuites: []ciphersuite.ID{state.cipherSuite.ID()},
+			RandomBytes:  state.remoteRandom.RandomBytes,
 		})
 		if err != nil {
 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err

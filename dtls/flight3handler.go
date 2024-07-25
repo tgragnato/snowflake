@@ -7,14 +7,14 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/pion/dtls/v2/internal/ciphersuite/types"
-	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v2/pkg/crypto/prf"
-	"github.com/pion/dtls/v2/pkg/protocol"
-	"github.com/pion/dtls/v2/pkg/protocol/alert"
-	"github.com/pion/dtls/v2/pkg/protocol/extension"
-	"github.com/pion/dtls/v2/pkg/protocol/handshake"
-	"github.com/pion/dtls/v2/pkg/protocol/recordlayer"
+	"github.com/pion/dtls/v3/internal/ciphersuite/types"
+	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v3/pkg/crypto/prf"
+	"github.com/pion/dtls/v3/pkg/protocol"
+	"github.com/pion/dtls/v3/pkg/protocol/alert"
+	"github.com/pion/dtls/v3/pkg/protocol/extension"
+	"github.com/pion/dtls/v3/pkg/protocol/handshake"
+	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 )
 
 func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) { //nolint:gocognit
@@ -77,7 +77,7 @@ func flight3Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 		// If the server doesn't support connection IDs, the client should not
 		// expect one to be sent.
 		if state.remoteConnectionID == nil {
-			state.localConnectionID = nil
+			state.setLocalConnectionID(nil)
 		}
 
 		if cfg.extendedMasterSecret == RequireExtendedMasterSecret && !state.extendedMasterSecret {
@@ -249,10 +249,11 @@ func flight3Generate(_ flightConn, state *State, _ *handshakeCache, cfg *handsha
 			RenegotiatedConnection: 0,
 		},
 	}
+
 	if state.namedCurve != 0 {
 		extensions = append(extensions, []extension.Extension{
 			&extension.SupportedEllipticCurves{
-				EllipticCurves: []elliptic.Curve{elliptic.X25519, elliptic.P384},
+				EllipticCurves: cfg.ellipticCurves,
 			},
 			&extension.SupportedPointFormats{
 				PointFormats: []elliptic.CurvePointFormat{elliptic.CurvePointFormatUncompressed},
@@ -283,8 +284,8 @@ func flight3Generate(_ flightConn, state *State, _ *handshakeCache, cfg *handsha
 
 	// If we sent a connection ID on the first ClientHello, send it on the
 	// second.
-	if state.localConnectionID != nil {
-		extensions = append(extensions, &extension.ConnectionID{CID: state.localConnectionID})
+	if state.getLocalConnectionID() != nil {
+		extensions = append(extensions, &extension.ConnectionID{CID: state.getLocalConnectionID()})
 	}
 
 	clientHello := &handshake.MessageClientHello{
