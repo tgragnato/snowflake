@@ -21,11 +21,11 @@ import (
 var errMessageMissmatch = errors.New("messages missmatch")
 
 func TestResumeClient(t *testing.T) {
-	DoTestResume(t, ClientResume, ServerResume)
+	DoTestResume(t, Client, Server)
 }
 
 func TestResumeServer(t *testing.T) {
-	DoTestResume(t, ServerResume, ClientResume)
+	DoTestResume(t, Server, Client)
 }
 
 func fatal(t *testing.T, errChan chan error, err error) {

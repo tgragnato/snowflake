@@ -307,16 +307,11 @@ func Dial(network string, rAddr *net.UDPAddr, config *Config) (*Conn, error) {
 		return nil, err
 	}
 
-	return ClientResume(pConn, rAddr, config)
+	return Client(pConn, rAddr, config)
 }
 
 // Client establishes a DTLS connection over an existing connection.
-func Client(conn net.Conn, config *Config) (*Conn, error) {
-	packetConn := dtlsnet.PacketConnFromConn(conn)
-	rAddr := conn.RemoteAddr()
-	return ClientResume(packetConn, rAddr, config)
-}
-func ClientResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func Client(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	switch {
 	case config == nil:
 		return nil, errNoConfigProvided
@@ -331,16 +326,11 @@ func ClientResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, e
 func ClientWithContext(ctx context.Context, conn net.Conn, config *Config) (*Conn, error) {
 	packetConn := dtlsnet.PacketConnFromConn(conn)
 	rAddr := conn.RemoteAddr()
-	return ClientResume(packetConn, rAddr, config)
+	return Client(packetConn, rAddr, config)
 }
 
 // Server listens for incoming DTLS connections.
-func Server(conn net.Conn, config *Config) (*Conn, error) {
-	packetConn := dtlsnet.PacketConnFromConn(conn)
-	rAddr := conn.RemoteAddr()
-	return ServerResume(packetConn, rAddr, config)
-}
-func ServerResume(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
+func Server(conn net.PacketConn, rAddr net.Addr, config *Config) (*Conn, error) {
 	if config == nil {
 		return nil, errNoConfigProvided
 	}
