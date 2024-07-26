@@ -91,8 +91,8 @@ github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTK
 github.com/pion/datachannel v1.5.8 h1:ph1P1NsGkazkjrvyMfhRBUAWMxugJjq2HfQifaOoSNo=
 github.com/pion/datachannel v1.5.8/go.mod h1:PgmdpoaNBLX9HNzNClmdki4DYW5JtI7Yibu8QzbL3tI=
 github.com/pion/dtls/v2 v2.2.7/go.mod h1:8WiMkebSHFD0T+dIU+UeBaoV7kDhOW5oDCzZ7WZ/F9s=
-github.com/pion/ice/v3 v3.0.12 h1:TETmi1UTJyo65rGsTazRui08jBuwIga1ecgrfJkA5UU=
-github.com/pion/ice/v3 v3.0.12/go.mod h1:q2M/RnfpgGhC4HcluxPpD1wImaqFqU0Z1PE2eeOPrIs=
+github.com/pion/ice/v3 v3.0.13 h1:tPi5fh2xbWhS0DBcs7LTEG0SOUTHLVDjTlFwBy3hXfw=
+github.com/pion/ice/v3 v3.0.13/go.mod h1:q2M/RnfpgGhC4HcluxPpD1wImaqFqU0Z1PE2eeOPrIs=
 github.com/pion/interceptor v0.1.29 h1:39fsnlP1U8gw2JzOFWdfCU82vHvhW9o0rZnZF56wF+M=
 github.com/pion/interceptor v0.1.29/go.mod h1:ri+LGNjRUc5xUNtDEPzfdkmSqISixVTBF/z/Zms/6T4=
 github.com/pion/logging v0.2.2 h1:M9+AIj/+pxNsDfAT64+MAVgJO0rsyLnoJKCqf//DoeY=
