@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/dtls/v2/pkg/crypto/selfsign"
-	dtlsnet "github.com/pion/dtls/v2/pkg/net"
+	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
+	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/transport/v3/dpipe"
 	"github.com/pion/transport/v3/test"
 )
@@ -79,7 +79,7 @@ func TestContextConfig(t *testing.T) {
 				ca, _ := dpipe.Pipe()
 				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 				return func() (net.Conn, error) {
-						conn, err := ClientResume(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						conn, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
 						if err != nil {
 							return nil, err
 						}
@@ -96,7 +96,7 @@ func TestContextConfig(t *testing.T) {
 				ca, _ := dpipe.Pipe()
 				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 				return func() (net.Conn, error) {
-						conn, err := ServerResume(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						conn, err := Server(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
 						if err != nil {
 							return nil, err
 						}
