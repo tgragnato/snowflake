@@ -7,15 +7,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net/url"
-
 	"log"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
 	"github.com/pion/webrtc/v3"
 	utls "github.com/refraction-networking/utls"
+
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/certs"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
@@ -125,7 +125,8 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 // Negotiate uses a RendezvousMethod to send the client's WebRTC SDP offer
 // and receive a snowflake proxy WebRTC SDP answer in return.
 func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
-	*webrtc.SessionDescription, error) {
+	*webrtc.SessionDescription, error,
+) {
 	// Ideally, we could specify an `RTCIceTransportPolicy` that would handle
 	// this for us.  However, "public" was removed from the draft spec.
 	// See https://developer.mozilla.org/en-US/docs/Web/API/RTCConfiguration#RTCIceTransportPolicy_enum
@@ -201,7 +202,8 @@ func NewWebRTCDialerWithEvents(broker *BrokerChannel, iceServers []webrtc.ICESer
 
 // NewWebRTCDialerWithEventsAndProxy constructs a new WebRTCDialer.
 func NewWebRTCDialerWithEventsAndProxy(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int,
-	eventLogger event.SnowflakeEventReceiver, proxy *url.URL) *WebRTCDialer {
+	eventLogger event.SnowflakeEventReceiver, proxy *url.URL,
+) *WebRTCDialer {
 	config := webrtc.Configuration{
 		ICEServers: iceServers,
 	}
