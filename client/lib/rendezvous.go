@@ -79,7 +79,7 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 	if config.UTLSClientID != "" {
 		utlsClientHelloID, err := utlsutil.NameToUTLSID(config.UTLSClientID)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create broker channel: %v", err)
+			return nil, fmt.Errorf("unable to create broker channel: %w", err)
 		}
 		utlsConfig := &utls.Config{
 			RootCAs: certs.GetRootCAs(),

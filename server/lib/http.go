@@ -147,7 +147,7 @@ func (handler *httpHandler) turbotunnelMode(conn net.Conn, addr net.Addr) error 
 	var clientID turbotunnel.ClientID
 	_, err := io.ReadFull(conn, clientID[:])
 	if err != nil {
-		return fmt.Errorf("reading ClientID: %v", err)
+		return fmt.Errorf("reading ClientID: %w", err)
 	}
 
 	// Store a short-term mapping from the ClientID to the client IP
