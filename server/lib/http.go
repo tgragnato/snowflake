@@ -63,7 +63,7 @@ type httpHandler struct {
 	pconns []*turbotunnel.QueuePacketConn
 
 	// clientIDLookupKey is a secret key used to tweak the hash-based
-	// assignement of ClientID to pconn, in order to avoid manipulation of
+	// assignment of ClientID to pconn, in order to avoid manipulation of
 	// hash assignments.
 	clientIDLookupKey []byte
 }
