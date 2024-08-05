@@ -66,7 +66,7 @@ require (
 	github.com/pion/rtp v1.8.7 // indirect
 	github.com/pion/sctp v1.8.20 // indirect
 	github.com/pion/srtp/v3 v3.0.3 // indirect
-	github.com/pion/transport/v2 v2.2.9 // indirect
+	github.com/pion/transport/v2 v2.2.10 // indirect
 	github.com/pion/turn/v3 v3.0.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
