@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.61
-	github.com/pion/ice/v3 v3.0.13
+	github.com/pion/ice/v3 v3.0.15
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v2 v2.0.0
 	github.com/pion/transport/v3 v3.0.7
