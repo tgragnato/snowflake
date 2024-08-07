@@ -180,7 +180,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error in setup: %s", err)
 	}
-	pt.ReportVersion("snowflake", version.GetVersion())
+	pt.ReportVersion("snowflake-server", version.GetVersion())
 
 	go statsThread()
 
