@@ -25,8 +25,8 @@ require (
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil v0.0.0-20240710081135-6c4d8ed41027
-	golang.org/x/crypto v0.25.0
-	golang.org/x/net v0.27.0
+	golang.org/x/crypto v0.26.0
+	golang.org/x/net v0.28.0
 	golang.org/x/sys v0.23.0
 	nhooyr.io/websocket v1.8.11
 )
@@ -81,7 +81,7 @@ require (
 	github.com/wlynxg/anet v0.0.3 // indirect
 	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/tools v0.23.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
