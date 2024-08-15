@@ -309,9 +309,13 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 	defer c1.Close()
 	done := make(chan struct{})
 	copyer := func(dst io.ReadWriteCloser, src io.ReadWriteCloser) {
+		// Experimentally each usage of buffer has been observed to be lower than
+		// 2K; io.Copy defaults to 32K.
+		size := 2 * 1024
+		buffer := make([]byte, size)
 		// Ignore io.ErrClosedPipe because it is likely caused by the
 		// termination of copyer in the other direction.
-		if _, err := io.Copy(dst, src); err != nil && err != io.ErrClosedPipe {
+		if _, err := io.CopyBuffer(dst, src, buffer); err != nil && err != io.ErrClosedPipe {
 			log.Printf("io.Copy inside CopyLoop generated an error: %v", err)
 		}
 		once.Do(func() {
