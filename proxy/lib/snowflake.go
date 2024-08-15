@@ -316,7 +316,7 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 		// Ignore io.ErrClosedPipe because it is likely caused by the
 		// termination of copyer in the other direction.
 		if _, err := io.CopyBuffer(dst, src, buffer); err != nil && err != io.ErrClosedPipe {
-			log.Printf("io.Copy inside CopyLoop generated an error: %v", err)
+			log.Printf("io.CopyBuffer inside CopyLoop generated an error: %v", err)
 		}
 		once.Do(func() {
 			close(done)
