@@ -20,7 +20,7 @@ require (
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.9.0
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
-	github.com/xtaci/kcp-go/v5 v5.6.9
+	github.com/xtaci/kcp-go/v5 v5.6.13
 	github.com/xtaci/smux v1.5.24
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
