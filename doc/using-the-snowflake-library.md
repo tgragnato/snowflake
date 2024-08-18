@@ -130,7 +130,8 @@ func main() {
     if err != nil {
         log.Printf("error resolving bind address: %s", err.Error())
     }
-    ln, err := transport.Listen(addr)
+    numKCPInstances := 1
+    ln, err := transport.Listen(addr, numKCPInstances)
     if err != nil {
         log.Printf("error opening listener: %s", err.Error())
     }
