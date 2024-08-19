@@ -177,8 +177,8 @@ github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301/go.mod h1:ntmMHL
 github.com/wlynxg/anet v0.0.3/go.mod h1:eay5PRQr7fIVAMbTbchTnO9gG65Hg/uYGdc7mguHxoA=
 github.com/wlynxg/anet v0.0.4 h1:0de1OFQxnNqAu+x2FAKKCVIrnfGKQbs7FQz++tB0+Uw=
 github.com/wlynxg/anet v0.0.4/go.mod h1:eay5PRQr7fIVAMbTbchTnO9gG65Hg/uYGdc7mguHxoA=
-github.com/xtaci/kcp-go/v5 v5.6.9 h1:rSfwk6ofh0wrwtlOyzXFNUkXRu6vsXpTF1y8Kh/nof4=
-github.com/xtaci/kcp-go/v5 v5.6.9/go.mod h1:GSs9Z62r41kTb4CxKaRKr6ED+j7I0sUvj7Koql/RN6c=
+github.com/xtaci/kcp-go/v5 v5.6.14 h1:Wvp1y9wOPCaxlOnE+bVIrl3jOoSmSOoiGwaTVEazwZk=
+github.com/xtaci/kcp-go/v5 v5.6.14/go.mod h1:75S1AKYYzNUSXIv30h+jPKJYZUwqpfvLshu63nCNSOM=
 github.com/xtaci/lossyconn v0.0.0-20190602105132-8df528c0c9ae h1:J0GxkO96kL4WF+AIT3M4mfUVinOCPgf2uUWYFUzN0sM=
 github.com/xtaci/lossyconn v0.0.0-20190602105132-8df528c0c9ae/go.mod h1:gXtu8J62kEgmN++bm9BVICuT/e8yiLI2KFobd/TRFsE=
 github.com/xtaci/smux v1.5.24 h1:77emW9dtnOxxOQ5ltR+8BbsX1kzcOxQ5gB+aaV9hXOY=
