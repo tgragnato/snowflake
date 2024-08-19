@@ -42,7 +42,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pion/ice/v3"
+	"github.com/pion/ice/v4"
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
 	"github.com/tgragnato/snowflake/common/event"
