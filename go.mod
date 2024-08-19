@@ -1,6 +1,6 @@
 module github.com/tgragnato/snowflake
 
-go 1.21
+go 1.22.6
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.4
