@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.4
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/miekg/dns v1.1.59
+	github.com/miekg/dns v1.1.62
 	github.com/pion/ice/v2 v2.3.31
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun v0.6.1
@@ -77,10 +77,10 @@ require (
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20210608031112-152c7c4432bf // indirect
 	github.com/wlynxg/anet v0.0.3 // indirect
-	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/tools v0.22.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
