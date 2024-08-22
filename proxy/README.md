@@ -35,6 +35,8 @@ Usage of ./proxy:
         a pattern to specify allowed hostname pattern for relay URL. (default "snowflake.torproject.net$")
   -broker string
         broker URL (default "https://snowflake-broker.torproject.net/")
+  -poll-interval duration
+        how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is 2s. Valid time units are "ms", "s", "m", "h". (default 5s)
   -capacity uint
         maximum concurrent clients (default is to accept an unlimited number of clients)
   -disableStatsLogger
