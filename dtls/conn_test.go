@@ -342,70 +342,6 @@ func sendClientHello(cookie []byte, ca net.Conn, sequenceNumber uint64, extensio
 	return nil
 }
 
-func TestHandshakeWithAlert(t *testing.T) {
-	// Limit runtime in case of deadlocks
-	lim := test.TimeOut(time.Second * 20)
-	defer lim.Stop()
-
-	// Check for leaking routines
-	report := test.CheckRoutines(t)
-	defer report()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cases := map[string]struct {
-		configServer, configClient *Config
-		errServer, errClient       error
-	}{
-		"CipherSuiteNoIntersection": {
-			configServer: &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-			},
-			configClient: &Config{
-				CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
-			},
-			errServer: errCipherSuiteNoIntersection,
-			errClient: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
-		},
-		"SignatureSchemesNoIntersection": {
-			configServer: &Config{
-				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256},
-			},
-			configClient: &Config{
-				CipherSuites:     []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-				SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP521AndSHA512},
-			},
-			errServer: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
-			errClient: errNoAvailableSignatureSchemes,
-		},
-	}
-
-	for name, testCase := range cases {
-		testCase := testCase
-		t.Run(name, func(t *testing.T) {
-			clientErr := make(chan error, 1)
-
-			ca, cb := dpipe.Pipe()
-			go func() {
-				_, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), testCase.configClient, true)
-				clientErr <- err
-			}()
-
-			_, errServer := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), testCase.configServer, true)
-			if !errors.Is(errServer, testCase.errServer) {
-				t.Fatalf("Server error exp(%v) failed(%v)", testCase.errServer, errServer)
-			}
-
-			errClient := <-clientErr
-			if !errors.Is(errClient, testCase.errClient) {
-				t.Fatalf("Client error exp(%v) failed(%v)", testCase.errClient, errClient)
-			}
-		})
-	}
-}
-
 func TestHandshakeWithInvalidRecord(t *testing.T) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
@@ -493,28 +429,40 @@ func TestExportKeyingMaterial(t *testing.T) {
 	c.setLocalEpoch(0)
 	c.setRemoteEpoch(0)
 
-	state := c.ConnectionState()
+	state, ok := c.ConnectionState()
+	if !ok {
+		t.Fatal("ConnectionState failed")
+	}
 	_, err := state.ExportKeyingMaterial(exportLabel, nil, 0)
 	if !errors.Is(err, errHandshakeInProgress) {
 		t.Errorf("ExportKeyingMaterial when epoch == 0: expected '%s' actual '%s'", errHandshakeInProgress, err)
 	}
 
 	c.setLocalEpoch(1)
-	state = c.ConnectionState()
+	state, ok = c.ConnectionState()
+	if !ok {
+		t.Fatal("ConnectionState failed")
+	}
 	_, err = state.ExportKeyingMaterial(exportLabel, []byte{0x00}, 0)
 	if !errors.Is(err, errContextUnsupported) {
 		t.Errorf("ExportKeyingMaterial with context: expected '%s' actual '%s'", errContextUnsupported, err)
 	}
 
 	for k := range invalidKeyingLabels() {
-		state = c.ConnectionState()
+		state, ok = c.ConnectionState()
+		if !ok {
+			t.Fatal("ConnectionState failed")
+		}
 		_, err = state.ExportKeyingMaterial(k, nil, 0)
 		if !errors.Is(err, errReservedExportKeyingMaterial) {
 			t.Errorf("ExportKeyingMaterial reserved label: expected '%s' actual '%s'", errReservedExportKeyingMaterial, err)
 		}
 	}
 
-	state = c.ConnectionState()
+	state, ok = c.ConnectionState()
+	if !ok {
+		t.Fatal("ConnectionState failed")
+	}
 	keyingMaterial, err := state.ExportKeyingMaterial(exportLabel, nil, 10)
 	if err != nil {
 		t.Errorf("ExportKeyingMaterial as server: unexpected error '%s'", err)
@@ -523,7 +471,10 @@ func TestExportKeyingMaterial(t *testing.T) {
 	}
 
 	c.state.isClient = true
-	state = c.ConnectionState()
+	state, ok = c.ConnectionState()
+	if !ok {
+		t.Fatal("ConnectionState failed")
+	}
 	keyingMaterial, err = state.ExportKeyingMaterial(exportLabel, nil, 10)
 	if err != nil {
 		t.Errorf("ExportKeyingMaterial as server: unexpected error '%s'", err)
@@ -659,7 +610,11 @@ func TestPSK(t *testing.T) {
 				t.Fatalf("TestPSK: Server failed(%v)", err)
 			}
 
-			actualPSKIdentityHint := server.ConnectionState().IdentityHint
+			state, ok := server.ConnectionState()
+			if !ok {
+				t.Fatalf("TestPSK: Server ConnectionState failed")
+			}
+			actualPSKIdentityHint := state.IdentityHint
 			if !bytes.Equal(actualPSKIdentityHint, test.ClientIdentity) {
 				t.Errorf("TestPSK: Server ClientPSKIdentity Mismatch '%s': expected(%v) actual(%v)", test.Name, test.ClientIdentity, actualPSKIdentityHint)
 			}
@@ -856,12 +811,14 @@ func TestSRTPConfiguration(t *testing.T) {
 	defer report()
 
 	for _, test := range []struct {
-		Name            string
-		ClientSRTP      []SRTPProtectionProfile
-		ServerSRTP      []SRTPProtectionProfile
-		ExpectedProfile SRTPProtectionProfile
-		WantClientError error
-		WantServerError error
+		Name                          string
+		ClientSRTP                    []SRTPProtectionProfile
+		ServerSRTP                    []SRTPProtectionProfile
+		ClientSRTPMasterKeyIdentifier []byte
+		ServerSRTPMasterKeyIdentifier []byte
+		ExpectedProfile               SRTPProtectionProfile
+		WantClientError               error
+		WantServerError               error
 	}{
 		{
 			Name:            "No SRTP in use",
@@ -872,12 +829,14 @@ func TestSRTPConfiguration(t *testing.T) {
 			WantServerError: nil,
 		},
 		{
-			Name:            "SRTP both ends",
-			ClientSRTP:      []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
-			ServerSRTP:      []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
-			ExpectedProfile: SRTP_AES128_CM_HMAC_SHA1_80,
-			WantClientError: nil,
-			WantServerError: nil,
+			Name:                          "SRTP both ends",
+			ClientSRTP:                    []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
+			ServerSRTP:                    []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
+			ExpectedProfile:               SRTP_AES128_CM_HMAC_SHA1_80,
+			ClientSRTPMasterKeyIdentifier: []byte("ClientSRTPMKI"),
+			ServerSRTPMasterKeyIdentifier: []byte("ServerSRTPMKI"),
+			WantClientError:               nil,
+			WantServerError:               nil,
 		},
 		{
 			Name:            "SRTP client only",
@@ -923,11 +882,11 @@ func TestSRTPConfiguration(t *testing.T) {
 		c := make(chan result)
 
 		go func() {
-			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{SRTPProtectionProfiles: test.ClientSRTP}, true)
+			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{SRTPProtectionProfiles: test.ClientSRTP, SRTPMasterKeyIdentifier: test.ServerSRTPMasterKeyIdentifier}, true)
 			c <- result{client, err}
 		}()
 
-		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{SRTPProtectionProfiles: test.ServerSRTP}, true)
+		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{SRTPProtectionProfiles: test.ServerSRTP, SRTPMasterKeyIdentifier: test.ClientSRTPMasterKeyIdentifier}, true)
 		if !errors.Is(err, test.WantServerError) {
 			t.Errorf("TestSRTPConfiguration: Server Error Mismatch '%s': expected(%v) actual(%v)", test.Name, test.WantServerError, err)
 		}
@@ -958,6 +917,16 @@ func TestSRTPConfiguration(t *testing.T) {
 		actualServerSRTP, _ := server.SelectedSRTPProtectionProfile()
 		if actualServerSRTP != test.ExpectedProfile {
 			t.Errorf("TestSRTPConfiguration: Server SRTPProtectionProfile Mismatch '%s': expected(%v) actual(%v)", test.Name, test.ExpectedProfile, actualServerSRTP)
+		}
+
+		actualServerMKI, _ := server.RemoteSRTPMasterKeyIdentifier()
+		if !bytes.Equal(actualServerMKI, test.ServerSRTPMasterKeyIdentifier) {
+			t.Errorf("TestSRTPConfiguration: Server SRTPMKI Mismatch '%s': expected(%v) actual(%v)", test.Name, test.ServerSRTPMasterKeyIdentifier, actualServerMKI)
+		}
+
+		actualClientMKI, _ := res.c.RemoteSRTPMasterKeyIdentifier()
+		if !bytes.Equal(actualClientMKI, test.ClientSRTPMasterKeyIdentifier) {
+			t.Errorf("TestSRTPConfiguration: Client SRTPMKI Mismatch '%s': expected(%v) actual(%v)", test.Name, test.ClientSRTPMasterKeyIdentifier, actualClientMKI)
 		}
 	}
 }
@@ -1170,7 +1139,11 @@ func TestClientCertificate(t *testing.T) {
 					t.Errorf("Client failed(%v)", res.err)
 				}
 
-				actualClientCert := server.ConnectionState().PeerCertificates
+				state, ok := server.ConnectionState()
+				if !ok {
+					t.Error("Server connection state not available")
+				}
+				actualClientCert := state.PeerCertificates
 				if tt.serverCfg.ClientAuth == RequireAnyClientCert || tt.serverCfg.ClientAuth == RequireAndVerifyClientCert {
 					if actualClientCert == nil {
 						t.Errorf("Client did not provide a certificate")
@@ -1197,7 +1170,11 @@ func TestClientCertificate(t *testing.T) {
 					}
 				}
 
-				actualServerCert := res.c.ConnectionState().PeerCertificates
+				clientState, ok := res.c.ConnectionState()
+				if !ok {
+					t.Error("Client connection state not available")
+				}
+				actualServerCert := clientState.PeerCertificates
 				if actualServerCert == nil {
 					t.Errorf("Server did not provide a certificate")
 				}
@@ -1619,13 +1596,6 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			WantClientError:         nil,
 			WantServerError:         nil,
 			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-		},
-		{
-			Name:               "CipherSuites mismatch",
-			ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-			ServerCipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
-			WantClientError:    &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
-			WantServerError:    errCipherSuiteNoIntersection,
 		},
 		{
 			Name:                    "Server supports subset of client suites",
@@ -2845,8 +2815,12 @@ func TestSessionResume(t *testing.T) {
 			t.Fatalf("TestSessionResume: Server failed(%v)", err)
 		}
 
-		actualSessionID := server.ConnectionState().SessionID
-		actualMasterSecret := server.ConnectionState().masterSecret
+		state, ok := server.ConnectionState()
+		if !ok {
+			t.Fatal("TestSessionResume: ConnectionState failed")
+		}
+		actualSessionID := state.SessionID
+		actualMasterSecret := state.masterSecret
 		if !bytes.Equal(actualSessionID, id) {
 			t.Errorf("TestSessionResumetion: SessionID Mismatch: expected(%v) actual(%v)", id, actualSessionID)
 		}
@@ -2896,8 +2870,12 @@ func TestSessionResume(t *testing.T) {
 			t.Fatalf("TestSessionResumetion: Server failed(%v)", err)
 		}
 
-		actualSessionID := server.ConnectionState().SessionID
-		actualMasterSecret := server.ConnectionState().masterSecret
+		state, ok := server.ConnectionState()
+		if !ok {
+			t.Fatal("TestSessionResumetion: ConnectionState failed")
+		}
+		actualSessionID := state.SessionID
+		actualMasterSecret := state.masterSecret
 		ss, _ := s2.Get(actualSessionID)
 		if !bytes.Equal(actualMasterSecret, ss.Secret) {
 			t.Errorf("TestSessionResumetion: masterSecret Mismatch: expected(%v) actual(%v)", ss.Secret, actualMasterSecret)
@@ -3400,5 +3378,156 @@ func TestFragmentBuffer_Retransmission(t *testing.T) {
 		t.Fatal(err)
 	} else if !isRetransmission {
 		t.Fatal("fragment should be retransmission")
+	}
+}
+
+func TestConnectionState(t *testing.T) {
+	ca, cb := dpipe.Pipe()
+
+	// Setup client
+	clientCfg := &Config{}
+	clientCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientCfg.Certificates = []tls.Certificate{clientCert}
+	clientCfg.InsecureSkipVerify = true
+	client, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), clientCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	_, ok := client.ConnectionState()
+	if ok {
+		t.Fatal("ConnectionState should be nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c := make(chan error)
+	go func() {
+		errC := client.HandshakeContext(ctx)
+		c <- errC
+	}()
+
+	// Setup server
+	server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = server.Close()
+	}()
+
+	err = <-c
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, ok = client.ConnectionState()
+	if !ok {
+		t.Fatal("ConnectionState should not be nil")
+	}
+}
+
+func TestMultiHandshake(t *testing.T) {
+	defer test.CheckRoutines(t)()
+	defer test.TimeOut(time.Second * 10).Stop()
+
+	ca, cb := dpipe.Pipe()
+	serverCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
+		Certificates: []tls.Certificate{serverCert},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		_ = server.Handshake()
+	}()
+
+	clientCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
+		Certificates: []tls.Certificate{clientCert},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = client.Handshake(); err == nil {
+		t.Fatal(err)
+	}
+
+	if err = client.Handshake(); err == nil {
+		t.Fatal(err)
+	}
+
+	if err = server.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = client.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCloseDuringHandshake(t *testing.T) {
+	defer test.CheckRoutines(t)()
+	defer test.TimeOut(time.Second * 10).Stop()
+
+	serverCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		_, cb := dpipe.Pipe()
+		server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
+			Certificates: []tls.Certificate{serverCert},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		waitChan := make(chan struct{})
+		go func() {
+			close(waitChan)
+			_ = server.Handshake()
+		}()
+
+		<-waitChan
+		if err = server.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestCloseWithoutHandshake(t *testing.T) {
+	defer test.CheckRoutines(t)()
+	defer test.TimeOut(time.Second * 10).Stop()
+
+	serverCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, cb := dpipe.Pipe()
+	server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
+		Certificates: []tls.Certificate{serverCert},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = server.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

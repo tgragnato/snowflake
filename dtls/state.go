@@ -6,6 +6,7 @@ package dtls
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"sync/atomic"
 
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
@@ -24,10 +25,12 @@ type State struct {
 	cipherSuite               CipherSuite // nil if a cipherSuite hasn't been chosen
 	CipherSuiteID             CipherSuiteID
 
-	srtpProtectionProfile atomic.Value // Negotiated SRTPProtectionProfile
-	PeerCertificates      [][]byte
-	IdentityHint          []byte
-	SessionID             []byte
+	srtpProtectionProfile         atomic.Value // Negotiated SRTPProtectionProfile
+	remoteSRTPMasterKeyIdentifier []byte
+
+	PeerCertificates [][]byte
+	IdentityHint     []byte
+	SessionID        []byte
 
 	// Connection Identifiers must be negotiated afresh on session resumption.
 	// https://datatracker.ietf.org/doc/html/rfc9146#name-the-connection_id-extension
@@ -85,15 +88,25 @@ type serializedState struct {
 	NegotiatedProtocol    string
 }
 
-func (s *State) clone() *State {
-	serialized := s.serialize()
+var errCipherSuiteNotSet = &InternalError{Err: errors.New("cipher suite not set")} //nolint:goerr113
+
+func (s *State) clone() (*State, error) {
+	serialized, err := s.serialize()
+	if err != nil {
+		return nil, err
+	}
 	state := &State{}
 	state.deserialize(*serialized)
 
-	return state
+	return state, err
 }
 
-func (s *State) serialize() *serializedState {
+func (s *State) serialize() (*serializedState, error) {
+	if s.cipherSuite == nil {
+		return nil, errCipherSuiteNotSet
+	}
+	cipherSuiteID := uint16(s.cipherSuite.ID())
+
 	// Marshal random values
 	localRnd := s.localRandom.MarshalFixed()
 	remoteRnd := s.remoteRandom.MarshalFixed()
@@ -102,7 +115,7 @@ func (s *State) serialize() *serializedState {
 	return &serializedState{
 		LocalEpoch:            s.getLocalEpoch(),
 		RemoteEpoch:           s.getRemoteEpoch(),
-		CipherSuiteID:         uint16(s.cipherSuite.ID()),
+		CipherSuiteID:         cipherSuiteID,
 		MasterSecret:          s.masterSecret,
 		SequenceNumber:        atomic.LoadUint64(&s.localSequenceNumber[epoch]),
 		LocalRandom:           localRnd,
@@ -115,7 +128,7 @@ func (s *State) serialize() *serializedState {
 		RemoteConnectionID:    s.remoteConnectionID,
 		IsClient:              s.isClient,
 		NegotiatedProtocol:    s.NegotiatedProtocol,
-	}
+	}, nil
 }
 
 func (s *State) deserialize(serialized serializedState) {
@@ -185,7 +198,10 @@ func (s *State) initCipherSuite() error {
 
 // MarshalBinary is a binary.BinaryMarshaler.MarshalBinary implementation
 func (s *State) MarshalBinary() ([]byte, error) {
-	serialized := s.serialize()
+	serialized, err := s.serialize()
+	if err != nil {
+		return nil, err
+	}
 
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)

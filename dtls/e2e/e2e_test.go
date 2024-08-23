@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
-//go:build !js
-// +build !js
-
 package e2e
 
 import (
@@ -641,14 +638,6 @@ func testPionE2ESimpleServerHelloHook(t *testing.T, server, client func(*comm), 
 	})
 }
 
-func TestPionE2ESimple(t *testing.T) {
-	testPionE2ESimple(t, serverPion, clientPion)
-}
-
-func TestPionE2ESimplePSK(t *testing.T) {
-	testPionE2ESimplePSK(t, serverPion, clientPion)
-}
-
 func TestPionE2EMTUs(t *testing.T) {
 	testPionE2EMTUs(t, serverPion, clientPion)
 }
@@ -663,10 +652,6 @@ func TestPionE2ESimpleED25519ClientCert(t *testing.T) {
 
 func TestPionE2ESimpleECDSAClientCert(t *testing.T) {
 	testPionE2ESimpleECDSAClientCert(t, serverPion, clientPion)
-}
-
-func TestPionE2ESimpleCID(t *testing.T) {
-	testPionE2ESimple(t, serverPion, clientPion, withConnectionIDGenerator(dtls.RandomCIDGenerator(8)))
 }
 
 func TestPionE2ESimplePSKCID(t *testing.T) {

@@ -183,7 +183,11 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 
 	if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeAnonymous {
 		if cfg.verifyConnection != nil {
-			if err := cfg.verifyConnection(state.clone()); err != nil {
+			stateClone, err := state.clone()
+			if err != nil {
+				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
+			}
+			if err := cfg.verifyConnection(stateClone); err != nil {
 				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, err
 			}
 		}
@@ -210,7 +214,11 @@ func flight4Parse(ctx context.Context, c flightConn, state *State, cache *handsh
 		// go to flight6
 	}
 	if cfg.verifyConnection != nil {
-		if err := cfg.verifyConnection(state.clone()); err != nil {
+		stateClone, err := state.clone()
+		if err != nil {
+			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
+		}
+		if err := cfg.verifyConnection(stateClone); err != nil {
 			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, err
 		}
 	}
@@ -230,7 +238,8 @@ func flight4Generate(_ flightConn, state *State, _ *handshakeCache, cfg *handsha
 	}
 	if state.getSRTPProtectionProfile() != 0 {
 		extensions = append(extensions, &extension.UseSRTP{
-			ProtectionProfiles: []SRTPProtectionProfile{state.getSRTPProtectionProfile()},
+			ProtectionProfiles:  []SRTPProtectionProfile{state.getSRTPProtectionProfile()},
+			MasterKeyIdentifier: cfg.localSRTPMasterKeyIdentifier,
 		})
 	}
 	if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeCertificate {
