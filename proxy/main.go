@@ -17,7 +17,12 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 )
 
+const minPollInterval = 2 * time.Second
+
 func main() {
+	pollInterval := flag.Duration("poll-interval", sf.DefaultPollInterval,
+		fmt.Sprint("how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
+	capacity := flag.Uint("capacity", 0, "maximum concurrent clients (default is to accept an unlimited number of clients)")
 	stunURL := flag.String("stun", sf.DefaultSTUNURL, "STUN URL")
 	logFilename := flag.String("log", "", "log filename")
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "broker URL")
@@ -48,6 +53,10 @@ func main() {
 	if *versionFlag {
 		fmt.Fprintf(os.Stderr, "snowflake-proxy %s", version.ConstructResult())
 		os.Exit(0)
+	}
+
+	if *pollInterval < minPollInterval {
+		log.Fatalf("poll-interval must be >= %v", minPollInterval)
 	}
 
 	if *outboundAddress != "" && *keepLocalAddresses {
@@ -83,6 +92,8 @@ func main() {
 	}
 
 	proxy := sf.SnowflakeProxy{
+		PollInterval:       *pollInterval,
+		Capacity:           uint(*capacity),
 		STUNURL:            *stunURL,
 		BrokerURL:          *rawBrokerURL,
 		KeepLocalAddresses: *keepLocalAddresses,

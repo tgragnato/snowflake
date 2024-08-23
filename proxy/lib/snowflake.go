@@ -42,6 +42,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/pion/ice/v4"
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
@@ -50,16 +51,15 @@ import (
 	"github.com/tgragnato/snowflake/common/namematcher"
 	"github.com/tgragnato/snowflake/common/task"
 	"github.com/tgragnato/snowflake/common/util"
-	"nhooyr.io/websocket"
 )
 
 const (
-	DefaultBrokerURL   = "https://snowflake-broker.torproject.net/"
-	DefaultNATProbeURL = "https://snowflake-broker.torproject.net:8443/probe"
-	DefaultRelayURL    = "wss://snowflake.torproject.net/"
-	DefaultSTUNURL     = "stun:stun.tgragnato.it:3478"
-	DefaultProxyType   = "standalone"
-	pollInterval       = 5 * time.Second
+	DefaultPollInterval = 5 * time.Second
+	DefaultBrokerURL    = "https://snowflake-broker.torproject.net/"
+	DefaultNATProbeURL  = "https://snowflake-broker.torproject.net:8443/probe"
+	DefaultRelayURL     = "wss://snowflake.torproject.net/"
+	DefaultProxyType    = "standalone"
+	DefaultSTUNURL      = "stun:stun.tgragnato.it:3478"
 	// NATUnknown is set if the proxy cannot connect to probetest.
 	NATUnknown = "unknown"
 	// NATRestricted is set if the proxy times out when connecting to a symmetric NAT.
@@ -120,6 +120,11 @@ func setCurrentNATType(newType string) {
 // SnowflakeProxy is used to configure an embedded
 // Snowflake in another Go application.
 type SnowflakeProxy struct {
+	// How often to ask the broker for a new client
+	PollInterval time.Duration
+	// Capacity is the maximum number of clients a Snowflake will serve.
+	// Proxies with a capacity of 0 will accept an unlimited number of clients.
+	Capacity uint
 	// STUNURL is the URL of the STUN server the proxy will use
 	STUNURL string
 	// BrokerURL is the URL of the Snowflake broker
@@ -225,7 +230,7 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 
 // pollOffer communicates the proxy's capabilities with broker
 // and retrieves a compatible SDP offer
-func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string, shutdown chan struct{}) (*webrtc.SessionDescription, string) {
+func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string, pollInterval time.Duration, shutdown chan struct{}) (*webrtc.SessionDescription, string) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
 	ticker := time.NewTicker(pollInterval)
@@ -613,7 +618,7 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 }
 
 func (sf *SnowflakeProxy) runSession(sid string) {
-	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern, sf.shutdown)
+	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern, sf.PollInterval, sf.shutdown)
 	if offer == nil {
 		log.Printf("bad offer from broker")
 		return
@@ -671,6 +676,9 @@ func (sf *SnowflakeProxy) Start() error {
 	sf.shutdown = make(chan struct{})
 
 	// blank configurations revert to default
+	if sf.PollInterval == 0 {
+		sf.PollInterval = DefaultPollInterval
+	}
 	if sf.BrokerURL == "" {
 		sf.BrokerURL = DefaultBrokerURL
 	}
@@ -745,7 +753,7 @@ func (sf *SnowflakeProxy) Start() error {
 		defer NatRetestTask.Close()
 	}
 
-	ticker := time.NewTicker(pollInterval)
+	ticker := time.NewTicker(sf.PollInterval)
 	defer ticker.Stop()
 
 	for ; true; <-ticker.C {

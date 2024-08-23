@@ -54,7 +54,7 @@ const (
 	// WindowSize is the number of packets in the send and receive window of a KCP connection.
 	WindowSize = 65535
 	// StreamSize controls the maximum amount of in flight data between a client and server.
-	StreamSize = 1048576 //1MB
+	StreamSize = 1048576 // 1MB
 )
 
 // Transport is a structure with methods that conform to the Go PT v2.1 API
@@ -65,7 +65,6 @@ type Transport struct {
 
 // NewSnowflakeServer returns a new server-side Transport for Snowflake.
 func NewSnowflakeServer(getCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)) *Transport {
-
 	return &Transport{getCertificate: getCertificate}
 }
 
@@ -163,7 +162,6 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 	}
 
 	return listener, nil
-
 }
 
 type SnowflakeListener struct {
@@ -181,7 +179,7 @@ type SnowflakeListener struct {
 func (l *SnowflakeListener) Accept() (net.Conn, error) {
 	select {
 	case <-l.closed:
-		//channel has been closed, no longer accepting connections
+		// channel has been closed, no longer accepting connections
 		return nil, io.ErrClosedPipe
 	case conn := <-l.queue:
 		return conn, nil
@@ -303,6 +301,7 @@ func (conn *SnowflakeClientConn) SetDeadline(t time.Time) error { return conn.st
 func (conn *SnowflakeClientConn) SetReadDeadline(t time.Time) error {
 	return conn.stream.SetReadDeadline(t)
 }
+
 func (conn *SnowflakeClientConn) SetWriteDeadline(t time.Time) error {
 	return conn.stream.SetWriteDeadline(t)
 }

@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.22 AS build
+FROM docker.io/library/golang:1.23 AS build
 
 # Set some labels
 # io.containers.autoupdate label will instruct podman to reach out to the corres

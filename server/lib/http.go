@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/tgragnato/snowflake/common/encapsulation"
 	"github.com/tgragnato/snowflake/common/turbotunnel"
-	"nhooyr.io/websocket"
 )
 
 const requestTimeout = 10 * time.Second
@@ -58,7 +58,7 @@ type httpHandler struct {
 	pconns []*turbotunnel.QueuePacketConn
 
 	// clientIDLookupKey is a secret key used to tweak the hash-based
-	// assignement of ClientID to pconn, in order to avoid manipulation of
+	// assignment of ClientID to pconn, in order to avoid manipulation of
 	// hash assignments.
 	clientIDLookupKey []byte
 }
@@ -142,7 +142,7 @@ func (handler *httpHandler) turbotunnelMode(conn net.Conn, addr net.Addr) error 
 	var clientID turbotunnel.ClientID
 	_, err := io.ReadFull(conn, clientID[:])
 	if err != nil {
-		return fmt.Errorf("reading ClientID: %v", err)
+		return fmt.Errorf("reading ClientID: %w", err)
 	}
 
 	// Store a short-term mapping from the ClientID to the client IP

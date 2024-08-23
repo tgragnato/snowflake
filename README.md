@@ -14,7 +14,7 @@ Pluggable Transport using WebRTC, inspired by Flashproxy.
 - non-performing but simple token handling
 - client padding to evade TLS in DTLS detection
 - introduction of a proxy option to force the NAT type as unrestricted
-- nhooyr.io/websocket in place of gorilla/websocket
+- coder/websocket in place of gorilla/websocket
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
