@@ -96,8 +96,6 @@ var (
 			SessionTicketsDisabled: true,
 		},
 		ForceAttemptHTTP2:     true,
-		MaxIdleConnsPerHost:   10,
-		MaxConnsPerHost:       20,
 		IdleConnTimeout:       5 * time.Minute,
 		ResponseHeaderTimeout: 30 * time.Second,
 		DisableKeepAlives:     false,
