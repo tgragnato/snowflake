@@ -100,6 +100,19 @@ var (
 		ResponseHeaderTimeout: 30 * time.Second,
 		DisableKeepAlives:     false,
 		DisableCompression:    false,
+		Dial: func(network, addr string) (net.Conn, error) {
+			d := &net.Dialer{
+				Timeout:   5 * time.Minute,
+				KeepAlive: time.Millisecond,
+				DualStack: true,
+			}
+			d.SetMultipathTCP(true)
+			conn, err := d.Dial(network, addr)
+			if err != nil {
+				return nil, err
+			}
+			return conn, nil
+		},
 	}
 )
 
