@@ -1,24 +1,14 @@
-FROM docker.io/library/golang:1.23 AS build
+FROM golang:alpine3.20 AS builder
+ENV CGO_ENABLED=0
+WORKDIR /workspace
+COPY go.mod .
+COPY go.sum .
+COPY . .
+RUN go mod download && go build -o proxy/proxy ./proxy
 
-# Set some labels
-# io.containers.autoupdate label will instruct podman to reach out to the corres
-# corresponding registry to check if the image has been updated. If an image
-# must be updated, Podman pulls it down and restarts the systemd unit executing
-# the container. See podman-auto-update(1) for more details, or
-# https://docs.podman.io/en/latest/markdown/podman-auto-update.1.html
+FROM alpine:3.20
+WORKDIR /tmp
+COPY --from=builder /workspace/proxy/proxy /usr/bin/
+ENTRYPOINT ["/usr/bin/proxy"]
 LABEL io.containers.autoupdate=registry
-LABEL org.opencontainers.image.authors="anti-censorship-team@lists.torproject.org"
-
-ADD . /app
-
-WORKDIR /app/proxy
-RUN go get
-RUN CGO_ENABLED=0 go build -o proxy -ldflags '-extldflags "-static" -w -s'  .
-
-FROM scratch
-
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=build /app/proxy/proxy /bin/proxy
-
-ENTRYPOINT [ "/bin/proxy" ]
+LABEL org.opencontainers.image.source=https://github.com/tgragnato/snowflake
