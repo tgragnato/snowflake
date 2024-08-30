@@ -493,4 +493,71 @@ func TestUtilityFuncs(t *testing.T) {
 		_, err = s2.Write(bytes)
 		So(err, ShouldNotBeNil)
 	})
+	Convey("isRelayURLAcceptable", t, func() {
+		testingVector := []struct {
+			pattern     string
+			allowNonTLS bool
+			targetURL   string
+			expects     error
+		}{
+			// These are copied from `TestMatchMember`.
+			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
+			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-01-snowflake.torproject.net", expects: nil},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-aaa-snowflake.torproject.net", expects: nil},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-aaa-snowflake.faketorproject.net", expects: fmt.Errorf("")},
+
+			{pattern: "^torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
+			// Yes, this is how it works if there is no "^".
+			{pattern: "torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: nil},
+
+			// NonTLS
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ws://snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ws://snowflake.torproject.net", expects: nil},
+
+			// Sneaky attempt to use path
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://evil.com/snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://evil.com/?test=snowflake.torproject.net", expects: fmt.Errorf("")},
+
+			// IP address
+			{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://1.1.1.1/test?test=test#test", expects: nil},
+			{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: fmt.Errorf("")},
+			{pattern: "1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: nil},
+
+			// Port
+			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:8080/test?test=test#test", expects: nil},
+			// This currently doesn't work as we only check hostname.
+			// {pattern: "^snowflake.torproject.net:443$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:443", expects: nil},
+			// {pattern: "^snowflake.torproject.net:443$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:9999", expects: fmt.Errorf("")},
+
+			// Any URL
+			{pattern: "$", allowNonTLS: false, targetURL: "wss://any.com/test?test=test#test", expects: nil},
+			{pattern: "$", allowNonTLS: false, targetURL: "wss://1.1.1.1/test?test=test#test", expects: nil},
+
+			// Weird / invalid / ambiguous URL
+			// {pattern: "$", allowNonTLS: true, targetURL: "snowflake.torproject.net", expects: fmt.Errorf("")},
+			// {pattern: "$", allowNonTLS: true, targetURL: "//snowflake.torproject.net", expects: fmt.Errorf("")},
+			// {pattern: "$", allowNonTLS: true, targetURL: "/path", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "wss://snowflake.torproject .net", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "wss://😀", expects: nil},
+			{pattern: "$", allowNonTLS: true, targetURL: "wss://пример.рф", expects: nil},
+
+			// Non-websocket protocols
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
+			// These are failing for now
+			// {pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
+			// {pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
+		}
+		for _, v := range testingVector {
+			err := checkIsRelayURLAcceptable(v.pattern, v.allowNonTLS, v.targetURL)
+			if v.expects != nil {
+				So(err, ShouldNotBeNil)
+			} else {
+				So(err, ShouldBeNil)
+			}
+		}
+	})
 }

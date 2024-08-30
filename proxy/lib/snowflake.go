@@ -600,18 +600,12 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	}
 	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 
-	matcher := namematcher.NewNameMatcher(sf.RelayDomainNamePattern)
-	parsedRelayURL, err := url.Parse(relayURL)
-	if err != nil {
-		log.Printf("bad offer from broker: bad Relay URL %v", err.Error())
-		tokens.ret()
-		return
-	}
-
-	if relayURL != "" && (!matcher.IsMember(parsedRelayURL.Hostname()) || (!sf.AllowNonTLSRelay && parsedRelayURL.Scheme != "wss")) {
-		log.Printf("bad offer from broker: rejected Relay URL")
-		tokens.ret()
-		return
+	if relayURL != "" {
+		if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowNonTLSRelay, relayURL); err != nil {
+			log.Printf("bad offer from broker: %v", err)
+			tokens.ret()
+			return
+		}
 	}
 
 	dataChan := make(chan struct{})
@@ -644,6 +638,24 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 			log.Printf("error calling pc.Close: %v", err)
 		}
 		tokens.ret()
+	}
+}
+
+// Returns nil if the relayURL is acceptable
+func checkIsRelayURLAcceptable(
+	allowedHostNamePattern string,
+	allowNonTLSRelay bool,
+	relayURL string,
+) error {
+	parsedRelayURL, err := url.Parse(relayURL)
+	if err != nil {
+		return fmt.Errorf("bad Relay URL %w", err)
+	}
+	matcher := namematcher.NewNameMatcher(allowedHostNamePattern)
+	if !matcher.IsMember(parsedRelayURL.Hostname()) || (!allowNonTLSRelay && parsedRelayURL.Scheme != "wss") {
+		return fmt.Errorf("rejected Relay URL")
+	} else {
+		return nil
 	}
 }
 
