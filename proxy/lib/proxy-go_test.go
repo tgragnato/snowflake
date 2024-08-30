@@ -537,9 +537,9 @@ func TestUtilityFuncs(t *testing.T) {
 			{pattern: "$", allowNonTLS: false, targetURL: "wss://1.1.1.1/test?test=test#test", expects: nil},
 
 			// Weird / invalid / ambiguous URL
-			// {pattern: "$", allowNonTLS: true, targetURL: "snowflake.torproject.net", expects: fmt.Errorf("")},
-			// {pattern: "$", allowNonTLS: true, targetURL: "//snowflake.torproject.net", expects: fmt.Errorf("")},
-			// {pattern: "$", allowNonTLS: true, targetURL: "/path", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "//snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "/path", expects: fmt.Errorf("")},
 			{pattern: "$", allowNonTLS: true, targetURL: "wss://snowflake.torproject .net", expects: fmt.Errorf("")},
 			{pattern: "$", allowNonTLS: true, targetURL: "wss://😀", expects: nil},
 			{pattern: "$", allowNonTLS: true, targetURL: "wss://пример.рф", expects: nil},
@@ -547,9 +547,8 @@ func TestUtilityFuncs(t *testing.T) {
 			// Non-websocket protocols
 			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
 			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
-			// These are failing for now
-			// {pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
-			// {pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
+			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
 		}
 		for _, v := range testingVector {
 			err := checkIsRelayURLAcceptable(v.pattern, v.allowNonTLS, v.targetURL)
