@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pion/stun/v2"
+	"github.com/pion/stun/v3"
 	"github.com/pion/webrtc/v4"
 	"github.com/tgragnato/snowflake/common/encapsulation"
 	"github.com/tgragnato/snowflake/common/event"
