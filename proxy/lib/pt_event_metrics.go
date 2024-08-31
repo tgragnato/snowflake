@@ -19,11 +19,10 @@ func NewEventMetrics(collector EventCollector) *EventMetrics {
 }
 
 func (em *EventMetrics) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
-	switch e.(type) {
+	switch v := e.(type) {
 	case event.EventOnProxyStats:
-		e := e.(event.EventOnProxyStats)
-		em.collector.TrackInBoundTraffic(e.InboundBytes)
-		em.collector.TrackOutBoundTraffic(e.OutboundBytes)
+		em.collector.TrackInBoundTraffic(v.InboundBytes)
+		em.collector.TrackOutBoundTraffic(v.OutboundBytes)
 	case event.EventOnProxyConnectionOver:
 		em.collector.TrackNewConnection()
 	}
