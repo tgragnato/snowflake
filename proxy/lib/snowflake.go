@@ -651,17 +651,19 @@ func checkIsRelayURLAcceptable(
 	if err != nil {
 		return fmt.Errorf("bad Relay URL %w", err)
 	}
+	if !allowNonTLSRelay && parsedRelayURL.Scheme != "wss" {
+		return fmt.Errorf("rejected Relay URL protocol: non-TLS not allowed")
+	}
 	// FYI our websocket library also rejects other protocols
 	// https://github.com/gorilla/websocket/blob/5e002381133d322c5f1305d171f3bdd07decf229/client.go#L174-L181
 	if parsedRelayURL.Scheme != "wss" && parsedRelayURL.Scheme != "ws" {
-		return fmt.Errorf("rejected Relay URL protocol")
+		return fmt.Errorf("rejected Relay URL protocol: only WebSocket is allowed")
 	}
 	matcher := namematcher.NewNameMatcher(allowedHostNamePattern)
-	if !matcher.IsMember(parsedRelayURL.Hostname()) || (!allowNonTLSRelay && parsedRelayURL.Scheme != "wss") {
-		return fmt.Errorf("rejected Relay URL")
-	} else {
-		return nil
+	if !matcher.IsMember(parsedRelayURL.Hostname()) {
+		return fmt.Errorf("rejected Relay URL: hostname does not match allowed pattern \"%v\"", allowedHostNamePattern)
 	}
+	return nil
 }
 
 // Start configures and starts a Snowflake, fully formed and special. Configuration
