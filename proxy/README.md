@@ -31,6 +31,9 @@ The Snowflake proxy can be run with the following options:
 Usage of ./proxy:
   -allow-non-tls-relay
         allow relay without tls encryption
+  -allow-proxying-to-private-addresses
+        allow forwarding client connections to private IP addresses.
+        Useful when a Snowflake server (relay) is hosted on the same private network as this proxy.
   -allowed-relay-hostname-pattern string
         a pattern to specify allowed hostname pattern for relay URL. (default "snowflake.torproject.net$")
   -broker string

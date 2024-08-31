@@ -495,10 +495,11 @@ func TestUtilityFuncs(t *testing.T) {
 	})
 	Convey("isRelayURLAcceptable", t, func() {
 		testingVector := []struct {
-			pattern     string
-			allowNonTLS bool
-			targetURL   string
-			expects     error
+			pattern               string
+			allowPrivateAddresses bool
+			allowNonTLS           bool
+			targetURL             string
+			expects               error
 		}{
 			// These are copied from `TestMatchMember`.
 			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
@@ -525,6 +526,20 @@ func TestUtilityFuncs(t *testing.T) {
 			{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://1.1.1.1/test?test=test#test", expects: nil},
 			{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: fmt.Errorf("")},
 			{pattern: "1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: nil},
+			// Private IP address
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://192.168.1.1", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://127.0.0.1", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://[fc00::]/", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://[::1]/", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://0.0.0.0/", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://169.254.1.1/", expects: fmt.Errorf("")},
+			{pattern: "$", allowNonTLS: true, targetURL: "ws://100.111.1.1/", expects: fmt.Errorf("")},
+			{pattern: "192.168.1.100$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://192.168.1.100/test?test=test", expects: nil},
+			{pattern: "localhost$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://localhost/test?test=test", expects: nil},
+			{pattern: "::1$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://[::1]/test?test=test", expects: nil},
+			// Multicast IP address. `checkIsRelayURLAcceptable` allows it,
+			// but it's not valid in the context of WebSocket
+			{pattern: "255.255.255.255$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://255.255.255.255/test?test=test", expects: nil},
 
 			// Port
 			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:8080/test?test=test#test", expects: nil},
@@ -551,7 +566,7 @@ func TestUtilityFuncs(t *testing.T) {
 			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
 		}
 		for _, v := range testingVector {
-			err := checkIsRelayURLAcceptable(v.pattern, v.allowNonTLS, v.targetURL)
+			err := checkIsRelayURLAcceptable(v.pattern, v.allowPrivateAddresses, v.allowNonTLS, v.targetURL)
 			if v.expects != nil {
 				So(err, ShouldNotBeNil)
 			} else {

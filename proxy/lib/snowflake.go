@@ -138,7 +138,12 @@ type SnowflakeProxy struct {
 	// There is no look ahead assertion when matching domain name suffix,
 	// thus the string prepend the suffix does not need to be empty or ends with a dot.
 	RelayDomainNamePattern string
-	AllowNonTLSRelay       bool
+	// AllowProxyingToPrivateAddresses determines whether to allow forwarding
+	// client connections to private IP addresses.
+	// Useful when a Snowflake server (relay) is hosted on the same private network
+	// as this proxy.
+	AllowProxyingToPrivateAddresses bool
+	AllowNonTLSRelay                bool
 	// NATProbeURL is the URL of the probe service we use for NAT checks
 	NATProbeURL string
 	// NATTypeMeasurementInterval is time before NAT type is retested
@@ -601,7 +606,7 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 
 	if relayURL != "" {
-		if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowNonTLSRelay, relayURL); err != nil {
+		if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
 			log.Printf("bad offer from broker: %v", err)
 			tokens.ret()
 			return
@@ -644,12 +649,23 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 // Returns nil if the relayURL is acceptable
 func checkIsRelayURLAcceptable(
 	allowedHostNamePattern string,
+	allowPrivateIPs bool,
 	allowNonTLSRelay bool,
 	relayURL string,
 ) error {
 	parsedRelayURL, err := url.Parse(relayURL)
 	if err != nil {
 		return fmt.Errorf("bad Relay URL %w", err)
+	}
+	if !allowPrivateIPs {
+		ip := net.ParseIP(parsedRelayURL.Hostname())
+		// Otherwise it's a domain name, or an invalid IP.
+		if ip != nil {
+			// We should probably use a ready library for this.
+			if !isRemoteAddress(ip) {
+				return fmt.Errorf("rejected Relay URL: private IPs are not allowed")
+			}
+		}
 	}
 	if !allowNonTLSRelay && parsedRelayURL.Scheme != "wss" {
 		return fmt.Errorf("rejected Relay URL protocol: non-TLS not allowed")
