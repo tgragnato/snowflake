@@ -123,17 +123,14 @@ func (c *webRTCConn) RemoteAddr() net.Addr {
 }
 
 func (c *webRTCConn) SetDeadline(t time.Time) error {
-	// nolint: golint
 	return fmt.Errorf("SetDeadline not implemented")
 }
 
 func (c *webRTCConn) SetReadDeadline(t time.Time) error {
-	// nolint: golint
 	return fmt.Errorf("SetReadDeadline not implemented")
 }
 
 func (c *webRTCConn) SetWriteDeadline(t time.Time) error {
-	// nolint: golint
 	return fmt.Errorf("SetWriteDeadline not implemented")
 }
 
