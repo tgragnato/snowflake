@@ -622,7 +622,7 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 	<-done
 
 	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
-		return nil, fmt.Errorf("Probetest SDP offer contains no candidate")
+		return nil, fmt.Errorf("probetest SDP offer contains no candidate")
 	}
 
 	return pc, nil
@@ -797,46 +797,46 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 
 	probe, err := newSignalingServer(probeURL, false)
 	if err != nil {
-		return fmt.Errorf("Error parsing url: %w", err)
+		return fmt.Errorf("error parsing url: %w", err)
 	}
 
 	dataChan := make(chan struct{})
 	pc, err := sf.makeNewPeerConnection(config, dataChan)
 	if err != nil {
-		return fmt.Errorf("Error making WebRTC connection: %w", err)
+		return fmt.Errorf("error making WebRTC connection: %w", err)
 	}
 
 	offer := pc.LocalDescription()
 	log.Printf("Probetest offer: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 	sdp, err := util.SerializeSessionDescription(offer)
 	if err != nil {
-		return fmt.Errorf("Error encoding probe message: %w", err)
+		return fmt.Errorf("error encoding probe message: %w", err)
 	}
 
 	// send offer
 	body, err := messages.EncodePollResponse(sdp, true, "")
 	if err != nil {
-		return fmt.Errorf("Error encoding probe message: %w", err)
+		return fmt.Errorf("error encoding probe message: %w", err)
 	}
 
 	resp, err := probe.Post(probe.url.String(), bytes.NewBuffer(body))
 	if err != nil {
-		return fmt.Errorf("Error polling probe: %w", err)
+		return fmt.Errorf("error polling probe: %w", err)
 	}
 
 	sdp, _, err = messages.DecodeAnswerRequest(resp)
 	if err != nil {
-		return fmt.Errorf("Error reading probe response: %w", err)
+		return fmt.Errorf("error reading probe response: %w", err)
 	}
 
 	answer, err := util.DeserializeSessionDescription(sdp)
 	if err != nil {
-		return fmt.Errorf("Error setting answer: %w", err)
+		return fmt.Errorf("error setting answer: %w", err)
 	}
 
 	err = pc.SetRemoteDescription(*answer)
 	if err != nil {
-		return fmt.Errorf("Error setting answer: %w", err)
+		return fmt.Errorf("error setting answer: %w", err)
 	}
 
 	prevNATType := getCurrentNATType()
