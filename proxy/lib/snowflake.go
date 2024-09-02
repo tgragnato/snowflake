@@ -40,7 +40,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/ice/v2"
+	"github.com/pion/ice/v4"
 	"github.com/pion/transport/v2/stdnet"
 	"github.com/pion/webrtc/v3"
 
