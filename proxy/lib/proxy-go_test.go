@@ -41,6 +41,8 @@ func (f *FaultyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestRemoteIPFromSDP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		sdp      string
 		expected net.IP
@@ -251,6 +253,8 @@ c=IN IP7 1.2.3.4
 }
 
 func TestSessionDescriptions(t *testing.T) {
+	t.Parallel()
+
 	Convey("Session description deserialization", t, func() {
 		for _, test := range []struct {
 			msg string
@@ -326,6 +330,8 @@ func TestSessionDescriptions(t *testing.T) {
 }
 
 func TestBrokerInteractions(t *testing.T) {
+	t.Parallel()
+
 	const sampleSDP = `"v=0\r\no=- 4358805017720277108 2 IN IP4 8.8.8.8\r\ns=-\r\nt=0 0\r\na=group:BUNDLE data\r\na=msid-semantic: WMS\r\nm=application 56688 DTLS/SCTP 5000\r\nc=IN IP4 8.8.8.8\r\na=candidate:3769337065 1 udp 2122260223 8.8.8.8 56688 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:2921887769 1 tcp 1518280447 8.8.8.8 35441 typ host tcptype passive generation 0 network-id 1 network-cost 50\r\na=ice-ufrag:aMAZ\r\na=ice-pwd:jcHb08Jjgrazp2dzjdrvPPvV\r\na=ice-options:trickle\r\na=fingerprint:sha-256 C8:88:EE:B9:E7:02:2E:21:37:ED:7A:D1:EB:2B:A3:15:A2:3B:5B:1C:3D:D4:D5:1F:06:CF:52:40:03:F8:DD:66\r\na=setup:actpass\r\na=mid:data\r\na=sctpmap:5000 webrtc-datachannel 1024\r\n"`
 
 	const sampleOffer = `{"type":"offer","sdp":` + sampleSDP + `}`
@@ -335,7 +341,7 @@ func TestBrokerInteractions(t *testing.T) {
 		var err error
 		broker, err = newSignalingServer("localhost", false)
 		So(err, ShouldBeNil)
-		tokens = newTokens()
+		tokens = 0
 
 		//Mock peerConnection
 		config = webrtc.Configuration{
@@ -441,6 +447,8 @@ func TestBrokerInteractions(t *testing.T) {
 }
 
 func TestUtilityFuncs(t *testing.T) {
+	t.Parallel()
+
 	Convey("LimitedRead", t, func() {
 		c, s := net.Pipe()
 		Convey("Successful read", func() {

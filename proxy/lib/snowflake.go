@@ -40,6 +40,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -78,7 +79,7 @@ var (
 	broker               *SignalingServer
 	currentNATType       = NATUnknown
 	currentNATTypeAccess = &sync.RWMutex{}
-	tokens               *tokens_t
+	tokens               uint64
 	config               webrtc.Configuration
 	customtransport      = &http.Transport{
 		DialContext: (&net.Dialer{
@@ -258,7 +259,7 @@ func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayP
 		case <-shutdown:
 			return nil, ""
 		default:
-			numClients := int((tokens.count() / 8) * 8) // Round down to 8
+			numClients := int((tokens / 8) * 8) // Round down to 8
 			currentNATTypeLoaded := getCurrentNATType()
 			body, err := messages.EncodeProxyPollRequestWithRelayPrefix(sid, proxyType, currentNATTypeLoaded, numClients, acceptedRelayPattern)
 			if err != nil {
@@ -378,11 +379,9 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 // otherwise occurs inside conn.pc.RemoteDescription() (called by RemoteAddr).
 // https://bugs.torproject.org/18628#comment:8
 func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr, relayURL string) {
-	go tokens.get()
+	atomic.AddUint64(&tokens, 1)
+	defer atomic.AddUint64(&tokens, ^uint64(0))
 	defer conn.Close()
-	defer func() {
-		go tokens.ret()
-	}()
 
 	if relayURL == "" {
 		relayURL = sf.RelayURL
@@ -643,7 +642,7 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 
 	if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
 		log.Printf("bad offer from broker: %v", err)
-		tokens.ret()
+		atomic.AddUint64(&tokens, ^uint64(0))
 		return
 	}
 
@@ -777,7 +776,7 @@ func (sf *SnowflakeProxy) Start() error {
 			},
 		},
 	}
-	tokens = newTokens()
+	tokens = 0
 
 	err = sf.checkNATType(config, sf.NATProbeURL)
 	if err != nil {
