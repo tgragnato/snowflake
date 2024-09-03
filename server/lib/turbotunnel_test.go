@@ -9,6 +9,8 @@ import (
 )
 
 func TestClientIDMap(t *testing.T) {
+	t.Parallel()
+
 	// Convert a uint64 into a ClientID.
 	id := func(n uint64) turbotunnel.ClientID {
 		var clientID turbotunnel.ClientID

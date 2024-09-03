@@ -15,6 +15,8 @@ func mustParseCIDR(s string) *net.IPNet {
 }
 
 func TestRandAddr(t *testing.T) {
+	t.Parallel()
+
 outer:
 	for _, ipnet := range []*net.IPNet{
 		mustParseCIDR("127.0.0.1/0"),
@@ -45,6 +47,8 @@ outer:
 }
 
 func TestRandAddrUnequalLengths(t *testing.T) {
+	t.Parallel()
+
 	for _, ipnet := range []*net.IPNet{
 		{
 			IP:   net.IP{1, 2, 3, 4},
@@ -118,6 +122,8 @@ func ipNetEqual(a, b *net.IPNet) bool {
 }
 
 func TestParseIPCIDR(t *testing.T) {
+	t.Parallel()
+
 	// Well-formed inputs.
 	for _, test := range []struct {
 		input    string

@@ -9,6 +9,8 @@ import (
 )
 
 func TestClientAddr(t *testing.T) {
+	t.Parallel()
+
 	Convey("Testing clientAddr", t, func() {
 		// good tests
 		for _, test := range []struct {
