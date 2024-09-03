@@ -155,10 +155,15 @@ type SnowflakeProxy struct {
 	// There is no look ahead assertion when matching domain name suffix,
 	// thus the string prepend the suffix does not need to be empty or ends with a dot.
 	RelayDomainNamePattern string
-	AllowNonTLSRelay       bool
 	// NATTypeForceUnrestricted is an option used to force the NAT type as unrestricted
 	// It's useful in cases where the probe does not work reliably
 	NATTypeForceUnrestricted bool
+	// AllowProxyingToPrivateAddresses determines whether to allow forwarding
+	// client connections to private IP addresses.
+	// Useful when a Snowflake server (relay) is hosted on the same private network
+	// as this proxy.
+	AllowProxyingToPrivateAddresses bool
+	AllowNonTLSRelay                bool
 	// NATProbeURL is the URL of the probe service we use for NAT checks
 	NATProbeURL string
 	// NATTypeMeasurementInterval is time before NAT type is retested
@@ -636,15 +641,9 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	}
 	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 
-	matcher := namematcher.NewNameMatcher(sf.RelayDomainNamePattern)
-	parsedRelayURL, err := url.Parse(relayURL)
-	if err != nil {
-		log.Printf("bad offer from broker: bad Relay URL %v", err.Error())
-		return
-	}
-
-	if relayURL != "" && (!matcher.IsMember(parsedRelayURL.Hostname()) || (!sf.AllowNonTLSRelay && parsedRelayURL.Scheme != "wss")) {
-		log.Printf("bad offer from broker: rejected Relay URL")
+	if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
+		log.Printf("bad offer from broker: %v", err)
+		tokens.ret()
 		return
 	}
 
@@ -676,6 +675,46 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 			log.Printf("error calling pc.Close: %v", err)
 		}
 	}
+}
+
+// Returns nil if the relayURL is acceptable
+func checkIsRelayURLAcceptable(
+	allowedHostNamePattern string,
+	allowPrivateIPs bool,
+	allowNonTLSRelay bool,
+	relayURL string,
+) error {
+	if relayURL == "" {
+		return nil
+	}
+
+	parsedRelayURL, err := url.Parse(relayURL)
+	if err != nil {
+		return fmt.Errorf("bad Relay URL %w", err)
+	}
+	if !allowPrivateIPs {
+		ip := net.ParseIP(parsedRelayURL.Hostname())
+		// Otherwise it's a domain name, or an invalid IP.
+		if ip != nil {
+			// We should probably use a ready library for this.
+			if !isRemoteAddress(ip) {
+				return fmt.Errorf("rejected Relay URL: private IPs are not allowed")
+			}
+		}
+	}
+	if !allowNonTLSRelay && parsedRelayURL.Scheme != "wss" {
+		return fmt.Errorf("rejected Relay URL protocol: non-TLS not allowed")
+	}
+	// FYI our websocket library also rejects other protocols
+	// https://github.com/gorilla/websocket/blob/5e002381133d322c5f1305d171f3bdd07decf229/client.go#L174-L181
+	if parsedRelayURL.Scheme != "wss" && parsedRelayURL.Scheme != "ws" {
+		return fmt.Errorf("rejected Relay URL protocol: only WebSocket is allowed")
+	}
+	matcher := namematcher.NewNameMatcher(allowedHostNamePattern)
+	if !matcher.IsMember(parsedRelayURL.Hostname()) {
+		return fmt.Errorf("rejected Relay URL: hostname does not match allowed pattern \"%v\"", allowedHostNamePattern)
+	}
+	return nil
 }
 
 // Start configures and starts a Snowflake, fully formed and special. Configuration
