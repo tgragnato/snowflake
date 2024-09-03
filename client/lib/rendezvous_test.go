@@ -73,6 +73,8 @@ func makeEncPollResp(answer, errorStr string) []byte {
 var fakeEncPollReq = makeEncPollReq(`{"type":"offer","sdp":"test"}`)
 
 func TestHTTPRendezvous(t *testing.T) {
+	t.Parallel()
+
 	Convey("HTTP rendezvous", t, func() {
 		Convey("Construct httpRendezvous with no front domain", func() {
 			transport := &mockTransport{http.StatusOK, []byte{}}
@@ -168,6 +170,8 @@ func ampArmorEncode(p []byte) []byte {
 }
 
 func TestAMPCacheRendezvous(t *testing.T) {
+	t.Parallel()
+
 	Convey("AMP cache rendezvous", t, func() {
 		Convey("Construct ampCacheRendezvous with no cache and no front domain", func() {
 			transport := &mockTransport{http.StatusOK, []byte{}}
@@ -278,6 +282,8 @@ func TestAMPCacheRendezvous(t *testing.T) {
 }
 
 func TestSQSRendezvous(t *testing.T) {
+	t.Parallel()
+
 	Convey("SQS Rendezvous", t, func() {
 		var sendMessageInput *sqs.SendMessageInput
 		var getQueueUrlInput *sqs.GetQueueUrlInput

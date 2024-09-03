@@ -35,6 +35,7 @@ func (f *FakeSocksConn) Reject() error {
 func (f *FakeSocksConn) Grant(addr *net.TCPAddr) error { return nil }
 
 func TestSnowflakeClient(t *testing.T) {
+	t.Parallel()
 
 	Convey("Peers", t, func() {
 		Convey("Can construct", func() {
@@ -171,6 +172,8 @@ func TestSnowflakeClient(t *testing.T) {
 }
 
 func TestWebRTCPeer(t *testing.T) {
+	t.Parallel()
+
 	Convey("WebRTCPeer", t, func(c C) {
 		p := &WebRTCPeer{closed: make(chan struct{}),
 			eventsLogger: event.NewSnowflakeEventDispatcher()}
@@ -183,6 +186,8 @@ func TestWebRTCPeer(t *testing.T) {
 }
 
 func TestICEServerParser(t *testing.T) {
+	t.Parallel()
+
 	Convey("Test parsing of ICE servers", t, func() {
 		for _, test := range []struct {
 			input  []string
