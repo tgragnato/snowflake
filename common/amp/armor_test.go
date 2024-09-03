@@ -17,6 +17,8 @@ func armorDecodeToString(src string) (string, error) {
 }
 
 func TestArmorDecoder(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		input          string
 		expectedOutput string
@@ -200,6 +202,8 @@ func armorRoundTrip(s string) (string, error) {
 }
 
 func TestArmorRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	lengths := make([]int, 0)
 	// Test short strings and lengths around elementSizeLimit thresholds.
 	for i := 0; i < bytesPerChunk*2; i++ {

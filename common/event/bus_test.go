@@ -15,6 +15,8 @@ func (s *stubReceiver) OnNewSnowflakeEvent(event SnowflakeEvent) {
 }
 
 func TestBusDispatch(t *testing.T) {
+	t.Parallel()
+
 	EventBus := NewSnowflakeEventDispatcher()
 	StubReceiverA := &stubReceiver{}
 	StubReceiverB := &stubReceiver{}
@@ -29,5 +31,4 @@ func TestBusDispatch(t *testing.T) {
 	EventBus.OnNewSnowflakeEvent(EventOnSnowflakeConnected{})
 	assert.Equal(t, 2, StubReceiverA.counter)
 	assert.Equal(t, 1, StubReceiverB.counter)
-
 }

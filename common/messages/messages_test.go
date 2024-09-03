@@ -9,6 +9,8 @@ import (
 )
 
 func TestDecodeProxyPollRequest(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for _, test := range []struct {
 			sid       string
@@ -121,6 +123,8 @@ func TestDecodeProxyPollRequest(t *testing.T) {
 }
 
 func TestEncodeProxyPollRequests(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		b, err := EncodeProxyPollRequest("ymbcCMto7KHNGYlp", "standalone", "unknown", 16)
 		So(err, ShouldBeNil)
@@ -134,6 +138,8 @@ func TestEncodeProxyPollRequests(t *testing.T) {
 }
 
 func TestDecodeProxyPollResponse(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for _, test := range []struct {
 			offer    string
@@ -178,6 +184,8 @@ func TestDecodeProxyPollResponse(t *testing.T) {
 }
 
 func TestEncodeProxyPollResponse(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		b, err := EncodePollResponse("fake offer", true, "restricted")
 		So(err, ShouldBeNil)
@@ -196,6 +204,8 @@ func TestEncodeProxyPollResponse(t *testing.T) {
 }
 
 func TestEncodeProxyPollResponseWithProxyURL(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		b, err := EncodePollResponseWithRelayURL("fake offer", true, "restricted", "wss://test/", "")
 		So(err, ShouldBeNil)
@@ -223,6 +233,8 @@ func TestEncodeProxyPollResponseWithProxyURL(t *testing.T) {
 	})
 }
 func TestDecodeProxyAnswerRequest(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for _, test := range []struct {
 			answer string
@@ -265,6 +277,8 @@ func TestDecodeProxyAnswerRequest(t *testing.T) {
 }
 
 func TestEncodeProxyAnswerRequest(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		b, err := EncodeAnswerRequest("test answer", "test sid")
 		So(err, ShouldBeNil)
@@ -276,6 +290,8 @@ func TestEncodeProxyAnswerRequest(t *testing.T) {
 }
 
 func TestDecodeProxyAnswerResponse(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for _, test := range []struct {
 			success bool
@@ -307,6 +323,8 @@ func TestDecodeProxyAnswerResponse(t *testing.T) {
 }
 
 func TestEncodeProxyAnswerResponse(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		b, err := EncodeAnswerResponse(true)
 		So(err, ShouldBeNil)
@@ -323,6 +341,8 @@ func TestEncodeProxyAnswerResponse(t *testing.T) {
 }
 
 func TestDecodeClientPollRequest(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for _, test := range []struct {
 			natType string
@@ -374,6 +394,8 @@ func TestDecodeClientPollRequest(t *testing.T) {
 }
 
 func TestEncodeClientPollRequests(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for i, test := range []struct {
 			natType     string
@@ -423,6 +445,8 @@ func TestEncodeClientPollRequests(t *testing.T) {
 }
 
 func TestDecodeClientPollResponse(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		for _, test := range []struct {
 			answer string
@@ -450,6 +474,8 @@ func TestDecodeClientPollResponse(t *testing.T) {
 }
 
 func TestEncodeClientPollResponse(t *testing.T) {
+	t.Parallel()
+
 	Convey("Context", t, func() {
 		resp1 := &ClientPollResponse{
 			Answer: "fake answer",

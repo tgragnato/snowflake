@@ -21,10 +21,14 @@ import (
 )
 
 func TestRoundTripper(t *testing.T) {
+	t.Parallel()
+
 	runRoundTripperTest(t, "127.0.0.1:23802", "127.0.0.1:23801", "https://127.0.0.1:23802/", "https://127.0.0.1:23801/")
 }
 
 func TestRoundTripperOnH1DefaultPort(t *testing.T) {
+	t.Parallel()
+
 	if os.Getuid() != 0 {
 		t.SkipNow()
 	}
@@ -32,6 +36,8 @@ func TestRoundTripperOnH1DefaultPort(t *testing.T) {
 }
 
 func TestRoundTripperOnH2DefaultPort(t *testing.T) {
+	t.Parallel()
+
 	if os.Getuid() != 0 {
 		t.SkipNow()
 	}

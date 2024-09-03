@@ -50,6 +50,8 @@ func BenchmarkWriteTo(b *testing.B) {
 // TestQueueIncomingOversize tests that QueueIncoming truncates packets that are
 // larger than the MTU.
 func TestQueueIncomingOversize(t *testing.T) {
+	t.Parallel()
+
 	const payload = "abcdefghijklmnopqrstuvwxyz"
 	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, len(payload)-1)
 	defer conn.Close()
@@ -67,6 +69,8 @@ func TestQueueIncomingOversize(t *testing.T) {
 // TestWriteToOversize tests that WriteTo truncates packets that are larger than
 // the MTU.
 func TestWriteToOversize(t *testing.T) {
+	t.Parallel()
+
 	const payload = "abcdefghijklmnopqrstuvwxyz"
 	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, len(payload)-1)
 	defer conn.Close()
@@ -80,6 +84,8 @@ func TestWriteToOversize(t *testing.T) {
 // TestRestoreMTU tests that Restore ignores any inputs that are not at least
 // MTU-sized.
 func TestRestoreMTU(t *testing.T) {
+	t.Parallel()
+
 	const mtu = 500
 	const payload = "hello"
 	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, mtu)
@@ -101,6 +107,8 @@ func TestRestoreMTU(t *testing.T) {
 // TestRestoreCap tests that Restore can use slices whose cap is at least the
 // MTU, even if the len is shorter.
 func TestRestoreCap(t *testing.T) {
+	t.Parallel()
+
 	const mtu = 500
 	const payload = "hello"
 	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, mtu)
@@ -155,6 +163,8 @@ func (c *TranscriptPacketConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 //
 // https://bugs.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/40260
 func TestQueuePacketConnWriteToKCP(t *testing.T) {
+	t.Parallel()
+
 	// Start a goroutine to constantly exercise kcp UDPSession.tx, writing
 	// packets with payload "XXXX".
 	done := make(chan struct{})

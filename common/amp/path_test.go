@@ -5,6 +5,8 @@ import (
 )
 
 func TestDecodePath(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		path           string
 		expectedData   string
@@ -38,6 +40,8 @@ func TestDecodePath(t *testing.T) {
 }
 
 func TestPathRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, data := range []string{
 		"",
 		"\x00",

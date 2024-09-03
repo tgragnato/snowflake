@@ -9,6 +9,8 @@ import (
 )
 
 func TestUtil(t *testing.T) {
+	t.Parallel()
+
 	Convey("Strip", t, func() {
 		const offerStart = "v=0\r\no=- 4358805017720277108 2 IN IP4 8.8.8.8\r\ns=-\r\nt=0 0\r\na=group:BUNDLE data\r\na=msid-semantic: WMS\r\nm=application 56688 DTLS/SCTP 5000\r\nc=IN IP4 8.8.8.8\r\n"
 		const goodCandidate = "a=candidate:3769337065 1 udp 2122260223 8.8.8.8 56688 typ host generation 0 network-id 1 network-cost 50\r\n"

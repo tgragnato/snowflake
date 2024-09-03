@@ -35,6 +35,8 @@ func mustWritePadding(w io.Writer, n int) int {
 
 // Test that ReadData(WriteData()) recovers the original data.
 func TestRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	// Test above and below interesting thresholds.
 	for _, i := range []int{
 		0x00, 0x01,
@@ -67,6 +69,8 @@ func TestRoundtrip(t *testing.T) {
 
 // Test that WritePadding writes exactly as much as requested.
 func TestPaddingLength(t *testing.T) {
+	t.Parallel()
+
 	// Test above and below interesting thresholds. WritePadding also gets
 	// values above 0xfffff, the maximum value of a single length prefix.
 	for _, i := range []int{
@@ -93,6 +97,8 @@ func TestPaddingLength(t *testing.T) {
 
 // Test that ReadData skips over padding.
 func TestSkipPadding(t *testing.T) {
+	t.Parallel()
+
 	var data = [][]byte{{}, {}, []byte("hello"), {}, []byte("world")}
 	var enc bytes.Buffer
 	mustWritePadding(&enc, 10)
@@ -124,6 +130,8 @@ func TestSkipPadding(t *testing.T) {
 
 // Test that EOF before a length prefix returns io.EOF.
 func TestEOF(t *testing.T) {
+	t.Parallel()
+
 	n, err := ReadData(bytes.NewReader(nil), nil)
 	if n != 0 || err != io.EOF {
 		t.Fatalf("got (%v, %v), expected (%v, %v)", n, err, 0, io.EOF)
@@ -133,6 +141,8 @@ func TestEOF(t *testing.T) {
 // Test that an EOF while reading a length prefix, or while reading the
 // subsequent data/padding, returns io.ErrUnexpectedEOF.
 func TestUnexpectedEOF(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range [][]byte{
 		{0x40},                  // expecting a second length byte
 		{0xc0},                  // expecting a second length byte
@@ -161,6 +171,8 @@ func TestUnexpectedEOF(t *testing.T) {
 // Test that length encodings that are longer than they could be are still
 // interpreted.
 func TestNonMinimalLengthEncoding(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		enc      []byte
 		expected []byte
@@ -182,6 +194,8 @@ func TestNonMinimalLengthEncoding(t *testing.T) {
 
 // Test that ReadData only reads up to 3 bytes of length prefix.
 func TestReadLimits(t *testing.T) {
+	t.Parallel()
+
 	// Test the maximum length that's possible with 3 bytes of length
 	// prefix.
 	maxLength := (0x3f << 14) | (0x7f << 7) | 0x7f
@@ -245,6 +259,8 @@ func TestReadLimits(t *testing.T) {
 // Test that WriteData and WritePadding only accept lengths that can be encoded
 // in up to 3 bytes of length prefix.
 func TestWriteLimits(t *testing.T) {
+	t.Parallel()
+
 	maxLength := (0x3f << 14) | (0x7f << 7) | 0x7f
 	var enc bytes.Buffer
 	n, err := WriteData(&enc, bytes.Repeat([]byte{'X'}, maxLength))
@@ -275,6 +291,8 @@ func TestWriteLimits(t *testing.T) {
 
 // Test that WritePadding panics when given a negative length.
 func TestNegativeLength(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{-1, ^0} {
 		var enc bytes.Buffer
 		panicked, nn, err := testNegativeLengthSub(t, &enc, n)
@@ -299,6 +317,8 @@ func testNegativeLengthSub(t *testing.T, w io.Writer, n int) (panicked bool, nn 
 
 // Test that MaxDataForSize panics when given a 0 length.
 func TestMaxDataForSizeZero(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("didn't panic")
@@ -309,6 +329,8 @@ func TestMaxDataForSizeZero(t *testing.T) {
 
 // Test thresholds of available sizes for MaxDataForSize.
 func TestMaxDataForSize(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		size     int
 		expected int
@@ -336,6 +358,8 @@ func TestMaxDataForSize(t *testing.T) {
 // Test that ReadData truncates the data when the destination slice is too
 // short.
 func TestReadDataTruncate(t *testing.T) {
+	t.Parallel()
+
 	var enc bytes.Buffer
 	mustWriteData(&enc, []byte("12345678"))
 	mustWriteData(&enc, []byte("abcdefgh"))
@@ -368,6 +392,8 @@ func TestReadDataTruncate(t *testing.T) {
 // buffer as much as possible (and not stop at the boundary of an internal Read,
 // say).
 func TestReadDataTruncateFull(t *testing.T) {
+	t.Parallel()
+
 	pr, pw := io.Pipe()
 	go func() {
 		// Send one data chunk that will be delivered across two Read

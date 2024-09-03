@@ -7,6 +7,8 @@ import (
 )
 
 func TestMatchMember(t *testing.T) {
+	t.Parallel()
+
 	testingVector := []struct {
 		matcher string
 		target  string
@@ -32,6 +34,8 @@ func TestMatchMember(t *testing.T) {
 }
 
 func TestMatchSubset(t *testing.T) {
+	t.Parallel()
+
 	testingVector := []struct {
 		matcher string
 		target  string

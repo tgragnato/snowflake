@@ -9,6 +9,8 @@ import (
 )
 
 func TestDomainPrefixBasic(t *testing.T) {
+	t.Parallel()
+
 	// Tests expecting no error.
 	for _, test := range []struct {
 		domain, expected string
@@ -62,6 +64,8 @@ func TestDomainPrefixBasic(t *testing.T) {
 }
 
 func TestDomainPrefixFallback(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		domain, expected string
 	}{
@@ -103,6 +107,8 @@ func TestDomainPrefixFallback(t *testing.T) {
 // appropriate; i.e., always returns string that is a valid DNS label and is
 // IDNA-decodable.
 func TestDomainPrefix(t *testing.T) {
+	t.Parallel()
+
 	// A validating IDNA profile, which checks label length and that the
 	// label contains only certain ASCII characters. It does not do the
 	// ValidateLabels check, because that depends on the input having
@@ -139,6 +145,8 @@ func mustParseURL(rawurl string) *url.URL {
 }
 
 func TestCacheURL(t *testing.T) {
+	t.Parallel()
+
 	// Tests expecting no error.
 	for _, test := range []struct {
 		pub         string
