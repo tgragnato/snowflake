@@ -32,7 +32,7 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
 )
 
-var ErrBridgeNotFound = errors.New("bridge not found")
+var ErrBridgeNotFound = errors.New("bridge with requested fingerprint is unknown to the broker")
 
 func NewBridgeListHolder() BridgeListHolderFileBased {
 	return &bridgeListHolder{}
