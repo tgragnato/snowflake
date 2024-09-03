@@ -26,6 +26,8 @@ const ImaginaryBridges = `{"displayName":"default", "webSocketAddress":"wss://sn
 `
 
 func TestBridgeLoad(t *testing.T) {
+	t.Parallel()
+
 	Convey("load default list", t, func() {
 		bridgeList := NewBridgeListHolder()
 		So(bridgeList.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges))), ShouldBeNil)

@@ -79,6 +79,7 @@ func decodeAMPArmorToString(r io.Reader) (string, error) {
 }
 
 func TestBroker(t *testing.T) {
+	t.Parallel()
 
 	defaultBridgeValue, _ := hex.DecodeString("2B280B23E1107BB62ABFC40DDCC8824814F80A72")
 	var defaultBridge [20]byte
@@ -608,6 +609,8 @@ client-sqs-ips
 }
 
 func TestSnowflakeHeap(t *testing.T) {
+	t.Parallel()
+
 	Convey("SnowflakeHeap", t, func() {
 		h := new(SnowflakeHeap)
 		heap.Init(h)
@@ -651,6 +654,8 @@ func TestSnowflakeHeap(t *testing.T) {
 }
 
 func TestInvalidGeoipFile(t *testing.T) {
+	t.Parallel()
+
 	Convey("Geoip", t, func() {
 		// Make sure things behave properly if geoip file fails to load
 		ctx := NewBrokerContext(NullLogger())
@@ -664,6 +669,8 @@ func TestInvalidGeoipFile(t *testing.T) {
 }
 
 func TestMetrics(t *testing.T) {
+	t.Parallel()
+
 	Convey("Test metrics...", t, func() {
 		done := make(chan bool)
 		buf := new(bytes.Buffer)

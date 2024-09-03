@@ -19,6 +19,7 @@ import (
 )
 
 func TestSQS(t *testing.T) {
+	t.Parallel()
 
 	Convey("Context", t, func() {
 		buf := new(bytes.Buffer)
