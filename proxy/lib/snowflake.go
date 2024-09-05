@@ -348,10 +348,21 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 		relayURL = sf.RelayURL
 	}
 
+	wsConn, err := connectToRelay(relayURL, remoteAddr)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	defer wsConn.Close()
+
+	copyLoop(conn, wsConn, sf.shutdown)
+	log.Printf("datachannelHandler ends")
+}
+
+func connectToRelay(relayURL string, remoteAddr net.Addr) (*websocketconn.Conn, error) {
 	u, err := url.Parse(relayURL)
 	if err != nil {
-		log.Printf("invalid relay url: %s", err)
-		return
+		return nil, fmt.Errorf("invalid relay url: %s", err)
 	}
 
 	if remoteAddr != nil {
@@ -366,15 +377,12 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		log.Printf("error dialing relay: %s = %s", u.String(), err)
-		return
+		return nil, fmt.Errorf("error dialing relay: %s = %s", u.String(), err)
 	}
 
 	wsConn := websocketconn.New(ws)
 	log.Printf("Connected to relay: %v", relayURL)
-	defer wsConn.Close()
-	copyLoop(conn, wsConn, sf.shutdown)
-	log.Printf("datachannelHandler ends")
+	return wsConn, nil
 }
 
 type dataChannelHandlerWithRelayURL struct {
