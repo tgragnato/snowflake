@@ -89,7 +89,7 @@ func TestBroker(t *testing.T) {
 
 	Convey("Context", t, func() {
 		buf := new(bytes.Buffer)
-		ctx := NewBrokerContext(log.New(buf, "", 0))
+		ctx := NewBrokerContext(log.New(buf, "", 0), "", "")
 		i := &IPC{ctx}
 
 		Convey("Adds Snowflake", func() {
@@ -503,7 +503,7 @@ client-sqs-ips
 	})
 
 	Convey("End-To-End", t, func() {
-		ctx := NewBrokerContext(NullLogger())
+		ctx := NewBrokerContext(NullLogger(), "", "")
 		i := &IPC{ctx}
 
 		Convey("Check for client/proxy data race", func() {
@@ -656,7 +656,7 @@ func TestSnowflakeHeap(t *testing.T) {
 func TestInvalidGeoipFile(t *testing.T) {
 	Convey("Geoip", t, func() {
 		// Make sure things behave properly if geoip file fails to load
-		ctx := NewBrokerContext(NullLogger())
+		ctx := NewBrokerContext(NullLogger(), "", "")
 		if err := ctx.metrics.LoadGeoipDatabases("invalid_filename", "invalid_filename6"); err != nil {
 			log.Printf("loading geo ip databases returned error: %v", err)
 		}
@@ -670,7 +670,7 @@ func TestMetrics(t *testing.T) {
 	Convey("Test metrics...", t, func() {
 		done := make(chan bool)
 		buf := new(bytes.Buffer)
-		ctx := NewBrokerContext(log.New(buf, "", 0))
+		ctx := NewBrokerContext(log.New(buf, "", 0), "", "")
 		i := &IPC{ctx}
 
 		err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")

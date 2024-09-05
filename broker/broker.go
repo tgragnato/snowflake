@@ -53,7 +53,11 @@ func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprin
 	return ctx.bridgeList.GetBridgeInfo(fingerprint)
 }
 
-func NewBrokerContext(metricsLogger *log.Logger) *BrokerContext {
+func NewBrokerContext(
+	metricsLogger *log.Logger,
+	allowedRelayPattern,
+	presumedPatternForLegacyClient string,
+) *BrokerContext {
 	snowflakes := new(SnowflakeHeap)
 	heap.Init(snowflakes)
 	rSnowflakes := new(SnowflakeHeap)
@@ -75,12 +79,14 @@ func NewBrokerContext(metricsLogger *log.Logger) *BrokerContext {
 	bridgeListHolder.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges)))
 
 	return &BrokerContext{
-		snowflakes:           snowflakes,
-		restrictedSnowflakes: rSnowflakes,
-		idToSnowflake:        make(map[string]*Snowflake),
-		proxyPolls:           make(chan *ProxyPoll),
-		metrics:              metrics,
-		bridgeList:           bridgeListHolder,
+		snowflakes:                     snowflakes,
+		restrictedSnowflakes:           rSnowflakes,
+		idToSnowflake:                  make(map[string]*Snowflake),
+		proxyPolls:                     make(chan *ProxyPoll),
+		metrics:                        metrics,
+		bridgeList:                     bridgeListHolder,
+		allowedRelayPattern:            allowedRelayPattern,
+		presumedPatternForLegacyClient: presumedPatternForLegacyClient,
 	}
 }
 
@@ -161,12 +167,10 @@ func (ctx *BrokerContext) AddSnowflake(id string, proxyType string, natType stri
 	return snowflake
 }
 
-func (ctx *BrokerContext) InstallBridgeListProfile(reader io.Reader, relayPattern, presumedPatternForLegacyClient string) error {
+func (ctx *BrokerContext) InstallBridgeListProfile(reader io.Reader) error {
 	if err := ctx.bridgeList.LoadBridgeInfo(reader); err != nil {
 		return err
 	}
-	ctx.allowedRelayPattern = relayPattern
-	ctx.presumedPatternForLegacyClient = presumedPatternForLegacyClient
 	return nil
 }
 
@@ -244,14 +248,14 @@ func main() {
 
 	metricsLogger := log.New(metricsFile, "", 0)
 
-	ctx := NewBrokerContext(metricsLogger)
+	ctx := NewBrokerContext(metricsLogger, allowedRelayPattern, presumedPatternForLegacyClient)
 
 	if bridgeListFilePath != "" {
 		bridgeListFile, err := os.Open(bridgeListFilePath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-		err = ctx.InstallBridgeListProfile(bridgeListFile, allowedRelayPattern, presumedPatternForLegacyClient)
+		err = ctx.InstallBridgeListProfile(bridgeListFile)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
