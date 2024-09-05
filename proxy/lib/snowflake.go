@@ -56,9 +56,10 @@ const (
 	DefaultPollInterval = 5 * time.Second
 	DefaultBrokerURL    = "https://snowflake-broker.torproject.net/"
 	DefaultNATProbeURL  = "https://snowflake-broker.torproject.net:8443/probe"
-	DefaultRelayURL     = "wss://snowflake.torproject.net/"
-	DefaultSTUNURL      = "stun:stun.l.google.com:19302"
-	DefaultProxyType    = "standalone"
+	// This is rather a "DefaultDefaultRelayURL"
+	DefaultRelayURL  = "wss://snowflake.torproject.net/"
+	DefaultSTUNURL   = "stun:stun.l.google.com:19302"
+	DefaultProxyType = "standalone"
 )
 
 const (
@@ -125,7 +126,9 @@ type SnowflakeProxy struct {
 	BrokerURL string
 	// KeepLocalAddresses indicates whether local SDP candidates will be sent to the broker
 	KeepLocalAddresses bool
-	// RelayURL is the URL of the Snowflake server that all traffic will be relayed to
+	// RelayURL is the default `URL` of the server (relay)
+	// that this proxy will forward client connections to,
+	// in case the broker itself did not specify the said URL
 	RelayURL string
 	// OutboundAddress specify an IP address to use as SDP host candidate
 	OutboundAddress string
@@ -728,7 +731,7 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 	_, err = url.Parse(sf.RelayURL)
 	if err != nil {
-		return fmt.Errorf("invalid relay url: %s", err)
+		return fmt.Errorf("invalid default relay url: %s", err)
 	}
 
 	if !namematcher.IsValidRule(sf.RelayDomainNamePattern) {
