@@ -360,7 +360,8 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 
 	u, err := url.Parse(relayURL)
 	if err != nil {
-		log.Fatalf("invalid relay url: %s", err)
+		log.Printf("invalid relay url: %s", err)
+		return
 	}
 
 	if remoteAddr != nil {
