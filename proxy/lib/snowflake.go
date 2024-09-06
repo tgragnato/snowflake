@@ -322,6 +322,7 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 	copyer := func(dst io.ReadWriteCloser, src io.ReadWriteCloser) {
 		// Experimentally each usage of buffer has been observed to be lower than
 		// 2K; io.Copy defaults to 32K.
+		// This is probably determined by MTU in the server's `newHTTPHandler`.
 		size := 2 * 1024
 		buffer := make([]byte, size)
 		// Ignore io.ErrClosedPipe because it is likely caused by the
