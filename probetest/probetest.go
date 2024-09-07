@@ -141,6 +141,16 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	// We'll set this to `false` if the signaling (this function) succeeds.
+	closePcOnReturn := true
+	defer func() {
+		if closePcOnReturn {
+			if err := pc.Close(); err != nil {
+				log.Printf("Error calling pc.Close: %v", err)
+			}
+		}
+		// Otherwise it must be closed below, wherever `closePcOnReturn` is set to `false`.
+	}()
 
 	sdp = &webrtc.SessionDescription{
 		Type: pc.LocalDescription().Type,
@@ -163,6 +173,7 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	// Set a timeout on peerconnection. If the connection state has not
 	// advanced to PeerConnectionStateConnected in this time,
 	// destroy the peer connection and return the token.
+	closePcOnReturn = false
 	go func() {
 		timer := time.NewTimer(dataChannelTimeout)
 		defer timer.Stop()
