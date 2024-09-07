@@ -817,6 +817,11 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	if err != nil {
 		return fmt.Errorf("Error making WebRTC connection: %w", err)
 	}
+	defer func() {
+		if err := pc.Close(); err != nil {
+			log.Printf("Probetest: error calling pc.Close: %v", err)
+		}
+	}()
 
 	offer := pc.LocalDescription()
 	log.Printf("Probetest offer: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
@@ -874,8 +879,5 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 
 	log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
 
-	if err := pc.Close(); err != nil {
-		log.Printf("error calling pc.Close: %v", err)
-	}
 	return nil
 }
