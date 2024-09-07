@@ -767,9 +767,9 @@ func (sf *SnowflakeProxy) Start() error {
 	NatRetestTask := task.Periodic{
 		Interval: sf.NATTypeMeasurementInterval,
 		Execute: func() error {
-			sf.checkNATType(config, sf.NATProbeURL)
-			return nil
+			return sf.checkNATType(config, sf.NATProbeURL)
 		},
+		// Not setting OnError would shut down the periodic task on error by default.
 		OnError: func(err error) {
 			log.Printf("Periodic probetest failed: %s, retaining current NAT type: %s", err.Error(), getCurrentNATType())
 		},
@@ -805,6 +805,8 @@ func (sf *SnowflakeProxy) Stop() {
 // attempting to connect with a known symmetric NAT. If success,
 // it is considered "unrestricted". If timeout it is considered "restricted"
 func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL string) error {
+	log.Printf("Checking our NAT type, contacting NAT check probe server at \"%v\"...", probeURL)
+
 	probe, err := newSignalingServer(probeURL, false)
 	if err != nil {
 		return fmt.Errorf("Error parsing url: %w", err)
@@ -843,6 +845,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	if err != nil {
 		return fmt.Errorf("Error setting answer: %w", err)
 	}
+	log.Printf("Probetest answer: \n\t%s", strings.ReplaceAll(answer.SDP, "\n", "\n\t"))
 
 	err = pc.SetRemoteDescription(*answer)
 	if err != nil {
@@ -851,10 +854,21 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 
 	prevNATType := getCurrentNATType()
 
+	log.Printf("Waiting for a test WebRTC connection with NAT check probe server to establish...")
 	select {
 	case <-dataChan:
+		log.Printf(
+			"Test WebRTC connection with NAT check probe server established!"+
+				" This means our NAT is %v!",
+			NATUnrestricted,
+		)
 		setCurrentNATType(NATUnrestricted)
 	case <-time.After(dataChannelTimeout):
+		log.Printf(
+			"Test WebRTC connection with NAT check probe server timed out."+
+				" This means our NAT is %v.",
+			NATRestricted,
+		)
 		setCurrentNATType(NATRestricted)
 	}
 
