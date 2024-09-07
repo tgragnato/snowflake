@@ -50,6 +50,8 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/websocketconn"
+
+	snowflakeClient "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/client/lib"
 )
 
 const (
@@ -529,8 +531,15 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 		return nil, err
 	}
 
-	// Wait for ICE candidate gathering to complete
-	<-done
+	// Wait for ICE candidate gathering to complete,
+	// or for whatever we managed to gather before the client times out.
+	// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40230
+	select {
+	case <-done:
+	case <-time.After(snowflakeClient.DataChannelTimeout / 2):
+		log.Print("ICE gathering is not yet complete, but let's send the answer" +
+			" before the client times out")
+	}
 
 	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
 		return nil, fmt.Errorf("SDP answer contains no candidate")
