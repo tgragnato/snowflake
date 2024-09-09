@@ -22,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
 	github.com/xtaci/kcp-go/v5 v5.6.8
-	github.com/xtaci/smux v1.5.27
+	github.com/xtaci/smux v1.5.29
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.5.0
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil v0.0.0-20240710081135-6c4d8ed41027
