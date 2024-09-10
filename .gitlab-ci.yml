@@ -91,7 +91,7 @@ variables:
 # -- jobs ------------------------------------------------------------
 
 android:
-  image: golang:1.21-$DEBIAN_STABLE
+  image: golang:1.23-$DEBIAN_STABLE
   variables:
     ANDROID_HOME: /usr/lib/android-sdk
     LANG: C.UTF-8
