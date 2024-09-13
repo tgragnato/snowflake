@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -13,11 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/golang/mock/gomock"
+	"github.com/pion/webrtc/v4"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/tgragnato/snowflake/common/amp"
 	"github.com/tgragnato/snowflake/common/messages"
 	"github.com/tgragnato/snowflake/common/nat"
 	"github.com/tgragnato/snowflake/common/sqsclient"
+	"github.com/tgragnato/snowflake/common/util"
 )
 
 // mockTransport's RoundTrip method returns a response with a fake status and
@@ -390,5 +393,53 @@ func TestSQSRendezvous(t *testing.T) {
 			So(answer, ShouldEqual, []byte{})
 			So(err, ShouldBeNil)
 		})
+	})
+}
+
+func TestBrokerChannel(t *testing.T) {
+	Convey("Requests a proxy and handles response", t, func() {
+		answerSdp := &webrtc.SessionDescription{
+			Type: webrtc.SDPTypeAnswer,
+			SDP:  "test",
+		}
+		answerSdpStr, _ := util.SerializeSessionDescription(answerSdp)
+		serverResponse, _ := (&messages.ClientPollResponse{
+			Answer: answerSdpStr,
+		}).EncodePollResponse()
+
+		offerSdp := &webrtc.SessionDescription{
+			Type: webrtc.SDPTypeOffer,
+			SDP:  "test",
+		}
+
+		requestBodyChan := make(chan []byte)
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			go func() {
+				requestBodyChan <- body
+			}()
+			w.Write(serverResponse)
+		}))
+		defer mockServer.Close()
+
+		brokerChannel, err := newBrokerChannelFromConfig(ClientConfig{
+			BrokerURL:         mockServer.URL,
+			BridgeFingerprint: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		})
+		So(err, ShouldBeNil)
+		brokerChannel.SetNATType(nat.NATRestricted)
+
+		answerSdpReturned, err := brokerChannel.Negotiate(offerSdp)
+		So(err, ShouldBeNil)
+		So(answerSdpReturned, ShouldEqual, answerSdp)
+
+		body := <-requestBodyChan
+		pollReq, err := messages.DecodeClientPollRequest(body)
+		So(err, ShouldBeNil)
+		So(pollReq.Fingerprint, ShouldEqual, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+		So(pollReq.NAT, ShouldEqual, nat.NATRestricted)
+		requestSdp, err := util.DeserializeSessionDescription(pollReq.Offer)
+		So(err, ShouldBeNil)
+		So(requestSdp, ShouldEqual, offerSdp)
 	})
 }

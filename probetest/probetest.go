@@ -45,7 +45,7 @@ func (h ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
 func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
-	dataChan chan struct{}) (*webrtc.PeerConnection, error) {
+	dataChan chan struct{}, iceGatheringTimeout time.Duration) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
 	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
@@ -101,8 +101,14 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 		}
 		return nil, err
 	}
-	// Wait for ICE candidate gathering to complete
-	<-done
+
+	// Wait for ICE candidate gathering to complete,
+	// or for whatever we managed to gather before the client times out.
+	// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40230
+	select {
+	case <-done:
+	case <-time.After(iceGatheringTimeout):
+	}
 	return pc, nil
 }
 
@@ -134,12 +140,25 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	dataChan := make(chan struct{})
-	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChan)
+	// TODO refactor: DRY this must be below `ResponseHeaderTimeout` in proxy
+	// https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/blob/e1d9b4ace69897521cc29585b5084c5f4d1ce874/proxy/lib/snowflake.go#L207
+	iceGatheringTimeout := 10 * time.Second
+	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChan, iceGatheringTimeout)
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	// We'll set this to `false` if the signaling (this function) succeeds.
+	closePcOnReturn := true
+	defer func() {
+		if closePcOnReturn {
+			if err := pc.Close(); err != nil {
+				log.Printf("Error calling pc.Close: %v", err)
+			}
+		}
+		// Otherwise it must be closed below, wherever `closePcOnReturn` is set to `false`.
+	}()
 
 	sdp = &webrtc.SessionDescription{
 		Type: pc.LocalDescription().Type,
@@ -162,6 +181,7 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	// Set a timeout on peerconnection. If the connection state has not
 	// advanced to PeerConnectionStateConnected in this time,
 	// destroy the peer connection and return the token.
+	closePcOnReturn = false
 	go func() {
 		timer := time.NewTimer(dataChannelTimeout)
 		defer timer.Stop()

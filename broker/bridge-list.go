@@ -32,7 +32,7 @@ import (
 	"github.com/tgragnato/snowflake/common/bridgefingerprint"
 )
 
-var ErrBridgeNotFound = errors.New("bridge not found")
+var ErrBridgeNotFound = errors.New("bridge with requested fingerprint is unknown to the broker")
 
 func NewBridgeListHolder() BridgeListHolderFileBased {
 	return &bridgeListHolder{}

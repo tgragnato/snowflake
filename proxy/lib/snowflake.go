@@ -52,6 +52,8 @@ import (
 	"github.com/tgragnato/snowflake/common/namematcher"
 	"github.com/tgragnato/snowflake/common/task"
 	"github.com/tgragnato/snowflake/common/util"
+
+	snowflakeClient "github.com/tgragnato/snowflake/client/lib"
 )
 
 const (
@@ -61,6 +63,9 @@ const (
 	DefaultRelayURL     = "wss://snowflake.torproject.net/"
 	DefaultProxyType    = "standalone"
 	DefaultSTUNURL      = "stun:stun.tgragnato.it:3478"
+)
+
+const (
 	// NATUnknown is set if the proxy cannot connect to probetest.
 	NATUnknown = "unknown"
 	// NATRestricted is set if the proxy times out when connecting to a symmetric NAT.
@@ -143,7 +148,9 @@ type SnowflakeProxy struct {
 	BrokerURL string
 	// KeepLocalAddresses indicates whether local SDP candidates will be sent to the broker
 	KeepLocalAddresses bool
-	// RelayURL is the URL of the Snowflake server that all traffic will be relayed to
+	// RelayURL is the default `URL` of the server (relay)
+	// that this proxy will forward client connections to,
+	// in case the broker itself did not specify the said URL
 	RelayURL string
 	// OutboundAddress specify an IP address to use as SDP host candidate
 	OutboundAddress string
@@ -562,8 +569,15 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 		return nil, err
 	}
 
-	// Wait for ICE candidate gathering to complete
-	<-done
+	// Wait for ICE candidate gathering to complete,
+	// or for whatever we managed to gather before the client times out.
+	// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40230
+	select {
+	case <-done:
+	case <-time.After(snowflakeClient.DataChannelTimeout / 2):
+		log.Print("ICE gathering is not yet complete, but let's send the answer" +
+			" before the client times out")
+	}
 
 	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
 		return nil, fmt.Errorf("SDP answer contains no candidate")
@@ -762,7 +776,7 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 	_, err = url.Parse(sf.RelayURL)
 	if err != nil {
-		return fmt.Errorf("invalid relay url: %s", err)
+		return fmt.Errorf("invalid default relay url: %s", err)
 	}
 
 	if !namematcher.IsValidRule(sf.RelayDomainNamePattern) {
@@ -789,9 +803,9 @@ func (sf *SnowflakeProxy) Start() error {
 	NatRetestTask := task.Periodic{
 		Interval: sf.NATTypeMeasurementInterval,
 		Execute: func() error {
-			sf.checkNATType(config, sf.NATProbeURL)
-			return nil
+			return sf.checkNATType(config, sf.NATProbeURL)
 		},
+		// Not setting OnError would shut down the periodic task on error by default.
 		OnError: func(err error) {
 			log.Printf("Periodic probetest failed: %s, retaining current NAT type: %s", err.Error(), getCurrentNATType())
 		},
@@ -833,6 +847,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		return nil
 	}
 
+	log.Printf("Checking our NAT type, contacting NAT check probe server at \"%v\"...", probeURL)
 	probe, err := newSignalingServer(probeURL, false)
 	if err != nil {
 		return fmt.Errorf("error parsing url: %w", err)
@@ -843,6 +858,11 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	if err != nil {
 		return fmt.Errorf("error making WebRTC connection: %w", err)
 	}
+	defer func() {
+		if err := pc.Close(); err != nil {
+			log.Printf("Probetest: error calling pc.Close: %v", err)
+		}
+	}()
 
 	offer := pc.LocalDescription()
 	log.Printf("Probetest offer: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
@@ -871,6 +891,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	if err != nil {
 		return fmt.Errorf("error setting answer: %w", err)
 	}
+	log.Printf("Probetest answer: \n\t%s", strings.ReplaceAll(answer.SDP, "\n", "\n\t"))
 
 	err = pc.SetRemoteDescription(*answer)
 	if err != nil {
@@ -879,17 +900,25 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 
 	prevNATType := getCurrentNATType()
 
+	log.Printf("Waiting for a test WebRTC connection with NAT check probe server to establish...")
 	select {
 	case <-dataChan:
+		log.Printf(
+			"Test WebRTC connection with NAT check probe server established!"+
+				" This means our NAT is %v!",
+			NATUnrestricted,
+		)
 		setCurrentNATType(NATUnrestricted)
 	case <-time.After(dataChannelTimeout):
+		log.Printf(
+			"Test WebRTC connection with NAT check probe server timed out."+
+				" This means our NAT is %v.",
+			NATRestricted,
+		)
 		setCurrentNATType(NATRestricted)
 	}
 
 	log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
 
-	if err := pc.Close(); err != nil {
-		log.Printf("error calling pc.Close: %v", err)
-	}
 	return nil
 }

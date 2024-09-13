@@ -180,7 +180,10 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	}
 
 	if _, err := i.ctx.GetBridgeInfo(BridgeFingerprint); err != nil {
-		return err
+		return sendClientResponse(
+			&messages.ClientPollResponse{Error: err.Error()},
+			response,
+		)
 	}
 
 	offer.fingerprint = BridgeFingerprint.ToBytes()

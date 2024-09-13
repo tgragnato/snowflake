@@ -28,7 +28,7 @@ func main() {
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "broker URL")
 	unsafeLogging := flag.Bool("unsafe-logging", false, "prevent logs from being scrubbed")
 	keepLocalAddresses := flag.Bool("keep-local-addresses", false, "keep local LAN address ICE candidates")
-	relayURL := flag.String("relay", sf.DefaultRelayURL, "websocket relay URL")
+	defaultRelayURL := flag.String("relay", sf.DefaultRelayURL, "websocket relay URL")
 	probeURL := flag.String("nat-probe-server", sf.DefaultNATProbeURL, "NAT check probe server URL")
 	outboundAddress := flag.String("outbound-address", "", "prefer the given address as outbound address")
 	allowedRelayHostNamePattern := flag.String("allowed-relay-hostname-pattern", "snowflake.torproject.net$", "a pattern to specify allowed hostname pattern for relay URL.")
@@ -98,7 +98,7 @@ func main() {
 		STUNURL:            *stunURL,
 		BrokerURL:          *rawBrokerURL,
 		KeepLocalAddresses: *keepLocalAddresses,
-		RelayURL:           *relayURL,
+		RelayURL:           *defaultRelayURL,
 		NATProbeURL:        *probeURL,
 		OutboundAddress:    *outboundAddress,
 		EphemeralMinPort:   ephemeralPortsRange[0],
