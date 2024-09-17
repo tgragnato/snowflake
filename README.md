@@ -1,5 +1,10 @@
 # Snowflake
 
+[![Go](https://github.com/tgragnato/snowflake/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/go.yml)
+[![CodeQL](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tgragnato/snowflake)](https://goreportcard.com/report/github.com/tgragnato/snowflake)
+[![codecov](https://codecov.io/gh/tgragnato/snowflake/branch/main/graph/badge.svg)](https://codecov.io/gh/tgragnato/snowflake)
+
 Pluggable Transport using WebRTC, inspired by Flashproxy.
 
 ### Custom fork
@@ -16,8 +21,6 @@ Pluggable Transport using WebRTC, inspired by Flashproxy.
 - introduction of a proxy option to force the NAT type as unrestricted
 - coder/websocket in place of gorilla/websocket
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
 - [Structure of this Repository](#structure-of-this-repository)
@@ -28,8 +31,6 @@ Pluggable Transport using WebRTC, inspired by Flashproxy.
 - [Test Environment](#test-environment)
 - [FAQ](#faq)
 - [More info and links](#more-info-and-links)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ### Structure of this Repository
 
@@ -56,10 +57,6 @@ You can contribute to Snowflake by running a Snowflake proxy. We have the option
 #### Using the Snowflake Library with Other Applications
 
 Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports specification](). For more information on using the Snowflake Go library, see the [Snowflake library documentation](doc/using-the-snowflake-library.md).
-
-### Test Environment
-
-There is a Docker-based test environment at https://github.com/cohosh/snowbox.
 
 ### FAQ
 
@@ -99,16 +96,6 @@ abundance of ephemeral and short-lived (and special!) volunteer proxies...
 ### More info and links
 
 We have more documentation in the [Snowflake wiki](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/wikis/home) and at https://snowflake.torproject.org/.
-
-
-##### -- Android AAR Reproducible Build Setup  --
-
-Using `gomobile` it is possible to build snowflake as shared libraries for all
-the architectures supported by Android.  This is in the _.gitlab-ci.yml_, which
-runs in GitLab CI.  It is also possible to run this setup in a Virtual Machine
-using [vagrant](https://www.vagrantup.com/).  Just run `vagrant up` and it will
-create and provision the VM.  `vagrant ssh` to get into the VM to use it as a
-development environment.
 
 ##### uTLS Settings
 

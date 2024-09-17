@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/task"
+	"tgragnato.it/snowflake/common/event"
+	"tgragnato.it/snowflake/common/task"
 )
 
 func NewProxyEventLogger(output io.Writer, disableStats bool) event.SnowflakeEventReceiver {

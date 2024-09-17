@@ -12,7 +12,7 @@ package main
 import (
     "log"
 
-    sf "github.com/tgragnato/snowflake/client/lib"
+    sf "tgragnato.it/snowflake/client/lib"
 )
 
 func main() {
@@ -54,7 +54,7 @@ package main
 import (
     "log"
 
-    sf "github.com/tgragnato/snowflake/client/lib"
+    sf "tgragnato.it/snowflake/client/lib"
 )
 
 type StubMethod struct {
@@ -110,7 +110,7 @@ import (
     "log"
     "net"
 
-    sf "github.com/tgragnato/snowflake/server/lib"
+    sf "tgragnato.it/snowflake/server/lib"
     "golang.org/x/crypto/acme/autocert"
 )
 

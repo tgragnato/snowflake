@@ -1,4 +1,4 @@
-module github.com/tgragnato/snowflake
+module tgragnato.it/snowflake
 
 go 1.22.6
 

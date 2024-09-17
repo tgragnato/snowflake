@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tgragnato/snowflake/common/messages"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safeprom"
+	"tgragnato.it/snowflake/common/messages"
 )
 
 const (

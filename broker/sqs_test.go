@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tgragnato/snowflake/common/sqsclient"
+	"tgragnato.it/snowflake/common/sqsclient"
 )
 
 func TestSQS(t *testing.T) {

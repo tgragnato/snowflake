@@ -15,12 +15,12 @@ import (
 
 	"github.com/pion/webrtc/v4"
 	utls "github.com/refraction-networking/utls"
-	"github.com/tgragnato/snowflake/common/certs"
-	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/messages"
-	"github.com/tgragnato/snowflake/common/nat"
-	"github.com/tgragnato/snowflake/common/util"
-	utlsutil "github.com/tgragnato/snowflake/common/utls"
+	"tgragnato.it/snowflake/common/certs"
+	"tgragnato.it/snowflake/common/event"
+	"tgragnato.it/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/nat"
+	"tgragnato.it/snowflake/common/util"
+	utlsutil "tgragnato.it/snowflake/common/utls"
 )
 
 const (

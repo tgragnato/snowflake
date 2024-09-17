@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tgragnato/snowflake/common/amp"
-	"github.com/tgragnato/snowflake/common/messages"
-	"github.com/tgragnato/snowflake/common/util"
+	"tgragnato.it/snowflake/common/amp"
+	"tgragnato.it/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/util"
 )
 
 // ampClientOffers is the AMP-speaking endpoint for client poll messages,

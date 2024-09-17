@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tgragnato/snowflake/common/nat"
+	"tgragnato.it/snowflake/common/nat"
 )
 
 const (

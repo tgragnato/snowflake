@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/pion/stun/v3"
-	"github.com/tgragnato/snowflake/common/proxy"
+	"tgragnato.it/snowflake/common/proxy"
 )
 
 var ErrTimedOut = errors.New("timed out waiting for response")

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/tgragnato/snowflake/common/amp"
+	"tgragnato.it/snowflake/common/amp"
 )
 
 // ampCacheRendezvous is a RendezvousMethod that communicates with the

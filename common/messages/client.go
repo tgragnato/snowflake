@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/tgragnato/snowflake/common/bridgefingerprint"
-	"github.com/tgragnato/snowflake/common/nat"
+	"tgragnato.it/snowflake/common/bridgefingerprint"
+	"tgragnato.it/snowflake/common/nat"
 )
 
 const ClientVersion = "1.0"

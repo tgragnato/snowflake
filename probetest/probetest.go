@@ -21,10 +21,10 @@ import (
 
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
-	"github.com/tgragnato/snowflake/common/messages"
-	"github.com/tgragnato/snowflake/common/util"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 	"golang.org/x/crypto/acme/autocert"
+	"tgragnato.it/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/util"
 )
 
 const (

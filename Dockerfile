@@ -12,7 +12,7 @@ COPY --from=builder /workspace/proxy/proxy /usr/bin/
 ENTRYPOINT ["/usr/bin/proxy"]
 LABEL org.opencontainers.image.title="snowflake"
 LABEL org.opencontainers.image.description="WebRTC Pluggable Transport"
-LABEL org.opencontainers.image.url="https://github.com/tgragnato/snowflake"
-LABEL org.opencontainers.image.source="https://github.com/tgragnato/snowflake"
+LABEL org.opencontainers.image.url="https://tgragnato.it/snowflake/"
+LABEL org.opencontainers.image.source="https://tgragnato.it/snowflake/"
 LABEL license="BSD-3-Clause"
 LABEL io.containers.autoupdate=registry

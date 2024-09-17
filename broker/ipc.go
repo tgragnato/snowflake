@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tgragnato/snowflake/common/bridgefingerprint"
-	"github.com/tgragnato/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/bridgefingerprint"
+	"tgragnato.it/snowflake/common/messages"
 )
 
 const (

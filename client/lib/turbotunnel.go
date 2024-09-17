@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/tgragnato/snowflake/common/encapsulation"
+	"tgragnato.it/snowflake/common/encapsulation"
 )
 
 var errNotImplemented = errors.New("not implemented")

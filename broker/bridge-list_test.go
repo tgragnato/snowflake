@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tgragnato/snowflake/common/bridgefingerprint"
+	"tgragnato.it/snowflake/common/bridgefingerprint"
 )
 
 const DefaultBridges = `{"displayName":"default", "webSocketAddress":"wss://snowflake.torproject.org", "fingerprint":"2B280B23E1107BB62ABFC40DDCC8824814F80A72"}

@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/tgragnato/snowflake/common/encapsulation"
-	"github.com/tgragnato/snowflake/common/turbotunnel"
+	"tgragnato.it/snowflake/common/encapsulation"
+	"tgragnato.it/snowflake/common/turbotunnel"
 )
 
 const requestTimeout = 10 * time.Second

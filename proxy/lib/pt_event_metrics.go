@@ -1,7 +1,7 @@
 package snowflake_proxy
 
 import (
-	"github.com/tgragnato/snowflake/common/event"
+	"tgragnato.it/snowflake/common/event"
 )
 
 type EventCollector interface {

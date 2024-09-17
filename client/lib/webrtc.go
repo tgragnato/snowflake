@@ -16,8 +16,8 @@ import (
 	"github.com/pion/transport/v3"
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
-	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/proxy"
+	"tgragnato.it/snowflake/common/event"
+	"tgragnato.it/snowflake/common/proxy"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.

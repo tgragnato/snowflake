@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/version"
-	sf "github.com/tgragnato/snowflake/proxy/lib"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
+	"tgragnato.it/snowflake/common/event"
+	"tgragnato.it/snowflake/common/version"
+	sf "tgragnato.it/snowflake/proxy/lib"
 )
 
 const minPollInterval = 2 * time.Second

@@ -38,12 +38,12 @@ import (
 
 	"github.com/pion/stun/v3"
 	"github.com/pion/webrtc/v4"
-	"github.com/tgragnato/snowflake/common/encapsulation"
-	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/nat"
-	"github.com/tgragnato/snowflake/common/turbotunnel"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
+	"tgragnato.it/snowflake/common/encapsulation"
+	"tgragnato.it/snowflake/common/event"
+	"tgragnato.it/snowflake/common/nat"
+	"tgragnato.it/snowflake/common/turbotunnel"
 )
 
 const (

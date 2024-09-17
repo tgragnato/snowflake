@@ -47,13 +47,13 @@ import (
 	"github.com/pion/ice/v4"
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
-	"github.com/tgragnato/snowflake/common/event"
-	"github.com/tgragnato/snowflake/common/messages"
-	"github.com/tgragnato/snowflake/common/namematcher"
-	"github.com/tgragnato/snowflake/common/task"
-	"github.com/tgragnato/snowflake/common/util"
+	"tgragnato.it/snowflake/common/event"
+	"tgragnato.it/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/namematcher"
+	"tgragnato.it/snowflake/common/task"
+	"tgragnato.it/snowflake/common/util"
 
-	snowflakeClient "github.com/tgragnato/snowflake/client/lib"
+	snowflakeClient "tgragnato.it/snowflake/client/lib"
 )
 
 const (

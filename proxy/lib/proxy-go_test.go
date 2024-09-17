@@ -12,8 +12,8 @@ import (
 
 	"github.com/pion/webrtc/v4"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tgragnato/snowflake/common/messages"
-	"github.com/tgragnato/snowflake/common/util"
+	"tgragnato.it/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/util"
 )
 
 // Set up a mock broker to communicate with
