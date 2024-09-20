@@ -563,6 +563,9 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
+	pc.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
+		log.Printf("NAT check: WebRTC: OnConnectionStateChange: %v", pcs)
+	})
 
 	// Must create a data channel before creating an offer
 	// https://github.com/pion/webrtc/wiki/Release-WebRTC@v3.0.0#a-data-channel-is-no-longer-implicitly-created-with-a-peerconnection
