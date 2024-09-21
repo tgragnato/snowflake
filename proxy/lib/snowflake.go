@@ -134,7 +134,8 @@ type SnowflakeProxy struct {
 	RelayURL string
 	// OutboundAddress specify an IP address to use as SDP host candidate
 	OutboundAddress string
-	// Ephemeral*Port limits the pool of ports that ICE UDP connections can allocate from
+	// EphemeralMinPort and EphemeralMaxPort limit the range of ports that
+	// ICE UDP connections may allocate from.
 	EphemeralMinPort uint16
 	EphemeralMaxPort uint16
 	// RelayDomainNamePattern is the pattern specify allowed domain name for relay
