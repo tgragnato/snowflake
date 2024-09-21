@@ -232,7 +232,7 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 }
 
 // pollOffer communicates the proxy's capabilities with broker
-// and retrieves a compatible SDP offer
+// and retrieves a compatible SDP offer and relay URL.
 func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string, pollInterval time.Duration, shutdown chan struct{}) (*webrtc.SessionDescription, string) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
