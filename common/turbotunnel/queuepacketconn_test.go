@@ -208,15 +208,13 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 			panic(err)
 		}
 
-		// A sleep after the Write makes buffer reuse more likely, and is needed
-		// to allow time for flushing all bytes written to the connection before close.
-		// This is not guaranteed by kcp-go. See https://github.com/xtaci/kcp-go/issues/273
-		time.Sleep(100 * time.Millisecond)
-
 		err = conn.Close()
 		if err != nil {
 			panic(err)
 		}
+
+		// A sleep after the Write makes buffer reuse more likely.
+		time.Sleep(100 * time.Millisecond)
 
 		if len(transcript.Transcript) == 0 {
 			panic("empty transcript")
