@@ -358,7 +358,7 @@ clean-image-tags:
   needs:
     - job: merge-manifests
       artifacts: false
-  image: containers.torproject.org/tpo/tpa/base-images:bookworm
+  image: containers.torproject.org/tpo/tpa/base-images/debian:bookworm
   before_script:
     - *apt-template
     - apt-get install -y jq curl
