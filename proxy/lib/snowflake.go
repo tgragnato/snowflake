@@ -154,7 +154,8 @@ type SnowflakeProxy struct {
 	RelayURL string
 	// OutboundAddress specify an IP address to use as SDP host candidate
 	OutboundAddress string
-	// Ephemeral*Port limits the pool of ports that ICE UDP connections can allocate from
+	// EphemeralMinPort and EphemeralMaxPort limit the range of ports that
+	// ICE UDP connections may allocate from.
 	EphemeralMinPort uint16
 	EphemeralMaxPort uint16
 	// RelayDomainNamePattern is the pattern specify allowed domain name for relay
@@ -253,7 +254,7 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 }
 
 // pollOffer communicates the proxy's capabilities with broker
-// and retrieves a compatible SDP offer
+// and retrieves a compatible SDP offer and relay URL.
 func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string, pollInterval time.Duration, shutdown chan struct{}) (*webrtc.SessionDescription, string) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
@@ -396,7 +397,8 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 
 	u, err := url.Parse(relayURL)
 	if err != nil {
-		log.Fatalf("invalid relay url: %s", err)
+		log.Printf("invalid relay url: %s", err)
+		return
 	}
 
 	if remoteAddr != nil {
