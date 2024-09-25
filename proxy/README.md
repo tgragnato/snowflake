@@ -27,49 +27,58 @@ go build
 ### Running a standalone Snowflake proxy
 
 The Snowflake proxy can be run with the following options:
+
+<!-- These are generated with `go run . --help` -->
+
 ```
 Usage of ./proxy:
   -allow-non-tls-relay
-        allow relay without tls encryption
+        allow this proxy to pass client's data to the relay in an unencrypted form.
+        This is only useful if the relay doesn't support encryption, e.g. for testing / development purposes.
   -allow-proxying-to-private-addresses
         allow forwarding client connections to private IP addresses.
         Useful when a Snowflake server (relay) is hosted on the same private network as this proxy.
   -allowed-relay-hostname-pattern string
-        a pattern to specify allowed hostname pattern for relay URL. (default "snowflake.torproject.net$")
-  -broker string
-        broker URL (default "https://snowflake-broker.torproject.net/")
-  -poll-interval duration
-        how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is 2s. Valid time units are "ms", "s", "m", "h". (default 5s)
+        this proxy will only be allowed to forward client connections to relays (servers) whose URL matches this pattern.
+        Note that a pattern "example.com$" will match "subdomain.example.com" as well as "other-domain-example.com".
+        In order to only match "example.com", prefix the pattern with "^": "^example.com$" (default "snowflake.torproject.net$")
+  -broker URL
+        The URL of the broker server that the proxy will be using to find clients (default "https://snowflake-broker.torproject.net/")
   -capacity uint
         maximum concurrent clients (default is to accept an unlimited number of clients)
-  -disableStatsLogger
+  -disable-stats-logger
         disable the exposing mechanism for stats using logs
-  -ephemeral-ports-range string
-        ICE UDP ephemeral ports range (format:"<min>:<max>")
-  -enableMetrics
-        enable the exposing mechanism for stats using metrics at "/internal/metrics"
+  -ephemeral-ports-range range
+        Set the range of ports used for client connections (format:"<min>:<max>").
+        If omitted, the ports will be chosen automatically.
   -keep-local-addresses
-        keep local LAN address ICE candidates
-  -log string
-        log filename
-  -metricsAddress string
-        set listening address for metrics service by either hostname or ip-address (default localhost)
-  -metricsPort
+        keep local LAN address ICE candidates.
+        This is usually pointless because Snowflake clients don't usually reside on the same local network as the proxy.
+  -log filename
+        log filename. If not specified, logs will be output to stderr (console).
+  -metrics
+        enable the exposing mechanism for stats using metrics
+  -metrics-address address
+        set listen address for metrics service (default "localhost")
+  -metrics-port int
         set port for the metrics service (default 9999)
+  -nat-probe-server URL
+        The URL of the server that this proxy will use to check its network NAT type.
+        Determining NAT type helps to understand whether this proxy is compatible with certain clients' NAT (default "https://snowflake-broker.torproject.net:8443/probe")
   -nat-retest-interval duration
-        the time interval in second before NAT type is retested, 0s disables retest. Valid time units are "s", "m", "h".  (default 24h0m0s)
-  -relay string
-        websocket relay URL (default "wss://snowflake.torproject.net/")
-  -outbound-address string
-        bind a specific outbound address. Replace all host candidates with this address without validation. 
-  -probeURL string
-        NAT check probe server URL (default "https://snowflake-broker.torproject.net:8443/probe")
-  -stun string
-        stun URL (default "stun:stun.l.google.com:19302")
+        the time interval between NAT type is retests (see "nat-probe-server"). 0s disables retest. Valid time units are "s", "m", "h". (default 24h0m0s)
+  -outbound-address address
+        prefer the given address as outbound address for client connections
+  -poll-interval duration
+        how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is 2s. Valid time units are "ms", "s", "m", "h". (default 5s)
+  -relay URL
+        The default URL of the server (relay) that this proxy will forward client connections to, in case the broker itself did not specify the said URL (default "wss://snowflake.torproject.net/")
+  -stun URL
+        STUN server `URL` that this proxy will use will use to, among some other things, determine its public IP address (default "stun:stun.l.google.com:19302")
   -summary-interval duration
-        the time interval to output summary, 0s disables summaries. Valid time units are "s", "m", "h".  (default 1h0m0s)
+        the time interval between summary log outputs, 0s disables summaries. Valid time units are "s", "m", "h". (default 1h0m0s)
   -unsafe-logging
-        prevent logs from being scrubbed
+        keep IP addresses and other sensitive info in the logs
   -verbose
         increase log verbosity
   -version

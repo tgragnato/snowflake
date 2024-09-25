@@ -116,6 +116,7 @@ var (
 
 // SnowflakeProxy is used to configure an embedded
 // Snowflake in another Go application.
+// For some more info also see CLI parameter descriptions in README.
 type SnowflakeProxy struct {
 	// How often to ask the broker for a new client
 	PollInterval time.Duration

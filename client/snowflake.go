@@ -169,8 +169,8 @@ func main() {
 	sqsCredsStr := flag.String("sqscreds", "", "credentials to access SQS Queue")
 	logFilename := flag.String("log", "", "name of log file")
 	logToStateDir := flag.Bool("log-to-state-dir", false, "resolve the log file relative to tor's pt state dir")
-	keepLocalAddresses := flag.Bool("keep-local-addresses", false, "keep local LAN address ICE candidates")
-	unsafeLogging := flag.Bool("unsafe-logging", false, "prevent logs from being scrubbed")
+	keepLocalAddresses := flag.Bool("keep-local-addresses", false, "keep local LAN address ICE candidates.\nThis is usually pointless because Snowflake proxies don't usually reside on the same local network as the client.")
+	unsafeLogging := flag.Bool("unsafe-logging", false, "keep IP addresses and other sensitive info in the logs")
 	max := flag.Int("max", DefaultSnowflakeCapacity,
 		"capacity for number of multiplexed WebRTC peers")
 	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
