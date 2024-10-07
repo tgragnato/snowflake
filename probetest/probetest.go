@@ -28,9 +28,10 @@ import (
 )
 
 const (
-	readLimit          = 100000                        //Maximum number of bytes to be read from an HTTP request
-	dataChannelTimeout = 20 * time.Second              //time after which we assume proxy data channel will not open
-	defaultStunUrl     = "stun:stun.tgragnato.it:3478" //default STUN URL
+	readLimit               = 100000                        //Maximum number of bytes to be read from an HTTP request
+	dataChannelOpenTimeout  = 20 * time.Second              //time after which we assume proxy data channel will not open
+	dataChannelCloseTimeout = 5 * time.Second               //how long to wait after the data channel has been open before closing the peer connection.
+	defaultStunUrl          = "stun:stun.tgragnato.it:3478" //default STUN URL
 )
 
 type ProbeHandler struct {
@@ -45,7 +46,7 @@ func (h ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
 func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
-	dataChan chan struct{}, iceGatheringTimeout time.Duration) (*webrtc.PeerConnection, error) {
+	dataChanOpen chan struct{}, dataChanClosed chan struct{}, iceGatheringTimeout time.Duration) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
 	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
@@ -68,9 +69,10 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	}
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		dc.OnOpen(func() {
-			close(dataChan)
+			close(dataChanOpen)
 		})
 		dc.OnClose(func() {
+			close(dataChanClosed)
 			dc.Close()
 		})
 	})
@@ -139,11 +141,12 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dataChan := make(chan struct{})
+	dataChanOpen := make(chan struct{})
+	dataChanClosed := make(chan struct{})
 	// TODO refactor: DRY this must be below `ResponseHeaderTimeout` in proxy
 	// https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/blob/e1d9b4ace69897521cc29585b5084c5f4d1ce874/proxy/lib/snowflake.go#L207
 	iceGatheringTimeout := 10 * time.Second
-	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChan, iceGatheringTimeout)
+	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChanOpen, dataChanClosed, iceGatheringTimeout)
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -183,11 +186,24 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	// destroy the peer connection and return the token.
 	closePcOnReturn = false
 	go func() {
-		timer := time.NewTimer(dataChannelTimeout)
+		timer := time.NewTimer(dataChannelOpenTimeout)
 		defer timer.Stop()
 
 		select {
-		case <-dataChan:
+		case <-dataChanOpen:
+			// Let's not close the `PeerConnection` immediately now,
+			// instead let's wait for the peer (or timeout)
+			// to close the connection,
+			// in order to ensure that the DataChannel also gets opened
+			// on the proxy's side.
+			// Otherwise the proxy might receive the "close PeerConnection"
+			// "event" before they receive "dataChannel.OnOpen",
+			// which would wrongly result in a "restricted" NAT.
+			// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40387
+			select {
+			case <-dataChanClosed:
+			case <-time.After(dataChannelCloseTimeout):
+			}
 		case <-timer.C:
 		}
 

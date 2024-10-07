@@ -136,6 +136,7 @@ func setCurrentNATType(newType string) {
 
 // SnowflakeProxy is used to configure an embedded
 // Snowflake in another Go application.
+// For some more info also see CLI parameter descriptions in README.
 type SnowflakeProxy struct {
 	// How often to ask the broker for a new client
 	PollInterval time.Duration
@@ -599,6 +600,9 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 	if err != nil {
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
+	pc.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
+		log.Printf("NAT check: WebRTC: OnConnectionStateChange: %v", pcs)
+	})
 
 	// Must create a data channel before creating an offer
 	// https://github.com/pion/webrtc/wiki/Release-WebRTC@v3.0.0#a-data-channel-is-no-longer-implicitly-created-with-a-peerconnection
