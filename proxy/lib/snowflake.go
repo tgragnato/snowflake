@@ -545,9 +545,6 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			" before the client times out")
 	}
 
-	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
-		return nil, fmt.Errorf("SDP answer contains no candidate")
-	}
 	log.Printf("Answer: \n\t%s", strings.ReplaceAll(pc.LocalDescription().SDP, "\n", "\n\t"))
 
 	return pc, nil
@@ -607,10 +604,6 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 
 	// Wait for ICE candidate gathering to complete
 	<-done
-
-	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
-		return nil, fmt.Errorf("Probetest SDP offer contains no candidate")
-	}
 
 	return pc, nil
 }

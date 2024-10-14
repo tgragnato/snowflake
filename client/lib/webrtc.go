@@ -4,11 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -301,9 +299,6 @@ func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
 
 	<-done // Wait for ICE candidate gathering to complete.
 
-	if !strings.Contains(c.pc.LocalDescription().SDP, "\na=candidate:") {
-		return fmt.Errorf("SDP offer contains no candidate")
-	}
 	return nil
 }
 

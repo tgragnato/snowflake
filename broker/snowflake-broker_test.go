@@ -137,14 +137,6 @@ func TestBroker(t *testing.T) {
 			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
 			So(err, ShouldBeNil)
 
-			Convey("with HTTP Bad Request when client offer contains invalid SDP", func() {
-				data, err = createClientOffer("fake", NATUnknown, "")
-				invalidRequest, err := http.NewRequest("POST", "snowflake.broker/client", data)
-				So(err, ShouldBeNil)
-				clientOffers(i, w, invalidRequest)
-				So(w.Code, ShouldEqual, http.StatusBadRequest)
-			})
-
 			Convey("with error when no snowflakes are available.", func() {
 				clientOffers(i, w, r)
 				So(w.Code, ShouldEqual, http.StatusOK)
@@ -245,14 +237,6 @@ client-sqs-ips
 			r, err := http.NewRequest("POST", "snowflake.broker/client", offer)
 			So(err, ShouldBeNil)
 			r.Header.Set("Snowflake-NAT-TYPE", "restricted")
-
-			Convey("with HTTP Bad Request when client offer contains invalid SDP", func() {
-				invalidOffer := bytes.NewReader([]byte("{test}"))
-				invalidRequest, err := http.NewRequest("POST", "snowflake.broker/client", invalidOffer)
-				So(err, ShouldBeNil)
-				clientOffers(i, w, invalidRequest)
-				So(w.Code, ShouldEqual, http.StatusBadRequest)
-			})
 
 			Convey("with 503 when no snowflakes are available.", func() {
 				clientOffers(i, w, r)
