@@ -234,46 +234,35 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 
 // pollOffer communicates the proxy's capabilities with broker
 // and retrieves a compatible SDP offer and relay URL.
-func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string, pollInterval time.Duration, shutdown chan struct{}) (*webrtc.SessionDescription, string) {
+func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string) (*webrtc.SessionDescription, string) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
+	numClients := int((tokens.count() / 8) * 8) // Round down to 8
+	currentNATTypeLoaded := getCurrentNATType()
+	body, err := messages.EncodeProxyPollRequestWithRelayPrefix(sid, proxyType, currentNATTypeLoaded, numClients, acceptedRelayPattern)
+	if err != nil {
+		log.Printf("Error encoding poll message: %s", err.Error())
+		return nil, ""
+	}
 
-	// Run the loop once before hitting the ticker
-	for ; true; <-ticker.C {
-		select {
-		case <-shutdown:
+	resp, err := s.Post(brokerPath.String(), bytes.NewBuffer(body))
+	if err != nil {
+		log.Printf("error polling broker: %s", err.Error())
+	}
+
+	offer, _, relayURL, err := messages.DecodePollResponseWithRelayURL(resp)
+	if err != nil {
+		log.Printf("Error reading broker response: %s", err.Error())
+		log.Printf("body: %s", resp)
+		return nil, ""
+	}
+	if offer != "" {
+		offer, err := util.DeserializeSessionDescription(offer)
+		if err != nil {
+			log.Printf("Error processing session description: %s", err.Error())
 			return nil, ""
-		default:
-			numClients := int((tokens.count() / 8) * 8) // Round down to 8
-			currentNATTypeLoaded := getCurrentNATType()
-			body, err := messages.EncodeProxyPollRequestWithRelayPrefix(sid, proxyType, currentNATTypeLoaded, numClients, acceptedRelayPattern)
-			if err != nil {
-				log.Printf("Error encoding poll message: %s", err.Error())
-				return nil, ""
-			}
-
-			resp, err := s.Post(brokerPath.String(), bytes.NewBuffer(body))
-			if err != nil {
-				log.Printf("error polling broker: %s", err.Error())
-			}
-
-			offer, _, relayURL, err := messages.DecodePollResponseWithRelayURL(resp)
-			if err != nil {
-				log.Printf("Error reading broker response: %s", err.Error())
-				log.Printf("body: %s", resp)
-				return nil, ""
-			}
-			if offer != "" {
-				offer, err := util.DeserializeSessionDescription(offer)
-				if err != nil {
-					log.Printf("Error processing session description: %s", err.Error())
-					return nil, ""
-				}
-				return offer, relayURL
-			}
 		}
+		return offer, relayURL
 	}
 	return nil, ""
 }
@@ -609,7 +598,7 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 }
 
 func (sf *SnowflakeProxy) runSession(sid string) {
-	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern, sf.PollInterval, sf.shutdown)
+	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
 	if offer == nil {
 		log.Printf("bad offer from broker")
 		tokens.ret()
