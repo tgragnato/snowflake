@@ -29,10 +29,14 @@ import (
 )
 
 const (
-	readLimit               = 100000                         //Maximum number of bytes to be read from an HTTP request
-	dataChannelOpenTimeout  = 20 * time.Second               //time after which we assume proxy data channel will not open
-	dataChannelCloseTimeout = 5 * time.Second                //how long to wait after the data channel has been open before closing the peer connection.
-	defaultStunUrl          = "stun:stun.l.google.com:19302" //default STUN URL
+	// Maximum number of bytes to be read from an HTTP request
+	readLimit = 100000
+	// Time after which we assume proxy data channel will not open
+	dataChannelOpenTimeout = 20 * time.Second
+	// How long to wait after the data channel has been open before closing the peer connection.
+	dataChannelCloseTimeout = 5 * time.Second
+	// Default STUN URL
+	defaultStunUrls = "stun:stun.l.google.com:19302,stun:stun.voip.blackberry.com:3478"
 )
 
 type ProbeHandler struct {
@@ -60,7 +64,7 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{stunURL},
+				URLs: strings.Split(stunURL, ","),
 			},
 		},
 	}
@@ -234,7 +238,7 @@ func main() {
 	flag.StringVar(&addr, "addr", ":8443", "address to listen on")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
-	flag.StringVar(&stunURL, "stun", defaultStunUrl, "STUN server to use for NAT traversal")
+	flag.StringVar(&stunURL, "stun", defaultStunUrls, "STUN servers to use for NAT traversal (comma-separated)")
 	flag.Parse()
 
 	var logOutput io.Writer = os.Stderr

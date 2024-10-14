@@ -23,7 +23,7 @@ func main() {
 	pollInterval := flag.Duration("poll-interval", sf.DefaultPollInterval,
 		fmt.Sprint("how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
 	capacity := flag.Uint("capacity", 0, "maximum concurrent clients (default is to accept an unlimited number of clients)")
-	stunURL := flag.String("stun", sf.DefaultSTUNURL, "STUN server `URL` that this proxy will use will use to, among some other things, determine its public IP address")
+	stunURL := flag.String("stun", sf.DefaultSTUNURL, "Comma-separated STUN server `URL`s that this proxy will use will use to, among some other things, determine its public IP address")
 	logFilename := flag.String("log", "", "log `filename`. If not specified, logs will be output to stderr (console).")
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "The `URL` of the broker server that the proxy will be using to find clients")
 	unsafeLogging := flag.Bool("unsafe-logging", false, "keep IP addresses and other sensitive info in the logs")

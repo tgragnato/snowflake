@@ -60,7 +60,7 @@ const (
 	DefaultNATProbeURL  = "https://snowflake-broker.torproject.net:8443/probe"
 	// This is rather a "DefaultDefaultRelayURL"
 	DefaultRelayURL  = "wss://snowflake.torproject.net/"
-	DefaultSTUNURL   = "stun:stun.l.google.com:19302"
+	DefaultSTUNURL   = "stun:stun.l.google.com:19302,stun:stun.voip.blackberry.com:3478"
 	DefaultProxyType = "standalone"
 )
 
@@ -123,7 +123,7 @@ type SnowflakeProxy struct {
 	// Capacity is the maximum number of clients a Snowflake will serve.
 	// Proxies with a capacity of 0 will accept an unlimited number of clients.
 	Capacity uint
-	// STUNURL is the URL of the STUN server the proxy will use
+	// STUNURL is the URLs (comma-separated) of the STUN server the proxy will use
 	STUNURL string
 	// BrokerURL is the URL of the Snowflake broker
 	BrokerURL string
@@ -757,7 +757,7 @@ func (sf *SnowflakeProxy) Start() error {
 	config = webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{sf.STUNURL},
+				URLs: strings.Split(sf.STUNURL, ","),
 			},
 		},
 	}
