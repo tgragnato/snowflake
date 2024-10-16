@@ -14,7 +14,7 @@ require (
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pion/transport/v3 v3.0.7
-	github.com/pion/webrtc/v4 v4.0.0
+	github.com/pion/webrtc/v4 v4.0.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.6.7
