@@ -60,9 +60,10 @@ const (
 	DefaultPollInterval = 5 * time.Second
 	DefaultBrokerURL    = "https://snowflake-broker.torproject.net/"
 	DefaultNATProbeURL  = "https://snowflake-broker.torproject.net:8443/probe"
-	DefaultRelayURL     = "wss://snowflake.torproject.net/"
-	DefaultProxyType    = "standalone"
-	DefaultSTUNURL      = "stun:stun.tgragnato.it:3478"
+	// This is rather a "DefaultDefaultRelayURL"
+	DefaultRelayURL  = "wss://snowflake.torproject.net/"
+	DefaultSTUNURL   = "stun:stun.tgragnato.it:3478,stun:stun.l.google.com:19302"
+	DefaultProxyType = "standalone"
 )
 
 const (
@@ -143,7 +144,7 @@ type SnowflakeProxy struct {
 	// Capacity is the maximum number of clients a Snowflake will serve.
 	// Proxies with a capacity of 0 will accept an unlimited number of clients.
 	Capacity uint
-	// STUNURL is the URL of the STUN server the proxy will use
+	// STUNURL is the URLs (comma-separated) of the STUN server the proxy will use
 	STUNURL string
 	// BrokerURL is the URL of the Snowflake broker
 	BrokerURL string
@@ -582,9 +583,6 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			" before the client times out")
 	}
 
-	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
-		return nil, fmt.Errorf("SDP answer contains no candidate")
-	}
 	log.Printf("Answer: \n\t%s", strings.ReplaceAll(pc.LocalDescription().SDP, "\n", "\n\t"))
 
 	return pc, nil
@@ -644,10 +642,6 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 
 	// Wait for ICE candidate gathering to complete
 	<-done
-
-	if !strings.Contains(pc.LocalDescription().SDP, "\na=candidate:") {
-		return nil, fmt.Errorf("probetest SDP offer contains no candidate")
-	}
 
 	return pc, nil
 }
@@ -792,7 +786,7 @@ func (sf *SnowflakeProxy) Start() error {
 	config = webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
-				URLs: []string{sf.STUNURL},
+				URLs: strings.Split(sf.STUNURL, ","),
 			},
 		},
 	}

@@ -139,13 +139,6 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = validateSDP(body)
-	if err != nil {
-		log.Println("Error client SDP: ", err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
 	// Handle the legacy version
 	//
 	// We support two client message formats. The legacy format is for backwards
