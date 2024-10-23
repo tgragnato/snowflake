@@ -449,6 +449,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 
 		dc.OnOpen(func() {
 			log.Printf("Data Channel %s-%d open\n", dc.Label(), dc.ID())
+			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyClientConnected{})
 
 			if sf.OutboundAddress != "" {
 				selectedCandidatePair, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair()
