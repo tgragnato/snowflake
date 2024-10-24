@@ -243,14 +243,19 @@ type SnowflakeConn struct {
 //
 // The collection of snowflake proxies for this connection is stopped.
 func (conn *SnowflakeConn) Close() error {
+	var err error
 	log.Printf("---- SnowflakeConn: closed stream %v ---", conn.ID())
-	conn.Stream.Close()
+	err = conn.Stream.Close()
 	log.Printf("---- SnowflakeConn: end collecting snowflakes ---")
 	conn.snowflakes.End()
-	conn.pconn.Close()
+	if inerr := conn.pconn.Close(); err == nil {
+		err = inerr
+	}
 	log.Printf("---- SnowflakeConn: discarding finished session ---")
-	conn.sess.Close()
-	return nil // TODO: return errors if any of the above do
+	if inerr := conn.sess.Close(); err == nil {
+		err = inerr
+	}
+	return err
 }
 
 // loop through all provided STUN servers until we exhaust the list or find
