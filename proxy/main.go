@@ -27,6 +27,7 @@ func main() {
 	logFilename := flag.String("log", "", "log `filename`. If not specified, logs will be output to stderr (console).")
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "The `URL` of the broker server that the proxy will be using to find clients")
 	unsafeLogging := flag.Bool("unsafe-logging", false, "keep IP addresses and other sensitive info in the logs")
+	logLocalTime := flag.Bool("log-local-time", false, "Use local time for logging (default: UTC)")
 	keepLocalAddresses := flag.Bool("keep-local-addresses", false, "keep local LAN address ICE candidates.\nThis is usually pointless because Snowflake clients don't usually reside on the same local network as the proxy.")
 	defaultRelayURL := flag.String("relay", sf.DefaultRelayURL, "The default `URL` of the server (relay) that this proxy will forward client connections to, in case the broker itself did not specify the said URL")
 	probeURL := flag.String("nat-probe-server", sf.DefaultNATProbeURL, "The `URL` of the server that this proxy will use to check its network NAT type.\nDetermining NAT type helps to understand whether this proxy is compatible with certain clients' NAT")
@@ -115,7 +116,14 @@ func main() {
 
 	var logOutput = io.Discard
 	var eventlogOutput io.Writer = os.Stderr
-	log.SetFlags(log.LstdFlags | log.LUTC)
+
+	loggerFlags := log.LstdFlags
+
+	if !*logLocalTime {
+		loggerFlags |= log.LUTC
+	}
+
+	log.SetFlags(loggerFlags)
 
 	if *verboseLogging {
 		logOutput = os.Stderr
