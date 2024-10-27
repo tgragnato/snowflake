@@ -86,8 +86,10 @@ type EventOnProxyStats struct {
 }
 
 func (e EventOnProxyStats) String() string {
-	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v, ↑ %v %v.",
-		e.SummaryInterval.String(), e.ConnectionCount, e.InboundBytes, e.InboundUnit, e.OutboundBytes, e.OutboundUnit)
+	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v (%.2f %v%s), ↑ %v %v (%.2f %v%s).",
+		e.SummaryInterval.String(), e.ConnectionCount,
+		e.InboundBytes, e.InboundUnit, float64(e.InboundBytes)/e.SummaryInterval.Seconds(), e.InboundUnit, "/s",
+		e.OutboundBytes, e.OutboundUnit, float64(e.OutboundBytes)/e.SummaryInterval.Seconds(), e.OutboundUnit, "/s")
 	return statString
 }
 
