@@ -94,13 +94,13 @@ type ProxyPoll struct {
 	id           string
 	proxyType    string
 	natType      string
-	clients      int
+	clients      uint64
 	offerChannel chan *ClientOffer
 }
 
 // Registers a Snowflake and waits for some Client to send an offer,
 // as part of the polling logic of the proxy handler.
-func (ctx *BrokerContext) RequestOffer(id string, proxyType string, natType string, clients int) *ClientOffer {
+func (ctx *BrokerContext) RequestOffer(id string, proxyType string, natType string, clients uint64) *ClientOffer {
 	request := new(ProxyPoll)
 	request.id = id
 	request.proxyType = proxyType
@@ -146,7 +146,7 @@ func (ctx *BrokerContext) Broker() {
 // Create and add a Snowflake to the heap.
 // Required to keep track of proxies between providing them
 // with an offer and awaiting their second POST with an answer.
-func (ctx *BrokerContext) AddSnowflake(id string, proxyType string, natType string, clients int) *Snowflake {
+func (ctx *BrokerContext) AddSnowflake(id string, proxyType string, natType string, clients uint64) *Snowflake {
 	snowflake := new(Snowflake)
 	snowflake.id = id
 	snowflake.clients = clients

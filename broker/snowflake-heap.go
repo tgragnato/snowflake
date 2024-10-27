@@ -14,7 +14,7 @@ type Snowflake struct {
 	natType       string
 	offerChannel  chan *ClientOffer
 	answerChannel chan string
-	clients       int
+	clients       uint64
 	index         int
 }
 

@@ -260,7 +260,7 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string) (*webrtc.SessionDescription, string) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
-	numClients := int((tokens / 8) * 8) // Round down to 8
+	numClients := (tokens / 8) * 8 // Round down to 8
 	currentNATTypeLoaded := getCurrentNATType()
 	body, err := messages.EncodeProxyPollRequestWithRelayPrefix(sid, proxyType, currentNATTypeLoaded, numClients, acceptedRelayPattern)
 	if err != nil {

@@ -94,16 +94,16 @@ type ProxyPollRequest struct {
 	Version string
 	Type    string
 	NAT     string
-	Clients int
+	Clients uint64
 
 	AcceptedRelayPattern *string
 }
 
-func EncodeProxyPollRequest(sid string, proxyType string, natType string, clients int) ([]byte, error) {
+func EncodeProxyPollRequest(sid string, proxyType string, natType string, clients uint64) ([]byte, error) {
 	return EncodeProxyPollRequestWithRelayPrefix(sid, proxyType, natType, clients, "")
 }
 
-func EncodeProxyPollRequestWithRelayPrefix(sid string, proxyType string, natType string, clients int, relayPattern string) ([]byte, error) {
+func EncodeProxyPollRequestWithRelayPrefix(sid string, proxyType string, natType string, clients uint64, relayPattern string) ([]byte, error) {
 	return json.Marshal(ProxyPollRequest{
 		Sid:                  sid,
 		Version:              version,
@@ -114,7 +114,7 @@ func EncodeProxyPollRequestWithRelayPrefix(sid string, proxyType string, natType
 	})
 }
 
-func DecodeProxyPollRequest(data []byte) (sid string, proxyType string, natType string, clients int, err error) {
+func DecodeProxyPollRequest(data []byte) (sid string, proxyType string, natType string, clients uint64, err error) {
 	var relayPrefix string
 	sid, proxyType, natType, clients, relayPrefix, _, err = DecodeProxyPollRequestWithRelayPrefix(data)
 	if relayPrefix != "" {
@@ -127,7 +127,7 @@ func DecodeProxyPollRequest(data []byte) (sid string, proxyType string, natType 
 // sid, proxy type, nat type and clients of the proxy on success
 // and an error if it failed
 func DecodeProxyPollRequestWithRelayPrefix(data []byte) (
-	sid string, proxyType string, natType string, clients int, relayPrefix string, relayPrefixAware bool, err error) {
+	sid string, proxyType string, natType string, clients uint64, relayPrefix string, relayPrefixAware bool, err error) {
 	var message ProxyPollRequest
 
 	err = json.Unmarshal(data, &message)
