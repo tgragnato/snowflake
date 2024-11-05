@@ -10,7 +10,7 @@ import (
 )
 
 func NewProxyEventLogger(output io.Writer, disableStats bool) event.SnowflakeEventReceiver {
-	logger := log.New(output, "", log.LstdFlags|log.LUTC)
+	logger := log.New(output, "", log.Flags())
 	return &proxyEventLogger{logger: logger, disableStats: disableStats}
 }
 
@@ -21,6 +21,13 @@ type proxyEventLogger struct {
 
 func (p *proxyEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 	switch e.(type) {
+	case event.EventOnProxyStarting:
+		p.logger.Println(e.String())
+
+		if p.logger.Flags()&log.LUTC == 0 {
+			p.logger.Println("Local time is being used for logging. If you want to " +
+				"share your log, consider to modify the date/time for more anonymity.")
+		}
 	case event.EventOnProxyStats:
 		if !p.disableStats {
 			p.logger.Println(e.String())
