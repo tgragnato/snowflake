@@ -1,3 +1,37 @@
+Changes in version v2.10.0 - 2024-11-07
+- Issue 40402: Add proxy event for when client has connected
+- Issue 40405: Prevent panic for duplicate SnowflakeConn.Close() calls
+- Enable local time for proxy logging
+- Have proxy summary statistics log average transfer rate
+- Issue 40210: Remove duplicate poll interval loop in proxy
+- Issue 40371: Prevent broker and proxy from rejecting clients without ICE candidates
+- Issue 40392: Allow the proxy and probetest to set multiple STUN URLs
+- Issue 40387: Fix error in probetest NAT check
+- Fix proxy panic on invalid relayURL
+- Set empty pattern if broker bridge-list is empty
+- Improve documentation of Ephemeral[Min,Max]Port
+- Fix resource leak and NAT check in probetest
+- Fix memory leak from failed NAT check
+- Improve NAT check logging
+- Issue 40230: Send answer even if ICE gathering is not complete
+- Improve broker error message on unknown bridge fingerprint
+- Don't proxy private IP addresses
+- Only accept ws:// and wss:// relay addresses
+- Issue 40373: Add cli flag and SnowflakeProxy field to modify proxy poll interval
+- Use %w not $v in fmt.Errorf
+- Updates to documentation
+- Adjust copy buffer size to improve proxy performance
+- Improve descriptions of cli flags
+- Cosmetic changes for code readability
+- Issue 40367: Deduplicate prometheus metrics names
+- Report the version of snowflake to the tor process
+- Issue 40365: Indicate whether the repo was modified in the version string
+- Simplify NAT checking logic
+- Issue 40354: Use ptutil library for safelog and prometheus metrics
+- Add cli flag to set a listen address for proxy prometheus metrics
+- Issue 40345: Integrate docker image with release process
+- Bump versions of dependencies
+
 Changes in version v2.9.2 - 2024-03-18
 - Issue 40288: Add integration testing with Shadow
 - Issue 40345: Automatically build and push containers to our registry
