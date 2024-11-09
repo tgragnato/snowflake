@@ -67,6 +67,14 @@ func (e EventOnProxyStarting) String() string {
 	return "Proxy starting"
 }
 
+type EventOnProxyClientConnected struct {
+	SnowflakeEvent
+}
+
+func (e EventOnProxyClientConnected) String() string {
+	return fmt.Sprintf("client connected")
+}
+
 type EventOnProxyConnectionOver struct {
 	SnowflakeEvent
 	InboundTraffic  int64

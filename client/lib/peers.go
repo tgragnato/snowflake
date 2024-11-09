@@ -29,6 +29,7 @@ type Peers struct {
 	melt chan struct{}
 
 	collectLock sync.Mutex
+	closeOnce   sync.Once
 }
 
 // NewPeers constructs a fresh container of remote peers.
@@ -122,17 +123,19 @@ func (p *Peers) purgeClosedPeers() {
 // End closes all active connections to Peers contained here, and stops the
 // collection of future Peers.
 func (p *Peers) End() {
-	close(p.melt)
-	p.collectLock.Lock()
-	defer p.collectLock.Unlock()
-	close(p.snowflakeChan)
-	cnt := p.Count()
-	for e := p.activePeers.Front(); e != nil; {
-		next := e.Next()
-		conn := e.Value.(*WebRTCPeer)
-		conn.Close()
-		p.activePeers.Remove(e)
-		e = next
-	}
-	log.Printf("WebRTC: melted all %d snowflakes.", cnt)
+	p.closeOnce.Do(func() {
+		close(p.melt)
+		p.collectLock.Lock()
+		defer p.collectLock.Unlock()
+		close(p.snowflakeChan)
+		cnt := p.Count()
+		for e := p.activePeers.Front(); e != nil; {
+			next := e.Next()
+			conn := e.Value.(*WebRTCPeer)
+			conn.Close()
+			p.activePeers.Remove(e)
+			e = next
+		}
+		log.Printf("WebRTC: melted all %d snowflakes.", cnt)
+	})
 }
