@@ -127,20 +127,13 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	*webrtc.SessionDescription, error,
 ) {
-	offerSDP, err := util.SerializeSessionDescription(offer)
-	if err != nil {
-		return nil, err
-	}
 
-	// Encode the client poll request.
 	bc.lock.Lock()
-	req := &messages.ClientPollRequest{
-		Offer:       offerSDP,
-		NAT:         bc.natType,
-		Fingerprint: bc.BridgeFingerprint,
-	}
-	encReq, err := req.EncodeClientPollRequest()
+	natType := bc.natType
+	bridgeFingerprint := bc.BridgeFingerprint
 	bc.lock.Unlock()
+
+	encReq, err := preparePollRequest(offer, natType, bridgeFingerprint)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +154,25 @@ func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 		return nil, errors.New(resp.Error)
 	}
 	return util.DeserializeSessionDescription(resp.Answer)
+}
+
+// Pure function
+func preparePollRequest(
+	offer *webrtc.SessionDescription,
+	natType string,
+	bridgeFingerprint string,
+) (encReq []byte, err error) {
+	offerSDP, err := util.SerializeSessionDescription(offer)
+	if err != nil {
+		return nil, err
+	}
+	req := &messages.ClientPollRequest{
+		Offer:       offerSDP,
+		NAT:         natType,
+		Fingerprint: bridgeFingerprint,
+	}
+	encReq, err = req.EncodeClientPollRequest()
+	return
 }
 
 // SetNATType sets the NAT type of the client so we can send it to the WebRTC broker.
