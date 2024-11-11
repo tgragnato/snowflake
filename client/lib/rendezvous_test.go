@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/golang/mock/gomock"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	. "github.com/smartystreets/goconvey/convey"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/amp"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"

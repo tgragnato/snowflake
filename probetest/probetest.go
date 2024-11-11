@@ -24,7 +24,7 @@ import (
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 
 	"github.com/pion/transport/v2/stdnet"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"golang.org/x/crypto/acme/autocert"
 )
 
