@@ -1,3 +1,6 @@
+Changes in version v2.10.1 - 2024-11-11
+- Issue 40406: Update version string
+
 Changes in version v2.10.0 - 2024-11-07
 - Issue 40402: Add proxy event for when client has connected
 - Issue 40405: Prevent panic for duplicate SnowflakeConn.Close() calls
