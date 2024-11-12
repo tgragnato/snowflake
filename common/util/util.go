@@ -9,7 +9,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/pion/ice/v2"
+	"github.com/pion/ice/v4"
 	"github.com/pion/sdp/v3"
 	"github.com/pion/webrtc/v4"
 	"github.com/realclientip/realclientip-go"

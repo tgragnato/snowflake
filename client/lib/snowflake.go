@@ -35,7 +35,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pion/ice/v2"
+	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"

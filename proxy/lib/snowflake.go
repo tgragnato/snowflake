@@ -30,6 +30,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"github.com/pion/ice/v4"
 	"io"
 	"log"
 	"net"
@@ -40,8 +41,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/ice/v2"
-	"github.com/pion/transport/v2/stdnet"
+	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
