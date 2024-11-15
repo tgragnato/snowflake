@@ -5,7 +5,7 @@ go 1.23.1
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.4
 	github.com/aws/aws-sdk-go-v2/config v1.28.3
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.44
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.45
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.37.0
 	github.com/coder/websocket v1.8.12
 	github.com/golang/mock v1.6.0
