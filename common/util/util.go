@@ -56,20 +56,21 @@ func DeserializeSessionDescription(msg string) (*webrtc.SessionDescription, erro
 	}, nil
 }
 
-// Stolen from https://github.com/golang/go/pull/30278
 func IsLocal(ip net.IP) bool {
-	if ip4 := ip.To4(); ip4 != nil {
-		// Local IPv4 addresses are defined in https://tools.ietf.org/html/rfc1918
-		return ip4[0] == 10 ||
-			(ip4[0] == 172 && ip4[1]&0xf0 == 16) ||
-			(ip4[0] == 192 && ip4[1] == 168) ||
-			// Carrier-Grade NAT as per https://tools.ietf.org/htm/rfc6598
-			(ip4[0] == 100 && ip4[1]&0xc0 == 64) ||
-			// Dynamic Configuration as per https://tools.ietf.org/htm/rfc3927
-			(ip4[0] == 169 && ip4[1] == 254)
+	if ip.IsPrivate() {
+		return true
 	}
-	// Local IPv6 addresses are defined in https://tools.ietf.org/html/rfc4193
-	return len(ip) == net.IPv6len && ip[0]&0xfe == 0xfc
+	if ip4 := ip.To4(); ip4 != nil {
+		// Carrier-Grade NAT as per https://tools.ietf.org/htm/rfc6598
+		if ip4[0] == 100 && ip4[1]&0xc0 == 64 {
+			return true
+		}
+		// Dynamic Configuration as per https://tools.ietf.org/htm/rfc3927
+		if ip4[0] == 169 && ip4[1] == 254 {
+			return true
+		}
+	}
+	return false
 }
 
 // Removes local LAN address ICE candidates
