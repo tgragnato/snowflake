@@ -60,13 +60,13 @@ func IsLocal(ip net.IP) bool {
 	if ip.IsPrivate() {
 		return true
 	}
+	// Dynamic Configuration as per https://tools.ietf.org/htm/rfc3927
+	if ip.IsLinkLocalUnicast() {
+		return true
+	}
 	if ip4 := ip.To4(); ip4 != nil {
 		// Carrier-Grade NAT as per https://tools.ietf.org/htm/rfc6598
 		if ip4[0] == 100 && ip4[1]&0xc0 == 64 {
-			return true
-		}
-		// Dynamic Configuration as per https://tools.ietf.org/htm/rfc3927
-		if ip4[0] == 169 && ip4[1] == 254 {
 			return true
 		}
 	}
