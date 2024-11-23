@@ -397,7 +397,7 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 	log.Printf("datachannelHandler ends")
 }
 
-func connectToRelay(relayURL string, remoteAddr net.Addr) (*websocketconn.Conn, error) {
+func connectToRelay(relayURL string, remoteAddr net.Addr) (net.Conn, error) {
 	u, err := url.Parse(relayURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid relay url: %s", err)
