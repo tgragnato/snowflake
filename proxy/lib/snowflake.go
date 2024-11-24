@@ -193,15 +193,13 @@ func limitedRead(r io.Reader, limit int64) ([]byte, error) {
 
 // SignalingServer keeps track of the SignalingServer in use by the Snowflake
 type SignalingServer struct {
-	url                *url.URL
-	transport          http.RoundTripper
-	keepLocalAddresses bool
+	url       *url.URL
+	transport http.RoundTripper
 }
 
-func newSignalingServer(rawURL string, keepLocalAddresses bool) (*SignalingServer, error) {
+func newSignalingServer(rawURL string) (*SignalingServer, error) {
 	var err error
 	s := new(SignalingServer)
-	s.keepLocalAddresses = keepLocalAddresses
 	s.url, err = url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid broker url: %s", err)
@@ -271,13 +269,6 @@ func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayP
 // and wait for its response
 func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) error {
 	ld := pc.LocalDescription()
-	if !s.keepLocalAddresses {
-		ld = &webrtc.SessionDescription{
-			Type: ld.Type,
-			SDP:  util.StripLocalAddresses(ld.SDP),
-		}
-	}
-
 	answer, err := util.SerializeSessionDescription(ld)
 	if err != nil {
 		return err
@@ -396,6 +387,17 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
+
+	if !sf.KeepLocalAddresses {
+		settingsEngine.SetIPFilter(func(ip net.IP) (keep bool) {
+			// `IsLoopback()` and `IsUnspecified` are likely not neded here,
+			// but let's keep them just in case.
+			// FYI there is similar code in other files in this project.
+			keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
+			return
+		})
+	}
+	settingsEngine.SetIncludeLoopbackCandidate(sf.KeepLocalAddresses)
 
 	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
@@ -727,7 +729,7 @@ func (sf *SnowflakeProxy) Start() error {
 	sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
 	sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
 
-	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
+	broker, err = newSignalingServer(sf.BrokerURL)
 	if err != nil {
 		return fmt.Errorf("error configuring broker: %s", err)
 	}
@@ -805,7 +807,7 @@ func (sf *SnowflakeProxy) Stop() {
 func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL string) error {
 	log.Printf("Checking our NAT type, contacting NAT check probe server at \"%v\"...", probeURL)
 
-	probe, err := newSignalingServer(probeURL, false)
+	probe, err := newSignalingServer(probeURL)
 	if err != nil {
 		return fmt.Errorf("Error parsing url: %w", err)
 	}

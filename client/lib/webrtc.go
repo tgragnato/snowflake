@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.
@@ -166,7 +168,8 @@ func (c *WebRTCPeer) checkForStaleness(timeout time.Duration) {
 // receive an answer from broker, and wait for data channel to open
 func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel) error {
 	log.Println(c.id, " connecting...")
-	err := c.preparePeerConnection(config)
+
+	err := c.preparePeerConnection(config, broker.keepLocalAddresses)
 	localDescription := c.pc.LocalDescription()
 	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnOfferCreated{
 		WebRTCLocalDescription: localDescription,
@@ -207,10 +210,25 @@ func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel
 
 // preparePeerConnection creates a new WebRTC PeerConnection and returns it
 // after non-trickle ICE candidate gathering is complete.
-func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
+func (c *WebRTCPeer) preparePeerConnection(
+	config *webrtc.Configuration,
+	keepLocalAddresses bool,
+) error {
 	var err error
 	s := webrtc.SettingEngine{}
-	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+
+	if !keepLocalAddresses {
+		s.SetIPFilter(func(ip net.IP) (keep bool) {
+			// `IsLoopback()` and `IsUnspecified` are likely not neded here,
+			// but let's keep them just in case.
+			// FYI there is similar code in other files in this project.
+			keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
+			return
+		})
+		s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+	}
+	s.SetIncludeLoopbackCandidate(keepLocalAddresses)
+
 	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring

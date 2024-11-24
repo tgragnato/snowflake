@@ -127,15 +127,6 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	*webrtc.SessionDescription, error,
 ) {
-	// Ideally, we could specify an `RTCIceTransportPolicy` that would handle
-	// this for us.  However, "public" was removed from the draft spec.
-	// See https://developer.mozilla.org/en-US/docs/Web/API/RTCConfiguration#RTCIceTransportPolicy_enum
-	if !bc.keepLocalAddresses {
-		offer = &webrtc.SessionDescription{
-			Type: offer.Type,
-			SDP:  util.StripLocalAddresses(offer.SDP),
-		}
-	}
 	offerSDP, err := util.SerializeSessionDescription(offer)
 	if err != nil {
 		return nil, err
