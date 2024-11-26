@@ -10,7 +10,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.62
-	github.com/pion/ice/v4 v4.0.2
+	github.com/pion/ice/v4 v4.0.3
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pion/transport/v3 v3.0.7
@@ -19,7 +19,7 @@ require (
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.6.7
 	github.com/smartystreets/goconvey v1.8.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
 	github.com/xtaci/kcp-go/v5 v5.6.8
 	github.com/xtaci/smux v1.5.31
