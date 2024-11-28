@@ -30,7 +30,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"github.com/pion/ice/v4"
 	"io"
 	"log"
 	"net"
@@ -39,6 +38,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pion/ice/v4"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/transport/v3/stdnet"
@@ -611,7 +612,6 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 func (sf *SnowflakeProxy) runSession(sid string) {
 	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
 	if offer == nil {
-		log.Printf("bad offer from broker")
 		tokens.ret()
 		return
 	}
