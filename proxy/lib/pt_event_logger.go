@@ -32,6 +32,8 @@ func (p *proxyEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 		if !p.disableStats {
 			p.logger.Println(e.String())
 		}
+	case event.EventOnCurrentNATTypeDetermined:
+		p.logger.Println(e.String())
 	default:
 		// Suppress logs of these events
 		// https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40310

@@ -762,7 +762,7 @@ func (sf *SnowflakeProxy) Start() error {
 		log.Printf(err.Error())
 		setCurrentNATType(NATUnknown)
 	}
-	sf.EventDispatcher.OnNewSnowflakeEvent(&event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
+	sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
 
 	NatRetestTask := task.Periodic{
 		Interval: sf.NATTypeMeasurementInterval,
