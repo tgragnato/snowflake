@@ -423,7 +423,10 @@ func TestBrokerChannel(t *testing.T) {
 		So(err, ShouldBeNil)
 		brokerChannel.SetNATType(nat.NATRestricted)
 
-		answerSdpReturned, err := brokerChannel.Negotiate(offerSdp)
+		answerSdpReturned, err := brokerChannel.Negotiate(
+			offerSdp,
+			brokerChannel.GetNATType(),
+		)
 		So(err, ShouldBeNil)
 		So(answerSdpReturned, ShouldEqual, answerSdp)
 
