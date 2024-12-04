@@ -91,7 +91,7 @@ variables:
 # -- jobs ------------------------------------------------------------
 
 android:
-  image: golang:1.23-$DEBIAN_STABLE
+  image: containers.torproject.org/tpo/anti-censorship/duplicatedcontainerimages:golang-1.23-$DEBIAN_STABLE
   variables:
     ANDROID_HOME: /usr/lib/android-sdk
     LANG: C.UTF-8
@@ -156,7 +156,7 @@ debian-testing:
     - *go-test
 
 shadow-integration:
-  image: golang:1.21-$DEBIAN_STABLE
+  image: containers.torproject.org/tpo/anti-censorship/duplicatedcontainerimages:golang-1.21-$DEBIAN_STABLE
   variables:
     SHADOW_VERSION: "193924aae0dab30ffda0abe29467f552949849fa"
     TGEN_VERSION: "v1.1.2"
@@ -279,7 +279,7 @@ release-job:
           url: '${CI_PROJECT_URL}/-/jobs/${TAR_JOB_ID}/artifacts/file/${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.tar.gz'
 
 # Build the container only if the commit is to main, or it is a tag.
-# If the commit is to main, then the docker image tag should be set to `latest`.
+# If the commit is to main, then the docker image tag should be set to `nightly`.
 # If it is a tag, then the docker image tag should be set to the tag name.
 build-container:
   variables:
@@ -314,7 +314,7 @@ merge-manifests:
     - job: build-container
       artifacts: false
   image:
-      name: mplatform/manifest-tool:alpine
+      name: containers.torproject.org/tpo/anti-censorship/duplicatedcontainerimages:mplatform-manifest-tool-alpine
       entrypoint: [""]
   script:
     - if [ $CI_COMMIT_REF_NAME == "main" ]; then export TAG='nightly'; fi
@@ -332,23 +332,24 @@ merge-manifests:
     - if: $CI_COMMIT_TAG
       when: always
 
-# If this is a tag, then we want to additionally tag the image as `stable`
+# If this is a tag, then we want to additionally tag the image as `latest`
 tag-container-release:
   stage: container-build
   needs:
     - job: merge-manifests
       artifacts: false
-  image: quay.io/podman/stable
+  image: 
+      name: gcr.io/go-containerregistry/crane:debug
+      entrypoint: [""]
   allow_failure: false
   variables:
+    CI_REGISTRY: $CI_REGISTRY
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
     RELEASE_TAG: $CI_REGISTRY_IMAGE:latest
   script:
-    - echo "Tagging docker image with stable tag"
-    - echo -n "$CI_JOB_TOKEN" | podman login -u gitlab-ci-token --password-stdin $CI_REGISTRY
-    - podman pull $IMAGE_TAG || true
-    - podman tag $IMAGE_TAG $RELEASE_TAG
-    - podman push $RELEASE_TAG
+    - echo "Tagging docker image with stable tag with crane"
+    - echo -n "$CI_JOB_TOKEN" | crane auth login $CI_REGISTRY -u gitlab-ci-token --password-stdin
+    - crane cp $IMAGE_TAG $RELEASE_TAG
   rules:
     - if: $CI_COMMIT_TAG
       when: always
@@ -375,6 +376,8 @@ mirror-image-to-dockerhub:
   stage: container-build
   needs:
     - job: clean-image-tags
+      artifacts: false
+    - job: tag-container-release
       artifacts: false
   variables:
     DOCKERHUB_MIRROR_REPOURL: $DOCKERHUB_MIRROR_REPOURL
