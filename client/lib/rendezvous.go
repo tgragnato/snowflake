@@ -124,32 +124,13 @@ func newBrokerChannelFromConfig(config ClientConfig) (*BrokerChannel, error) {
 
 // Negotiate uses a RendezvousMethod to send the client's WebRTC SDP offer
 // and receive a snowflake proxy WebRTC SDP answer in return.
-func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
+func (bc *BrokerChannel) Negotiate(
+	offer *webrtc.SessionDescription,
+	natTypeToSend string,
+) (
 	*webrtc.SessionDescription, error,
 ) {
-	// Ideally, we could specify an `RTCIceTransportPolicy` that would handle
-	// this for us.  However, "public" was removed from the draft spec.
-	// See https://developer.mozilla.org/en-US/docs/Web/API/RTCConfiguration#RTCIceTransportPolicy_enum
-	if !bc.keepLocalAddresses {
-		offer = &webrtc.SessionDescription{
-			Type: offer.Type,
-			SDP:  util.StripLocalAddresses(offer.SDP),
-		}
-	}
-	offerSDP, err := util.SerializeSessionDescription(offer)
-	if err != nil {
-		return nil, err
-	}
-
-	// Encode the client poll request.
-	bc.lock.Lock()
-	req := &messages.ClientPollRequest{
-		Offer:       offerSDP,
-		NAT:         bc.natType,
-		Fingerprint: bc.BridgeFingerprint,
-	}
-	encReq, err := req.EncodeClientPollRequest()
-	bc.lock.Unlock()
+	encReq, err := preparePollRequest(offer, natTypeToSend, bc.BridgeFingerprint)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +153,25 @@ func (bc *BrokerChannel) Negotiate(offer *webrtc.SessionDescription) (
 	return util.DeserializeSessionDescription(resp.Answer)
 }
 
+// Pure function
+func preparePollRequest(
+	offer *webrtc.SessionDescription,
+	natType string,
+	bridgeFingerprint string,
+) (encReq []byte, err error) {
+	offerSDP, err := util.SerializeSessionDescription(offer)
+	if err != nil {
+		return nil, err
+	}
+	req := &messages.ClientPollRequest{
+		Offer:       offerSDP,
+		NAT:         natType,
+		Fingerprint: bridgeFingerprint,
+	}
+	encReq, err = req.EncodeClientPollRequest()
+	return
+}
+
 // SetNATType sets the NAT type of the client so we can send it to the WebRTC broker.
 func (bc *BrokerChannel) SetNATType(NATType string) {
 	bc.lock.Lock()
@@ -180,9 +180,72 @@ func (bc *BrokerChannel) SetNATType(NATType string) {
 	log.Printf("NAT Type: %s", NATType)
 }
 
+func (bc *BrokerChannel) GetNATType() string {
+	bc.lock.Lock()
+	defer bc.lock.Unlock()
+	return bc.natType
+}
+
+type NATPolicy struct {
+	assumedUnrestrictedNATAndFailedToConnect bool
+}
+
+// When our NAT type is unknown, we want to try to connect to a
+// restricted / unknown proxy initially
+// to offload the unrestricted ones.
+// So, instead of always sending the actual NAT type,
+// we should use this function to determine the NAT type to send.
+//
+// This is useful when our STUN servers are blocked or don't support
+// the NAT discovery feature, or if they're just slow.
+func (p *NATPolicy) NATTypeToSend(actualNatType string) string {
+	if !p.assumedUnrestrictedNATAndFailedToConnect && actualNatType == nat.NATUnknown {
+		// If our NAT type is unknown, and we haven't failed to connect
+		// with a spoofed NAT type yet, then spoof a NATUnrestricted
+		// type.
+		return nat.NATUnrestricted
+	} else {
+		// In all other cases, do not spoof, and just return our actual
+		// NAT type (even if it is NATUnknown).
+		return actualNatType
+	}
+}
+
+// This function must be called whenever a connection with a proxy succeeds,
+// because the connection outcome tells us about NAT compatibility
+// between the proxy and us.
+func (p *NATPolicy) Success(actualNATType, sentNATType string) {
+	// Yes, right now this does nothing but log.
+	if actualNATType != sentNATType {
+		log.Printf(
+			"Connected to a proxy by using a spoofed NAT type \"%v\"! "+
+				"Our actual NAT type was \"%v\"",
+			sentNATType,
+			actualNATType,
+		)
+	}
+}
+
+// This function must be called whenever a connection with a proxy fails,
+// because the connection outcome tells us about NAT compatibility
+// between the proxy and us.
+func (p *NATPolicy) Failure(actualNATType, sentNATType string) {
+	if actualNATType == nat.NATUnknown && sentNATType == nat.NATUnrestricted {
+		log.Printf(
+			"Tried to connect to a restricted proxy while our NAT type "+
+				"is \"%v\", and failed. Let's not do that again.",
+			actualNATType,
+		)
+		p.assumedUnrestrictedNATAndFailedToConnect = true
+	}
+}
+
 // WebRTCDialer implements the |Tongue| interface to catch snowflakes, using BrokerChannel.
 type WebRTCDialer struct {
 	*BrokerChannel
+	// Can be `nil`, in which case we won't apply special logic,
+	// and simply always send the current NAT type instead.
+	natPolicy    *NATPolicy
 	webrtcConfig *webrtc.Configuration
 	max          int
 
@@ -190,19 +253,42 @@ type WebRTCDialer struct {
 	proxy       *url.URL
 }
 
-// Deprecated: Use NewWebRTCDialerWithEventsAndProxy instead
+// Deprecated: Use NewWebRTCDialerWithNatPolicyAndEventsAndProxy instead
 func NewWebRTCDialer(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int) *WebRTCDialer {
-	return NewWebRTCDialerWithEventsAndProxy(broker, iceServers, max, nil, nil)
+	return NewWebRTCDialerWithNatPolicyAndEventsAndProxy(
+		broker, nil, iceServers, max, nil, nil,
+	)
 }
 
-// Deprecated: Use NewWebRTCDialerWithEventsAndProxy instead
+// Deprecated: Use NewWebRTCDialerWithNatPolicyAndEventsAndProxy instead
 func NewWebRTCDialerWithEvents(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int, eventLogger event.SnowflakeEventReceiver) *WebRTCDialer {
-	return NewWebRTCDialerWithEventsAndProxy(broker, iceServers, max, eventLogger, nil)
+	return NewWebRTCDialerWithNatPolicyAndEventsAndProxy(
+		broker, nil, iceServers, max, eventLogger, nil,
+	)
 }
 
-// NewWebRTCDialerWithEventsAndProxy constructs a new WebRTCDialer.
+// Deprecated: Use NewWebRTCDialerWithNatPolicyAndEventsAndProxy instead
 func NewWebRTCDialerWithEventsAndProxy(broker *BrokerChannel, iceServers []webrtc.ICEServer, max int,
 	eventLogger event.SnowflakeEventReceiver, proxy *url.URL,
+) *WebRTCDialer {
+	return NewWebRTCDialerWithNatPolicyAndEventsAndProxy(
+		broker,
+		nil,
+		iceServers,
+		max,
+		eventLogger,
+		proxy,
+	)
+}
+
+// NewWebRTCDialerWithNatPolicyAndEventsAndProxy constructs a new WebRTCDialer.
+func NewWebRTCDialerWithNatPolicyAndEventsAndProxy(
+	broker *BrokerChannel,
+	natPolicy *NATPolicy,
+	iceServers []webrtc.ICEServer,
+	max int,
+	eventLogger event.SnowflakeEventReceiver,
+	proxy *url.URL,
 ) *WebRTCDialer {
 	config := webrtc.Configuration{
 		ICEServers: iceServers,
@@ -210,6 +296,7 @@ func NewWebRTCDialerWithEventsAndProxy(broker *BrokerChannel, iceServers []webrt
 
 	return &WebRTCDialer{
 		BrokerChannel: broker,
+		natPolicy:     natPolicy,
 		webrtcConfig:  &config,
 		max:           max,
 
@@ -222,7 +309,9 @@ func NewWebRTCDialerWithEventsAndProxy(broker *BrokerChannel, iceServers []webrt
 func (w WebRTCDialer) Catch() (*WebRTCPeer, error) {
 	// TODO: [#25591] Fetch ICE server information from Broker.
 	// TODO: [#25596] Consider TURN servers here too.
-	return NewWebRTCPeerWithEventsAndProxy(w.webrtcConfig, w.BrokerChannel, w.eventLogger, w.proxy)
+	return NewWebRTCPeerWithNatPolicyAndEventsAndProxy(
+		w.webrtcConfig, w.BrokerChannel, w.natPolicy, w.eventLogger, w.proxy,
+	)
 }
 
 // GetMax returns the maximum number of snowflakes to collect.

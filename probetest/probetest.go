@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -53,7 +54,18 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	dataChanOpen chan struct{}, dataChanClosed chan struct{}, iceGatheringTimeout time.Duration) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
-	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
+
+	settingsEngine.SetIPFilter(func(ip net.IP) (keep bool) {
+		// `IsLoopback()` and `IsUnspecified` are likely not neded here,
+		// but let's keep them just in case.
+		// FYI there is similar code in other files in this project.
+		keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
+		return
+	})
+	// FYI this is `false` by default anyway as of pion/webrtc@4
+	settingsEngine.SetIncludeLoopbackCandidate(false)
+
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error
 	vnet, _ := stdnet.NewNet()
@@ -167,11 +179,7 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 		// Otherwise it must be closed below, wherever `closePcOnReturn` is set to `false`.
 	}()
 
-	sdp = &webrtc.SessionDescription{
-		Type: pc.LocalDescription().Type,
-		SDP:  util.StripLocalAddresses(pc.LocalDescription().SDP),
-	}
-	answer, err := util.SerializeSessionDescription(sdp)
+	answer, err := util.SerializeSessionDescription(pc.LocalDescription())
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)

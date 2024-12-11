@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/proxy"
+	"tgragnato.it/snowflake/common/util"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.
@@ -42,28 +44,43 @@ type WebRTCPeer struct {
 	proxy        *url.URL
 }
 
-// Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
+// Deprecated: Use NewWebRTCPeerWithNatPolicyAndEventsAndProxy Instead.
 func NewWebRTCPeer(
 	config *webrtc.Configuration, broker *BrokerChannel,
 ) (*WebRTCPeer, error) {
-	return NewWebRTCPeerWithEventsAndProxy(config, broker, nil, nil)
+	return NewWebRTCPeerWithNatPolicyAndEventsAndProxy(
+		config, broker, nil, nil, nil,
+	)
 }
 
-// Deprecated: Use NewWebRTCPeerWithEventsAndProxy Instead.
+// Deprecated: Use NewWebRTCPeerWithNatPolicyAndEventsAndProxy Instead.
 func NewWebRTCPeerWithEvents(
 	config *webrtc.Configuration, broker *BrokerChannel,
 	eventsLogger event.SnowflakeEventReceiver,
 ) (*WebRTCPeer, error) {
-	return NewWebRTCPeerWithEventsAndProxy(config, broker, eventsLogger, nil)
+	return NewWebRTCPeerWithNatPolicyAndEventsAndProxy(
+		config, broker, nil, eventsLogger, nil,
+	)
 }
 
-// NewWebRTCPeerWithEventsAndProxy constructs a WebRTC PeerConnection to a snowflake proxy.
+// Deprecated: Use NewWebRTCPeerWithNatPolicyAndEventsAndProxy Instead.
+func NewWebRTCPeerWithEventsAndProxy(
+	config *webrtc.Configuration, broker *BrokerChannel,
+	eventsLogger event.SnowflakeEventReceiver, proxy *url.URL,
+) (*WebRTCPeer, error) {
+	return NewWebRTCPeerWithNatPolicyAndEventsAndProxy(
+		config, broker, nil, eventsLogger, proxy,
+	)
+}
+
+// NewWebRTCPeerWithNatPolicyAndEventsAndProxy constructs
+// a WebRTC PeerConnection to a snowflake proxy.
 //
 // The creation of the peer handles the signaling to the Snowflake broker, including
 // the exchange of SDP information, the creation of a PeerConnection, and the establishment
 // of a DataChannel to the Snowflake proxy.
-func NewWebRTCPeerWithEventsAndProxy(
-	config *webrtc.Configuration, broker *BrokerChannel,
+func NewWebRTCPeerWithNatPolicyAndEventsAndProxy(
+	config *webrtc.Configuration, broker *BrokerChannel, natPolicy *NATPolicy,
 	eventsLogger event.SnowflakeEventReceiver, proxy *url.URL,
 ) (*WebRTCPeer, error) {
 	if eventsLogger == nil {
@@ -89,7 +106,7 @@ func NewWebRTCPeerWithEventsAndProxy(
 	connection.eventsLogger = eventsLogger
 	connection.proxy = proxy
 
-	err := connection.connect(config, broker)
+	err := connection.connect(config, broker, natPolicy)
 	if err != nil {
 		connection.Close()
 		return nil, err
@@ -162,10 +179,18 @@ func (c *WebRTCPeer) checkForStaleness(timeout time.Duration) {
 }
 
 // connect does the bulk of the work: gather ICE candidates, send the SDP offer to broker,
-// receive an answer from broker, and wait for data channel to open
-func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel) error {
+// receive an answer from broker, and wait for data channel to open.
+//
+// `natPolicy` can be nil, in which case we'll always send our actual
+// NAT type to the broker.
+func (c *WebRTCPeer) connect(
+	config *webrtc.Configuration,
+	broker *BrokerChannel,
+	natPolicy *NATPolicy,
+) error {
 	log.Println(c.id, " connecting...")
-	err := c.preparePeerConnection(config)
+
+	err := c.preparePeerConnection(config, broker.keepLocalAddresses)
 	localDescription := c.pc.LocalDescription()
 	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnOfferCreated{
 		WebRTCLocalDescription: localDescription,
@@ -175,7 +200,24 @@ func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel
 		return err
 	}
 
-	answer, err := broker.Negotiate(localDescription)
+	actualNatType := broker.GetNATType()
+	var natTypeToSend string
+	if natPolicy != nil {
+		natTypeToSend = natPolicy.NATTypeToSend(actualNatType)
+	} else {
+		natTypeToSend = actualNatType
+	}
+	if natTypeToSend != actualNatType {
+		log.Printf(
+			"Our NAT type is \"%v\", but let's tell the broker it's \"%v\".",
+			actualNatType,
+			natTypeToSend,
+		)
+	} else {
+		log.Printf("natTypeToSend: \"%v\" (same as actualNatType)", natTypeToSend)
+	}
+
+	answer, err := broker.Negotiate(localDescription, natTypeToSend)
 	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnBrokerRendezvous{
 		WebRTCRemoteDescription: answer,
 		Error:                   err,
@@ -193,9 +235,15 @@ func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel
 	// Wait for the datachannel to open or time out
 	select {
 	case <-c.open:
+		if natPolicy != nil {
+			natPolicy.Success(actualNatType, natTypeToSend)
+		}
 	case <-time.After(DataChannelTimeout):
 		c.transport.Close()
 		err = errors.New("timeout waiting for DataChannel.OnOpen")
+		if natPolicy != nil {
+			natPolicy.Failure(actualNatType, natTypeToSend)
+		}
 		c.eventsLogger.OnNewSnowflakeEvent(event.EventOnSnowflakeConnectionFailed{Error: err})
 		return err
 	}
@@ -206,12 +254,26 @@ func (c *WebRTCPeer) connect(config *webrtc.Configuration, broker *BrokerChannel
 
 // preparePeerConnection creates a new WebRTC PeerConnection and returns it
 // after non-trickle ICE candidate gathering is complete.
-func (c *WebRTCPeer) preparePeerConnection(config *webrtc.Configuration) error {
+func (c *WebRTCPeer) preparePeerConnection(
+	config *webrtc.Configuration,
+	keepLocalAddresses bool,
+) error {
 	var err error
 	s := webrtc.SettingEngine{}
-	s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
-	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
+	if !keepLocalAddresses {
+		s.SetIPFilter(func(ip net.IP) (keep bool) {
+			// `IsLoopback()` and `IsUnspecified` are likely not neded here,
+			// but let's keep them just in case.
+			// FYI there is similar code in other files in this project.
+			keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
+			return
+		})
+		s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+	}
+	s.SetIncludeLoopbackCandidate(keepLocalAddresses)
+
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error

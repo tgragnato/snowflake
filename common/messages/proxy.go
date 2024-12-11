@@ -197,7 +197,7 @@ func EncodePollResponseWithRelayURL(offer string, success bool, natType, relayUR
 		Status: failReason,
 	})
 }
-func DecodePollResponse(data []byte) (string, string, error) {
+func DecodePollResponse(data []byte) (offer string, natType string, err error) {
 	offer, natType, relayURL, err := DecodePollResponseWithRelayURL(data)
 	if relayURL != "" {
 		return "", "", ErrExtraInfo
@@ -207,7 +207,12 @@ func DecodePollResponse(data []byte) (string, string, error) {
 
 // Decodes a poll response from the broker and returns an offer and the client's NAT type
 // If there is a client match, the returned offer string will be non-empty
-func DecodePollResponseWithRelayURL(data []byte) (string, string, string, error) {
+func DecodePollResponseWithRelayURL(data []byte) (
+	offer string,
+	natType string,
+	relayURL string,
+	err_ error,
+) {
 	var message ProxyPollResponse
 
 	err := json.Unmarshal(data, &message)
@@ -230,7 +235,7 @@ func DecodePollResponseWithRelayURL(data []byte) (string, string, string, error)
 		}
 	}
 
-	natType := message.NAT
+	natType = message.NAT
 	if natType == "" {
 		natType = "unknown"
 	}
@@ -253,10 +258,10 @@ func EncodeAnswerRequest(answer string, sid string) ([]byte, error) {
 }
 
 // Returns the sdp answer and proxy sid
-func DecodeAnswerRequest(data []byte) (string, string, error) {
+func DecodeAnswerRequest(data []byte) (answer string, sid string, err error) {
 	var message ProxyAnswerRequest
 
-	err := json.Unmarshal(data, &message)
+	err = json.Unmarshal(data, &message)
 	if err != nil {
 		return "", "", err
 	}
