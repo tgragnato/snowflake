@@ -2,6 +2,7 @@ stages:
   - test
   - deploy
   - container-build
+  - container-mirror
 
 variables:
   DEBIAN_FRONTEND: noninteractive
@@ -373,12 +374,7 @@ clean-image-tags:
       when: always
       
 mirror-image-to-dockerhub:
-  stage: container-build
-  needs:
-    - job: clean-image-tags
-      artifacts: false
-    - job: tag-container-release
-      artifacts: false
+  stage: container-mirror
   variables:
     DOCKERHUB_MIRROR_REPOURL: $DOCKERHUB_MIRROR_REPOURL
     DOCKERHUB_USERNAME: $DOCKERHUB_MIRROR_USERNAME
