@@ -51,6 +51,7 @@ Usage of ./proxy:
   -ephemeral-ports-range range
         Set the range of ports used for client connections (format:"<min>:<max>").
         If omitted, the ports will be chosen automatically from a wide range.
+        When specifying the range, make sure it's at least 2x as wide as the amount of clients that you are hoping to serve concurrently (see the "capacity" flag).
   -keep-local-addresses
         keep local LAN address ICE candidates.
         This is usually pointless because Snowflake clients don't usually reside on the same local network as the proxy.

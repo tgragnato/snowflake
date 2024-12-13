@@ -138,6 +138,9 @@ type SnowflakeProxy struct {
 	OutboundAddress string
 	// EphemeralMinPort and EphemeralMaxPort limit the range of ports that
 	// ICE UDP connections may allocate from.
+	// When specifying the range, make sure it's at least 2x as wide
+	// as the amount of clients that you are hoping to serve concurrently
+	// (see the `Capacity` property).
 	EphemeralMinPort uint16
 	EphemeralMaxPort uint16
 	// RelayDomainNamePattern is the pattern specify allowed domain name for relay
@@ -745,6 +748,30 @@ func (sf *SnowflakeProxy) Start() error {
 
 	if !namematcher.IsValidRule(sf.RelayDomainNamePattern) {
 		return fmt.Errorf("invalid relay domain name pattern")
+	}
+
+	if sf.EphemeralMaxPort != 0 {
+		rangeWidth := sf.EphemeralMaxPort - sf.EphemeralMinPort
+		expectedNumConcurrentClients := sf.Capacity
+		if sf.Capacity == 0 {
+			// Just a guess, since 0 means "unlimited".
+			expectedNumConcurrentClients = 10
+		}
+		// See https://forum.torproject.org/t/remote-returned-status-code-400/15026/9?u=wofwca
+		if uint(rangeWidth) < expectedNumConcurrentClients*2 {
+			log.Printf(
+				"Warning: ephemeral ports range seems narrow (%v-%v) "+
+					"for the client capacity (%v). "+
+					"Some client connections might fail. "+
+					"Please widen the port range, or limit the 'capacity'.",
+				sf.EphemeralMinPort,
+				sf.EphemeralMaxPort,
+				sf.Capacity,
+			)
+			// Instead of simply printing a warning, we could look into
+			// utilizing [SetICEUDPMux](https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetICEUDPMux)
+			// to multiplex multiple connections over one (or more?) ports.
+		}
 	}
 
 	config = webrtc.Configuration{
