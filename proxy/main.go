@@ -44,7 +44,7 @@ func main() {
 	metricsAddress := flag.String("metrics-address", "localhost", "set listen `address` for metrics service")
 	metricsPort := flag.Int("metrics-port", 9999, "set port for the metrics service")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
-	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "Set the `range` of ports used for client connections (format:\"<min>:<max>\").\nIf omitted, the ports will be chosen automatically.")
+	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "Set the `range` of ports used for client connections (format:\"<min>:<max>\").\nIf omitted, the ports will be chosen automatically from a wide range.")
 	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
 
 	var ephemeralPortsRange []uint16 = []uint16{0, 0}

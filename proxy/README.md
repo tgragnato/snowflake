@@ -50,7 +50,7 @@ Usage of ./proxy:
         disable the exposing mechanism for stats using logs
   -ephemeral-ports-range range
         Set the range of ports used for client connections (format:"<min>:<max>").
-        If omitted, the ports will be chosen automatically.
+        If omitted, the ports will be chosen automatically from a wide range.
   -keep-local-addresses
         keep local LAN address ICE candidates.
         This is usually pointless because Snowflake clients don't usually reside on the same local network as the proxy.
