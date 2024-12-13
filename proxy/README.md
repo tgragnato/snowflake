@@ -50,6 +50,7 @@ Usage of ./proxy:
         disable the exposing mechanism for stats using logs
   -ephemeral-ports-range range
         Set the range of ports used for client connections (format:"<min>:<max>").
+        Useful in conjunction with port forwarding, in order to make the proxy NAT type "unrestricted".
         If omitted, the ports will be chosen automatically from a wide range.
         When specifying the range, make sure it's at least 2x as wide as the amount of clients that you are hoping to serve concurrently (see the "capacity" flag).
   -keep-local-addresses
