@@ -592,7 +592,19 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 	})
 	dc.OnClose(func() {
 		log.Println("WebRTC: DataChannel.OnClose")
-		dc.Close()
+		go func() {
+			// A hack to make NAT testing more reliable and not mis-identify
+			// as "restricted".
+			// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40419#note_3141855.
+			// Instead we should just `dc.Close()` without waiting
+			// and without a goroutine.
+			// (or, perhaps, `dc.Close()` is not needed at all
+			// in the OnClose callback?)
+			<-time.After(5 * time.Second)
+
+			log.Print("NAT check: WebRTC: dc.Close()")
+			dc.Close()
+		}()
 	})
 
 	offer, err := pc.CreateOffer(nil)
