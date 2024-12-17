@@ -22,7 +22,8 @@ type encapsulationPacketConn struct {
 	bw         *bufio.Writer
 }
 
-// NewEncapsulationPacketConn makes
+// newEncapsulationPacketConn makes an encapsulationPacketConn out of a given
+// io.ReadWriteCloser and provided local and remote addresses.
 func newEncapsulationPacketConn(
 	localAddr, remoteAddr net.Addr,
 	conn io.ReadWriteCloser,
