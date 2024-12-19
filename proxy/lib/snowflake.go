@@ -31,7 +31,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -158,6 +157,9 @@ type SnowflakeProxy struct {
 	OutboundAddress string
 	// EphemeralMinPort and EphemeralMaxPort limit the range of ports that
 	// ICE UDP connections may allocate from.
+	// When specifying the range, make sure it's at least 2x as wide
+	// as the amount of clients that you are hoping to serve concurrently
+	// (see the `Capacity` property).
 	EphemeralMinPort uint16
 	EphemeralMaxPort uint16
 	// RelayDomainNamePattern is the pattern specify allowed domain name for relay
@@ -217,15 +219,13 @@ func limitedRead(r io.Reader, limit int64) ([]byte, error) {
 
 // SignalingServer keeps track of the SignalingServer in use by the Snowflake
 type SignalingServer struct {
-	url                *url.URL
-	transport          http.RoundTripper
-	keepLocalAddresses bool
+	url       *url.URL
+	transport http.RoundTripper
 }
 
-func newSignalingServer(rawURL string, keepLocalAddresses bool) (*SignalingServer, error) {
+func newSignalingServer(rawURL string) (*SignalingServer, error) {
 	var err error
 	s := new(SignalingServer)
-	s.keepLocalAddresses = keepLocalAddresses
 	s.url, err = url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid broker url: %s", err)
@@ -294,17 +294,6 @@ func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayP
 // and wait for its response
 func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) error {
 	ld := pc.LocalDescription()
-	if ld == nil {
-		return errors.New("local description should not be nil")
-	}
-
-	if !s.keepLocalAddresses {
-		ld = &webrtc.SessionDescription{
-			Type: ld.Type,
-			SDP:  util.StripLocalAddresses(ld.SDP),
-		}
-	}
-
 	answer, err := util.SerializeSessionDescription(ld)
 	if err != nil {
 		return err
@@ -386,10 +375,21 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 		relayURL = sf.RelayURL
 	}
 
+	wsConn, err := connectToRelay(relayURL, remoteAddr)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	defer wsConn.Close()
+
+	copyLoop(conn, wsConn, sf.shutdown)
+	log.Printf("datachannelHandler ends")
+}
+
+func connectToRelay(relayURL string, remoteAddr net.Addr) (net.Conn, error) {
 	u, err := url.Parse(relayURL)
 	if err != nil {
-		log.Printf("invalid relay url: %s", err)
-		return
+		return nil, fmt.Errorf("invalid relay url: %s", err)
 	}
 
 	if remoteAddr != nil {
@@ -404,15 +404,12 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 
 	ws, _, err := websocket.Dial(context.Background(), u.String(), &websocket.DialOptions{})
 	if err != nil {
-		log.Printf("error dialing relay: %s = %s", u.String(), err)
-		return
+		return nil, fmt.Errorf("error dialing relay: %s = %s", u.String(), err)
 	}
 
 	wsConn := websocket.NetConn(context.Background(), ws, websocket.MessageBinary)
 	log.Printf("Connected to relay: %v", relayURL)
-	defer wsConn.Close()
-	copyLoop(conn, wsConn, sf.shutdown)
-	log.Printf("datachannelHandler ends")
+	return wsConn, nil
 }
 
 type dataChannelHandlerWithRelayURL struct {
@@ -427,7 +424,18 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
 
-	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetNet
+	if !sf.KeepLocalAddresses {
+		settingsEngine.SetIPFilter(func(ip net.IP) (keep bool) {
+			// `IsLoopback()` and `IsUnspecified` are likely not neded here,
+			// but let's keep them just in case.
+			// FYI there is similar code in other files in this project.
+			keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
+			return
+		})
+	}
+	settingsEngine.SetIncludeLoopbackCandidate(sf.KeepLocalAddresses)
+
+	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error
@@ -639,7 +647,6 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 func (sf *SnowflakeProxy) runSession(sid string) {
 	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
 	if offer == nil {
-		log.Printf("bad offer from broker")
 		return
 	}
 	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
@@ -755,7 +762,7 @@ func (sf *SnowflakeProxy) Start() error {
 	sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
 	sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
 
-	broker, err = newSignalingServer(sf.BrokerURL, sf.KeepLocalAddresses)
+	broker, err = newSignalingServer(sf.BrokerURL)
 	if err != nil {
 		return fmt.Errorf("error configuring broker: %s", err)
 	}
@@ -773,6 +780,30 @@ func (sf *SnowflakeProxy) Start() error {
 		return fmt.Errorf("invalid relay domain name pattern")
 	}
 
+	if sf.EphemeralMaxPort != 0 {
+		rangeWidth := sf.EphemeralMaxPort - sf.EphemeralMinPort
+		expectedNumConcurrentClients := sf.Capacity
+		if sf.Capacity == 0 {
+			// Just a guess, since 0 means "unlimited".
+			expectedNumConcurrentClients = 10
+		}
+		// See https://forum.torproject.org/t/remote-returned-status-code-400/15026/9?u=wofwca
+		if uint(rangeWidth) < expectedNumConcurrentClients*2 {
+			log.Printf(
+				"Warning: ephemeral ports range seems narrow (%v-%v) "+
+					"for the client capacity (%v). "+
+					"Some client connections might fail. "+
+					"Please widen the port range, or limit the 'capacity'.",
+				sf.EphemeralMinPort,
+				sf.EphemeralMaxPort,
+				sf.Capacity,
+			)
+			// Instead of simply printing a warning, we could look into
+			// utilizing [SetICEUDPMux](https://pkg.go.dev/github.com/pion/webrtc/v4#SettingEngine.SetICEUDPMux)
+			// to multiplex multiple connections over one (or more?) ports.
+		}
+	}
+
 	config = webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -788,7 +819,7 @@ func (sf *SnowflakeProxy) Start() error {
 		log.Print(err.Error())
 		setCurrentNATType(NATUnknown)
 	}
-	sf.EventDispatcher.OnNewSnowflakeEvent(&event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
+	sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
 
 	NatRetestTask := task.Periodic{
 		Interval: sf.NATTypeMeasurementInterval,
@@ -837,8 +868,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		return nil
 	}
 
-	log.Printf("Checking our NAT type, contacting NAT check probe server at \"%v\"...", probeURL)
-	probe, err := newSignalingServer(probeURL, false)
+	probe, err := newSignalingServer(probeURL)
 	if err != nil {
 		return fmt.Errorf("error parsing url: %w", err)
 	}

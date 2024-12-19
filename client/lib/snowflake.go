@@ -156,12 +156,14 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 	}
 	go updateNATType(iceServers, broker, config.CommunicationProxy)
 
+	natPolicy := &NATPolicy{}
+
 	max := 1
 	if config.Max > max {
 		max = config.Max
 	}
 	eventsLogger := event.NewSnowflakeEventDispatcher()
-	transport := &Transport{dialer: NewWebRTCDialerWithEventsAndProxy(broker, iceServers, max, eventsLogger, config.CommunicationProxy), eventDispatcher: eventsLogger}
+	transport := &Transport{dialer: NewWebRTCDialerWithNatPolicyAndEventsAndProxy(broker, natPolicy, iceServers, max, eventsLogger, config.CommunicationProxy), eventDispatcher: eventsLogger}
 
 	return transport, nil
 }
