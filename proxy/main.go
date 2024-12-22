@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/version"
@@ -45,6 +46,8 @@ func main() {
 	metricsPort := flag.Int("metrics-port", 9999, "set port for the metrics service")
 	verboseLogging := flag.Bool("verbose", false, "increase log verbosity")
 	ephemeralPortsRangeFlag := flag.String("ephemeral-ports-range", "", "Set the `range` of ports used for client connections (format:\"<min>:<max>\").\nUseful in conjunction with port forwarding, in order to make the proxy NAT type \"unrestricted\".\nIf omitted, the ports will be chosen automatically from a wide range.\nWhen specifying the range, make sure it's at least 2x as wide as the amount of clients that you are hoping to serve concurrently (see the \"capacity\" flag).")
+	geoipDatabase := flag.String("geoipdb", "/usr/share/tor/geoip", "path to correctly formatted geoip database mapping IPv4 address ranges to country codes")
+	geoip6Database := flag.String("geoip6db", "/usr/share/tor/geoip6", "path to correctly formatted geoip database mapping IPv6 address ranges to country codes")
 	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
 
 	var ephemeralPortsRange []uint16 = []uint16{0, 0}
@@ -92,6 +95,12 @@ func main() {
 		}
 	}
 
+	gip, err := geoip.New(*geoipDatabase, *geoip6Database)
+	if *enableMetrics && err != nil {
+		// The geoip DB is only used for metrics, let's only report the error if enabled
+		log.Println("Error loading geoip db for country based metrics:", err)
+	}
+
 	proxy := sf.SnowflakeProxy{
 		PollInterval:       *pollInterval,
 		Capacity:           uint(*capacity),
@@ -112,6 +121,7 @@ func main() {
 		AllowNonTLSRelay:                *allowNonTLSRelay,
 
 		SummaryInterval: *summaryInterval,
+		GeoIP:           gip,
 	}
 
 	var logOutput = io.Discard
@@ -163,7 +173,7 @@ func main() {
 
 	log.Printf("snowflake-proxy %s\n", version.GetVersion())
 
-	err := proxy.Start()
+	err = proxy.Start()
 	if err != nil {
 		log.Fatal(err)
 	}

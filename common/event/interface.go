@@ -77,8 +77,7 @@ func (e EventOnProxyClientConnected) String() string {
 
 type EventOnProxyConnectionOver struct {
 	SnowflakeEvent
-	InboundTraffic  int64
-	OutboundTraffic int64
+	Country string
 }
 
 func (e EventOnProxyConnectionOver) String() string {

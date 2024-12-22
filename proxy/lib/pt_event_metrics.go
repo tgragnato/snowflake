@@ -7,7 +7,7 @@ import (
 type EventCollector interface {
 	TrackInBoundTraffic(value int64)
 	TrackOutBoundTraffic(value int64)
-	TrackNewConnection()
+	TrackNewConnection(country string)
 }
 
 type EventMetrics struct {
@@ -25,6 +25,7 @@ func (em *EventMetrics) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 		em.collector.TrackInBoundTraffic(e.InboundBytes)
 		em.collector.TrackOutBoundTraffic(e.OutboundBytes)
 	case event.EventOnProxyConnectionOver:
-		em.collector.TrackNewConnection()
+		e := e.(event.EventOnProxyConnectionOver)
+		em.collector.TrackNewConnection(e.Country)
 	}
 }

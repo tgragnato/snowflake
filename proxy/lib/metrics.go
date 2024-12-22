@@ -15,16 +15,18 @@ const (
 type Metrics struct {
 	totalInBoundTraffic  prometheus.Counter
 	totalOutBoundTraffic prometheus.Counter
-	totalConnections     prometheus.Counter
+	totalConnections     *prometheus.CounterVec
 }
 
 func NewMetrics() *Metrics {
 	return &Metrics{
-		totalConnections: prometheus.NewCounter(prometheus.CounterOpts{
+		totalConnections: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Name:      "connections_total",
 			Help:      "The total number of connections handled by the snowflake proxy",
-		}),
+		},
+			[]string{"country"},
+		),
 		totalInBoundTraffic: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Name:      "traffic_inbound_bytes_total",
@@ -71,6 +73,8 @@ func (m *Metrics) TrackOutBoundTraffic(value int64) {
 }
 
 // TrackNewConnection counts the new connections
-func (m *Metrics) TrackNewConnection() {
-	m.totalConnections.Inc()
+func (m *Metrics) TrackNewConnection(country string) {
+	m.totalConnections.
+		With(prometheus.Labels{"country": country}).
+		Inc()
 }

@@ -35,6 +35,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -114,6 +115,10 @@ var (
 	client http.Client
 )
 
+type GeoIP interface {
+	GetCountryByAddr(net.IP) (string, bool)
+}
+
 // SnowflakeProxy is used to configure an embedded
 // Snowflake in another Go application.
 // For some more info also see CLI parameter descriptions in README.
@@ -165,6 +170,9 @@ type SnowflakeProxy struct {
 
 	// SummaryInterval is the time interval at which proxy stats will be logged
 	SummaryInterval time.Duration
+
+	// GeoIP will be used to detect the country of the clients if provided
+	GeoIP GeoIP
 
 	periodicProxyStats *periodicProxyStats
 	bytesLogger        bytesLogger
@@ -449,6 +457,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 
 		pr, pw := io.Pipe()
 		conn := newWebRTCConn(pc, dc, pr, sf.bytesLogger)
+		remoteIP := conn.RemoteIP()
 
 		dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 
@@ -479,7 +488,13 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
-			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{})
+
+			country := ""
+			if sf.GeoIP != nil && !reflect.ValueOf(sf.GeoIP).IsNil() && remoteIP != nil {
+				country, _ = sf.GeoIP.GetCountryByAddr(remoteIP)
+			}
+			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{Country: country})
+
 			conn.dc = nil
 			dc.Close()
 			pw.Close()
@@ -503,7 +518,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			}
 		})
 
-		go handler(conn, conn.RemoteIP())
+		go handler(conn, remoteIP)
 	})
 	// As of v3.0.0, pion-webrtc uses trickle ICE by default.
 	// We have to wait for candidate gathering to complete
