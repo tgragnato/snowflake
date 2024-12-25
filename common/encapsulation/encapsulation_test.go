@@ -2,17 +2,20 @@ package encapsulation
 
 import (
 	"bytes"
+	"crypto/rand"
 	"io"
-	"math/rand"
+	mrand "math/rand/v2"
 	"testing"
 )
 
-// Return a byte slice with non-trivial contents.
+// Return a byte slice with cryptographically secure random contents.
 func pseudorandomBuffer(n int) []byte {
-	source := rand.NewSource(0)
 	p := make([]byte, n)
-	for i := 0; i < len(p); i++ {
-		p[i] = byte(source.Int63() & 0xff)
+	_, err := rand.Read(p)
+	if err != nil {
+		for i := 0; i < len(p); i++ {
+			p[i] = byte(mrand.Int64() & 0xff)
+		}
 	}
 	return p
 }

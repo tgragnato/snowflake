@@ -1,8 +1,9 @@
 package amp
 
 import (
+	"crypto/rand"
 	"io"
-	"math/rand"
+	mrand "math/rand/v2"
 	"strings"
 	"testing"
 )
@@ -215,7 +216,13 @@ func TestArmorRoundTrip(t *testing.T) {
 	}
 	for _, n := range lengths {
 		buf := make([]byte, n)
-		rand.Read(buf)
+		if _, err := rand.Read(buf); err != nil {
+			seed := [32]byte{}
+			for i := range seed {
+				seed[i] = byte(mrand.IntN(256))
+			}
+			mrand.NewChaCha8(seed).Read(buf)
+		}
 		input := string(buf)
 		output, err := armorRoundTrip(input)
 		if err != nil {

@@ -1,24 +1,41 @@
 package utls
 
 import (
+	stdcontext "context"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	"math/rand"
+	mrand "math/rand/v2"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
-	stdcontext "context"
-
 	utls "github.com/refraction-networking/utls"
-	"golang.org/x/net/http2"
-
 	. "github.com/smartystreets/goconvey/convey"
+	"golang.org/x/net/http2"
 )
+
+// note that we use the insecure math/rand/v2 here because some platforms
+// fail the test suite at build time in Debian, due to entropy starvation.
+// since that's not a problem at test time, we do *not* use a secure
+// mechanism for key generation.
+//
+// DO NOT REUSE THIS CODE IN PRODUCTION, IT IS DANGEROUS
+
+type insecureReader struct {
+	r *mrand.Rand
+}
+
+func (ir *insecureReader) Read(p []byte) (n int, err error) {
+	for i := range p {
+		p[i] = byte(ir.r.Int64() & 0xff)
+	}
+	return len(p), nil
+}
 
 func TestRoundTripper(t *testing.T) {
 	t.Parallel()
@@ -50,16 +67,11 @@ func runRoundTripperTest(t *testing.T, h2listen, h1listen, h2addr, h1addr string
 	httpServerContext, cancel := stdcontext.WithCancel(stdcontext.Background())
 	Convey("[Test]Set up http servers", t, func(c C) {
 		c.Convey("[Test]Generate Self-Signed Cert", func(c C) {
-			// Ported from https://gist.github.com/samuel/8b500ddd3f6118d052b5e6bc16bc4c09
-
-			// note that we use the insecure math/rand here because some platforms
-			// fail the test suite at build time in Debian, due to entropy starvation.
-			// since that's not a problem at test time, we do *not* use a secure
-			// mechanism for key generation.
-			//
-			// DO NOT REUSE THIS CODE IN PRODUCTION, IT IS DANGEROUS
-			insecureRandReader := rand.New(rand.NewSource(1337))
-			priv, err := rsa.GenerateKey(insecureRandReader, 4096)
+			priv, err := rsa.GenerateKey(rand.Reader, 4096)
+			if err != nil {
+				insecureRandReader := mrand.New(mrand.NewPCG(uint64(time.Now().UnixNano()), 1))
+				priv, err = rsa.GenerateKey(&insecureReader{r: insecureRandReader}, 4096)
+			}
 			c.So(err, ShouldBeNil)
 			template := x509.Certificate{
 				SerialNumber: big.NewInt(1),
@@ -73,7 +85,11 @@ func runRoundTripperTest(t *testing.T, h2listen, h1listen, h2addr, h1addr string
 				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 				BasicConstraintsValid: true,
 			}
-			derBytes, err := x509.CreateCertificate(insecureRandReader, &template, &template, priv.Public(), priv)
+			derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, priv.Public(), priv)
+			if err != nil {
+				insecureRandReader := mrand.New(mrand.NewPCG(uint64(time.Now().UnixNano()), 1))
+				derBytes, err = x509.CreateCertificate(&insecureReader{r: insecureRandReader}, &template, &template, priv.Public(), priv)
+			}
 			c.So(err, ShouldBeNil)
 			selfSignedPrivateKey = priv
 			selfSignedCert = derBytes
