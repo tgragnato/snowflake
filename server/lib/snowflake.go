@@ -230,9 +230,6 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 	for {
 		stream, err := sess.AcceptStream()
 		if err != nil {
-			if err, ok := err.(net.Error); ok && err.Temporary() {
-				continue
-			}
 			return err
 		}
 		l.queueConn(&SnowflakeClientConn{stream: stream, address: addr})
@@ -246,9 +243,6 @@ func (l *SnowflakeListener) acceptSessions(ln *kcp.Listener) error {
 	for {
 		conn, err := ln.AcceptKCP()
 		if err != nil {
-			if err, ok := err.(net.Error); ok && err.Temporary() {
-				continue
-			}
 			return err
 		}
 		// Permit coalescing the payloads of consecutive sends.

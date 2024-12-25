@@ -102,9 +102,6 @@ func acceptLoop(ln net.Listener, orPortSrcAddr *net.IPNet) {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			if err, ok := err.(net.Error); ok && err.Temporary() {
-				continue
-			}
 			log.Printf("Snowflake accept error: %s", err)
 			break
 		}

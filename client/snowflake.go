@@ -64,9 +64,6 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 	for {
 		conn, err := ln.AcceptSocks()
 		if err != nil {
-			if err, ok := err.(net.Error); ok && err.Temporary() {
-				continue
-			}
 			log.Printf("SOCKS accept error: %s", err)
 			break
 		}
