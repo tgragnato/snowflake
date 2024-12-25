@@ -281,7 +281,7 @@ func TestBufferAsync(t *testing.T) {
 	}
 }
 
-func benchmarkBufferWR(b *testing.B, size int64, write bool, grow int) { // nolint:unparam
+func benchmarkBufferWR(b *testing.B, size int64, write bool, grow int) {
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5684")
 	if err != nil {
 		b.Fatalf("net.ResolveUDPAddr: %v", err)

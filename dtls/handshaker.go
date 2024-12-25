@@ -271,7 +271,7 @@ func (s *handshakeFSM) send(ctx context.Context, c flightConn) (handshakeState, 
 	return handshakeWaiting, nil
 }
 
-func (s *handshakeFSM) wait(ctx context.Context, c flightConn) (handshakeState, error) { //nolint:gocognit
+func (s *handshakeFSM) wait(ctx context.Context, c flightConn) (handshakeState, error) {
 	parse, errFlight := s.currentFlight.getFlightParser()
 	if errFlight != nil {
 		if alertErr := c.notify(ctx, alert.Fatal, alert.InternalError); alertErr != nil {

@@ -239,7 +239,7 @@ func (c *Config) includeCertificateSuites() bool {
 
 const defaultMTU = 1200 // bytes
 
-var defaultCurves = []elliptic.Curve{elliptic.X25519, elliptic.P384} //nolint:gochecknoglobals
+var defaultCurves = []elliptic.Curve{elliptic.X25519, elliptic.P384}
 
 // PSKCallback is called once we have the remote's PSKIdentityHint.
 // If the remote provided none it will be nil

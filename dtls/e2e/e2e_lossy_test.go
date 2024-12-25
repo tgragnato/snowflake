@@ -142,7 +142,7 @@ func TestPionE2ELossy(t *testing.T) {
 			lim := transportTest.TimeOut(lossyTestTimeout + time.Second)
 			defer lim.Stop()
 
-			chosenLoss := rand.IntN(9) + test.LossChanceRange //nolint:gosec
+			chosenLoss := rand.IntN(9) + test.LossChanceRange
 			serverDone := make(chan runResult)
 			clientDone := make(chan runResult)
 			br := transportTest.NewBridge()

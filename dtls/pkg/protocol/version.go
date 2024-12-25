@@ -6,8 +6,8 @@ package protocol
 
 // Version enums
 var (
-	Version1_0 = Version{Major: 0xfe, Minor: 0xff} //nolint:gochecknoglobals
-	Version1_2 = Version{Major: 0xfe, Minor: 0xfd} //nolint:gochecknoglobals
+	Version1_0 = Version{Major: 0xfe, Minor: 0xff}
+	Version1_2 = Version{Major: 0xfe, Minor: 0xfd}
 )
 
 // Version is the minor/major value in the RecordLayer

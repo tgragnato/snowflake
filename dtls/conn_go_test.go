@@ -117,7 +117,7 @@ func TestContextConfig(t *testing.T) {
 				conn, err := d()
 				defer cancel()
 				var netError net.Error
-				if !errors.As(err, &netError) || !netError.Temporary() { //nolint:staticcheck
+				if !errors.As(err, &netError) || !netError.Temporary() {
 					t.Errorf("Client error exp(Temporary network error) failed(%v)", err)
 					close(done)
 					return

@@ -75,7 +75,7 @@ func TestErrorNetError(t *testing.T) {
 			if ne.Timeout() != c.timeout {
 				t.Errorf("%T.Timeout() should be %v", c.err, c.timeout)
 			}
-			if ne.Temporary() != c.temporary { //nolint:staticcheck
+			if ne.Temporary() != c.temporary {
 				t.Errorf("%T.Temporary() should be %v", c.err, c.temporary)
 			}
 			if ne.Error() != c.str {

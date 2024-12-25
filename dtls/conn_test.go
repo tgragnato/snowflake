@@ -137,7 +137,7 @@ func TestReadWriteDeadline(t *testing.T) {
 		if !e.Timeout() {
 			t.Error("Deadline exceeded Write must return Timeout error")
 		}
-		if !e.Temporary() { //nolint:staticcheck
+		if !e.Temporary() {
 			t.Error("Deadline exceeded Write must return Temporary error")
 		}
 	} else {
@@ -148,7 +148,7 @@ func TestReadWriteDeadline(t *testing.T) {
 		if !e.Timeout() {
 			t.Error("Deadline exceeded Read must return Timeout error")
 		}
-		if !e.Temporary() { //nolint:staticcheck
+		if !e.Temporary() {
 			t.Error("Deadline exceeded Read must return Temporary error")
 		}
 	} else {
@@ -568,7 +568,7 @@ func TestPSK(t *testing.T) {
 				conf := &Config{
 					PSK: func(hint []byte) ([]byte, error) {
 						if !bytes.Equal(test.ServerIdentity, hint) {
-							return nil, fmt.Errorf("TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)", test.ServerIdentity, hint) //nolint:goerr113
+							return nil, fmt.Errorf("TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)", test.ServerIdentity, hint)
 						}
 
 						return []byte{0xAB, 0xC1, 0x23}, nil
@@ -792,7 +792,7 @@ func TestClientTimeout(t *testing.T) {
 
 		c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, true)
 		if err == nil {
-			_ = c.Close() //nolint:contextcheck
+			_ = c.Close()
 		}
 		clientErr <- err
 	}()
@@ -3114,11 +3114,11 @@ func TestSkipHelloVerify(t *testing.T) {
 			return
 		}
 		buf := make([]byte, 1024)
-		if _, sErr = server.Read(buf); sErr != nil { //nolint:contextcheck
+		if _, sErr = server.Read(buf); sErr != nil {
 			t.Error(sErr)
 		}
 		gotHello <- struct{}{}
-		if sErr = server.Close(); sErr != nil { //nolint:contextcheck
+		if sErr = server.Close(); sErr != nil {
 			t.Error(sErr)
 		}
 	}()
@@ -3170,8 +3170,8 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 	defer cancel()
 
 	ca, cb := dpipe.Pipe()
-	defer ca.Close() //nolint:errcheck
-	defer cb.Close() //nolint:errcheck
+	defer ca.Close()
+	defer cb.Close()
 
 	done := make(chan struct{})
 	go func() {
@@ -3279,11 +3279,11 @@ func TestHelloRandom(t *testing.T) {
 			return
 		}
 		buf := make([]byte, 1024)
-		if _, sErr = server.Read(buf); sErr != nil { //nolint:contextcheck
+		if _, sErr = server.Read(buf); sErr != nil {
 			t.Error(sErr)
 		}
 		gotHello <- struct{}{}
-		if sErr = server.Close(); sErr != nil { //nolint:contextcheck
+		if sErr = server.Close(); sErr != nil {
 			t.Error(sErr)
 		}
 	}()
@@ -3326,7 +3326,7 @@ func TestOnConnectionAttempt(t *testing.T) {
 			OnConnectionAttempt: func(in net.Addr) error {
 				clientOnConnectionAttempt.Store(1)
 				if in == nil {
-					t.Fatal("net.Addr is nil") //nolint: govet
+					t.Fatal("net.Addr is nil")
 				}
 				return nil
 			},
@@ -3339,7 +3339,7 @@ func TestOnConnectionAttempt(t *testing.T) {
 		OnConnectionAttempt: func(in net.Addr) error {
 			serverOnConnectionAttempt.Store(1)
 			if in == nil {
-				t.Fatal("net.Addr is nil") //nolint: govet
+				t.Fatal("net.Addr is nil")
 			}
 			return expectedErr
 		},

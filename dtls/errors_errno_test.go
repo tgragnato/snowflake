@@ -56,7 +56,7 @@ func TestErrorsTemporary(t *testing.T) {
 	if ne.Timeout() {
 		t.Errorf("%v must not be timeout error", err)
 	}
-	if !ne.Temporary() { //nolint:staticcheck
+	if !ne.Temporary() {
 		t.Errorf("%v must be temporary error", err)
 	}
 }

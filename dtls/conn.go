@@ -418,7 +418,7 @@ func (c *Conn) Write(p []byte) (int, error) {
 
 // Close closes the connection.
 func (c *Conn) Close() error {
-	err := c.close(true) //nolint:contextcheck
+	err := c.close(true)
 	c.closeLock.Lock()
 	handshakeDone := c.handshakeDone
 	c.closeLock.Unlock()
@@ -555,7 +555,7 @@ func (c *Conn) processPacket(p *packet) ([]byte, error) {
 			Content:  content,
 			RealType: p.record.Header.ContentType,
 		}
-		rawInner, err := inner.Marshal() //nolint:govet
+		rawInner, err := inner.Marshal()
 		if err != nil {
 			return nil, err
 		}
@@ -617,7 +617,7 @@ func (c *Conn) processHandshakePacket(p *packet, h *handshake.Handshake) ([][]by
 				RealType: protocol.ContentTypeHandshake,
 				Zeros:    c.paddingLengthGenerator(uint(len(handshakeFragment))),
 			}
-			rawInner, err := inner.Marshal() //nolint:govet
+			rawInner, err := inner.Marshal()
 			if err != nil {
 				return nil, err
 			}
@@ -708,7 +708,7 @@ func (c *Conn) fragmentHandshake(h *handshake.Handshake) ([][]byte, error) {
 	return fragmentedHandshakes, nil
 }
 
-var poolReadBuffer = sync.Pool{ //nolint:gochecknoglobals
+var poolReadBuffer = sync.Pool{
 	New: func() interface{} {
 		b := make([]byte, inboundBufferSize)
 		return &b
@@ -806,7 +806,7 @@ func (c *Conn) enqueueEncryptedPackets(packet addrPkt) bool {
 	return false
 }
 
-func (c *Conn) handleIncomingPacket(ctx context.Context, buf []byte, rAddr net.Addr, enqueue bool) (bool, bool, *alert.Alert, error) { //nolint:gocognit
+func (c *Conn) handleIncomingPacket(ctx context.Context, buf []byte, rAddr net.Addr, enqueue bool) (bool, bool, *alert.Alert, error) {
 	h := &recordlayer.Header{}
 	// Set connection ID size so that records of content type tls12_cid will
 	// be parsed correctly.
@@ -887,7 +887,7 @@ func (c *Conn) handleIncomingPacket(ctx context.Context, buf []byte, rAddr net.A
 		if h.ContentType == protocol.ContentTypeConnectionID {
 			originalCID = true
 			ip := &recordlayer.InnerPlaintext{}
-			if err := ip.Unmarshal(buf[h.Size():]); err != nil { //nolint:govet
+			if err := ip.Unmarshal(buf[h.Size():]); err != nil {
 				c.log.Debugf("unpacking inner plaintext failed: %s", err)
 				return false, false, nil, nil
 			}
@@ -1040,7 +1040,7 @@ func (c *Conn) isHandshakeCompletedSuccessfully() bool {
 	return boolean.bool
 }
 
-func (c *Conn) handshake(ctx context.Context, cfg *handshakeConfig, initialFlight flightVal, initialState handshakeState) error { //nolint:gocognit,contextcheck
+func (c *Conn) handshake(ctx context.Context, cfg *handshakeConfig, initialFlight flightVal, initialState handshakeState) error {
 	c.fsm = newHandshakeFSM(&c.state, c.handshakeCache, cfg, initialFlight)
 
 	done := make(chan struct{})
@@ -1130,12 +1130,12 @@ func (c *Conn) handshake(ctx context.Context, cfg *handshakeConfig, initialFligh
 
 				if e != nil {
 					if e.IsFatalOrCloseNotify() {
-						_ = c.close(false) //nolint:contextcheck
+						_ = c.close(false)
 					}
 				}
 				if !c.isConnectionClosed() && errors.Is(err, context.Canceled) {
 					c.log.Trace("handshake timeouts - closing underline connection")
-					_ = c.close(false) //nolint:contextcheck
+					_ = c.close(false)
 				}
 				return
 			}

@@ -12,7 +12,7 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol"
 )
 
-var errCipherSuiteNotInit = &protocol.TemporaryError{Err: errors.New("CipherSuite has not been initialized")} //nolint:goerr113
+var errCipherSuiteNotInit = &protocol.TemporaryError{Err: errors.New("CipherSuite has not been initialized")}
 
 // ID is an ID for our supported CipherSuites
 type ID uint16
@@ -30,8 +30,8 @@ func (i ID) String() string {
 
 // Supported Cipher Suites
 const (
-	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 ID = 0xc02c //nolint:revive,stylecheck
-	TLS_PSK_WITH_AES_128_GCM_SHA256         ID = 0x00a8 //nolint:revive,stylecheck
+	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 ID = 0xc02c
+	TLS_PSK_WITH_AES_128_GCM_SHA256         ID = 0x00a8
 )
 
 // AuthenticationType controls what authentication method is using during the handshake

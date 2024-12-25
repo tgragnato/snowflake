@@ -106,7 +106,7 @@ func (g *GCM) Decrypt(h recordlayer.Header, in []byte) ([]byte, error) {
 	}
 	out, err = g.remoteGCM.Open(out[:0], nonce, out, additionalData)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errDecryptPacket, err) //nolint:errorlint
+		return nil, fmt.Errorf("%w: %v", errDecryptPacket, err)
 	}
 	return append(in[:h.Size()], out...), nil
 }

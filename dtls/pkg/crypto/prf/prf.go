@@ -4,7 +4,7 @@
 // Package prf implements TLS 1.2 Pseudorandom functions
 package prf
 
-import ( //nolint:gci
+import (
 	ellipticStdlib "crypto/elliptic"
 	"crypto/hmac"
 	"encoding/binary"
@@ -40,7 +40,7 @@ type EncryptionKeys struct {
 	ServerWriteIV  []byte
 }
 
-var errInvalidNamedCurve = &protocol.FatalError{Err: errors.New("invalid named curve")} //nolint:goerr113
+var errInvalidNamedCurve = &protocol.FatalError{Err: errors.New("invalid named curve")}
 
 func (e *EncryptionKeys) String() string {
 	return fmt.Sprintf(`encryptionKeys:

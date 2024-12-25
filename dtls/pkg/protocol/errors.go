@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	errBufferTooSmall    = &TemporaryError{Err: errors.New("buffer is too small")} //nolint:goerr113
-	errInvalidCipherSpec = &FatalError{Err: errors.New("cipher spec invalid")}     //nolint:goerr113
+	errBufferTooSmall    = &TemporaryError{Err: errors.New("buffer is too small")}
+	errInvalidCipherSpec = &FatalError{Err: errors.New("cipher spec invalid")}
 )
 
 // FatalError indicates that the DTLS connection is no longer available.

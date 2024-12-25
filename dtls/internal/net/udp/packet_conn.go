@@ -97,7 +97,7 @@ func (l *listener) Close() error {
 				// If we have an alternate identifier, remove it from the connection
 				// map.
 				if id := c.id.Load(); id != nil {
-					delete(l.conns, id.(string)) //nolint:forcetypeassert
+					delete(l.conns, id.(string))
 				}
 				// If we haven't already removed the remote address, remove it
 				// from the connection map.
@@ -353,7 +353,7 @@ func (c *PacketConn) Close() error {
 		// If we have an alternate identifier, remove it from the connection
 		// map.
 		if id := c.id.Load(); id != nil {
-			delete(c.listener.conns, id.(string)) //nolint:forcetypeassert
+			delete(c.listener.conns, id.(string))
 		}
 		// If we haven't already removed the remote address, remove it from the
 		// connection map.
