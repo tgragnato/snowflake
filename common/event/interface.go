@@ -72,7 +72,7 @@ type EventOnProxyClientConnected struct {
 }
 
 func (e EventOnProxyClientConnected) String() string {
-	return fmt.Sprintf("client connected")
+	return "Client connected"
 }
 
 type EventOnProxyConnectionOver struct {
