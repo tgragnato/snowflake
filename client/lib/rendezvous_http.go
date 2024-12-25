@@ -2,10 +2,12 @@ package snowflake_client
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"io"
 	"log"
-	"math/rand"
+	"math/big"
+	mrand "math/rand/v2"
 	"net/http"
 	"net/url"
 )
@@ -47,7 +49,13 @@ func (r *httpRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
 	if len(r.fronts) != 0 {
 		// Do domain fronting. Replace the domain in the URL's with a randomly
 		// selected front, and store the original domain the HTTP Host header.
-		front := r.fronts[rand.Intn(len(r.fronts))]
+		var front string
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(r.fronts))))
+		if err == nil {
+			front = r.fronts[n.Int64()]
+		} else {
+			front = r.fronts[mrand.IntN(len(r.fronts))]
+		}
 		log.Println("Front URL:  ", front)
 		req.Host = req.URL.Host
 		req.URL.Host = front

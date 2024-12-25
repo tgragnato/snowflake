@@ -30,7 +30,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/url"
 	"strings"
