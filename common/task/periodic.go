@@ -76,7 +76,9 @@ func (t *Periodic) checkedExecute() error {
 	}
 
 	t.timer = time.AfterFunc(t.Interval, func() {
-		t.checkedExecute()
+		if err := t.checkedExecute(); err != nil && t.OnError != nil {
+			t.OnError(err)
+		}
 	})
 
 	return nil
@@ -104,7 +106,9 @@ func (t *Periodic) Start() error {
 
 func (t *Periodic) WaitThenStart() {
 	time.AfterFunc(t.Interval, func() {
-		t.Start()
+		if err := t.Start(); err != nil && t.OnError != nil {
+			t.OnError(err)
+		}
 	})
 }
 
