@@ -96,7 +96,9 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			if arg, ok := conn.Req.Args.Get("max"); ok {
 				max, err := strconv.Atoi(arg)
 				if err != nil {
-					conn.Reject()
+					if errReject := conn.Reject(); errReject != nil {
+						log.Printf("conn.Reject error: %s\n", errReject)
+					}
 					log.Println("Invalid SOCKS arg: max=", arg)
 					return
 				}
@@ -121,7 +123,9 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			}
 			transport, err := sf.NewSnowflakeClient(config)
 			if err != nil {
-				conn.Reject()
+				if errReject := conn.Reject(); errReject != nil {
+					log.Printf("conn.Reject error: %s\n", errReject)
+				}
 				log.Println("Failed to start snowflake transport: ", err)
 				return
 			}
@@ -244,14 +248,18 @@ func main() {
 	}
 	if ptInfo.ProxyURL != nil {
 		if err := proxy.CheckProxyProtocolSupport(ptInfo.ProxyURL); err != nil {
-			pt.ProxyError("proxy is not supported:" + err.Error())
+			if proxyErr := pt.ProxyError("proxy is not supported:" + err.Error()); proxyErr != nil {
+				log.Printf("proxy error: %s\n", proxyErr.Error())
+			}
 			os.Exit(1)
 		} else {
 			config.CommunicationProxy = ptInfo.ProxyURL
 			client := proxy.NewSocks5UDPClient(config.CommunicationProxy)
 			conn, err := client.ListenPacket("udp", nil)
 			if err != nil {
-				pt.ProxyError("proxy test failure:" + err.Error())
+				if proxyErr := pt.ProxyError("proxy test failure:" + err.Error()); proxyErr != nil {
+					log.Printf("proxy error: %s\n", proxyErr.Error())
+				}
 				os.Exit(1)
 			}
 			conn.Close()
@@ -268,7 +276,9 @@ func main() {
 			// TODO: Be able to recover when SOCKS dies.
 			ln, err := pt.ListenSocks("tcp", "127.0.0.1:0")
 			if err != nil {
-				pt.CmethodError(methodName, err.Error())
+				if cmethodError := pt.CmethodError(methodName, err.Error()); cmethodError != nil {
+					log.Printf("pt.CmethodError error: %s\n", cmethodError.Error())
+				}
 				break
 			}
 			log.Printf("Started SOCKS listener at %v.", ln.Addr())
@@ -276,7 +286,9 @@ func main() {
 			pt.Cmethod(methodName, ln.Version(), ln.Addr())
 			listeners = append(listeners, ln)
 		default:
-			pt.CmethodError(methodName, "no such method")
+			if cmethodError := pt.CmethodError(methodName, "no such method"); cmethodError != nil {
+				log.Printf("pt.CmethodError error: %s\n", cmethodError.Error())
+			}
 		}
 	}
 	pt.CmethodsDone()
