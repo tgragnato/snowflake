@@ -5,48 +5,36 @@ run:
   allow-parallel-runners: true
   go: '1.23'
 
-linters:
-  enable:
-    - gosec
-  disable:
-    - errcheck
-
 issues:
   exclude-rules:
 
-    - linters:
+    - path: common/turbotunnel/queuepacketconn.go
+      linters:
         - staticcheck
-      text: "err.Temporary"
+      text: "SA6002: argument should be pointer-like to avoid allocations"
 
-    - linters:
-        - staticcheck
-      text: "SA6002:"  
-
-    - path: client/lib/rendezvous
+    - path: client/lib/
       linters:
         - gosec
-      text: "G404:"
+      text: "G404: Use of weak random number generator"
 
-    - path: proxy/lib/metrics.go
+    - path: common/turbotunnel/redialpacketconn.go
       linters:
-        - gosec
-      text: "G114:"
-
-    - path: proxy/lib/pt_event_metrics.go
-      linters:
-        - gosimple
-      text: "type assertion"
+        - errcheck
 
     - path: test.go
       linters:
+        - errcheck
         - gosec
         - ineffassign
         - staticcheck
 
     - path: broker/
       linters:
-        - gosec
+        - errcheck
+      text: "Error return value of"
 
     - path: server/
       linters:
-        - gosec
+        - errcheck
+      text: "Error return value of"
