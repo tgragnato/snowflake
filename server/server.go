@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	pt "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
@@ -227,8 +228,9 @@ func main() {
 				continue
 			}
 			server := &http.Server{
-				Addr:    addr.String(),
-				Handler: certManager.HTTPHandler(nil),
+				Addr:              addr.String(),
+				Handler:           certManager.HTTPHandler(nil),
+				ReadHeaderTimeout: time.Second,
 			}
 			go func() {
 				log.Fatal(server.Serve(lnHTTP01))
