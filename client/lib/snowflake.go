@@ -28,9 +28,10 @@ package snowflake_client
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"log"
-	"math/rand/v2"
+	mrand "math/rand/v2"
 	"net"
 	"net/url"
 	"strings"
@@ -133,7 +134,7 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 
 	iceServers := parseIceServers(config.ICEAddresses)
 	// chooses a random subset of servers from inputs
-	rand.Shuffle(len(iceServers), func(i, j int) {
+	mrand.Shuffle(len(iceServers), func(i, j int) {
 		iceServers[i], iceServers[j] = iceServers[j], iceServers[i]
 	})
 	if len(iceServers) > 2 {
@@ -345,9 +346,19 @@ func newSession(snowflakes SnowflakeCollector) (net.PacketConn, *smux.Session, e
 		buf.Write(turbotunnel.Token[:])
 		// Send ClientID prefix.
 		buf.Write(clientID[:])
-		// Send some amount of padding.
-		encapsulation.WritePadding(buf, int(2000.0+rand.NormFloat64()*100.0))
-		_, err := conn.Write(buf.Bytes())
+		// Generate a random byte for padding size calculation
+		randomByte := make([]byte, 1)
+		_, err := rand.Read(randomByte)
+		if err != nil {
+			randomByte[0] = byte(mrand.IntN(256))
+		}
+		// Calculate padding size between 1900-2099 bytes
+		paddingSize := 1900 + (int(randomByte[0]) % 200)
+		_, err = encapsulation.WritePadding(buf, paddingSize)
+		if err != nil {
+			return nil, err
+		}
+		_, err = conn.Write(buf.Bytes())
 		if err != nil {
 			return nil, err
 		}
