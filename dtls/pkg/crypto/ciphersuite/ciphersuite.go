@@ -23,8 +23,6 @@ const (
 var (
 	errNotEnoughRoomForNonce = &protocol.InternalError{Err: errors.New("buffer not long enough to contain nonce")}
 	errDecryptPacket         = &protocol.TemporaryError{Err: errors.New("failed to decrypt packet")}
-	errInvalidMAC            = &protocol.TemporaryError{Err: errors.New("invalid mac")}
-	errFailedToCast          = &protocol.FatalError{Err: errors.New("failed to cast")}
 )
 
 func generateAEADAdditionalData(h *recordlayer.Header, payloadLen int) []byte {
