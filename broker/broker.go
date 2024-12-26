@@ -288,7 +288,8 @@ func main() {
 	http.Handle("/amp/client/", SnowflakeHandler{i, ampClientOffers})
 
 	server := http.Server{
-		Addr: addr,
+		Addr:              addr,
+		ReadHeaderTimeout: time.Second,
 	}
 
 	// Run SQS Handler to continuously poll and process messages from SQS
@@ -349,10 +350,18 @@ func main() {
 		}
 		go func() {
 			log.Printf("Starting HTTP-01 listener")
-			log.Fatal(http.ListenAndServe(":80", certManager.HTTPHandler(nil)))
+			server := &http.Server{
+				Addr:              ":80",
+				Handler:           certManager.HTTPHandler(nil),
+				ReadHeaderTimeout: time.Second,
+			}
+			log.Fatal(server.ListenAndServe())
 		}()
 
-		server.TLSConfig = &tls.Config{GetCertificate: certManager.GetCertificate}
+		server.TLSConfig = &tls.Config{
+			GetCertificate: certManager.GetCertificate,
+			MinVersion:     tls.VersionTLS13,
+		}
 		err = server.ListenAndServeTLS("", "")
 	} else if certFilename != "" && keyFilename != "" {
 		if acmeEmail != "" || acmeHostnamesCommas != "" {
