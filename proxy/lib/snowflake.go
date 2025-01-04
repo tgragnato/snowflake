@@ -613,9 +613,16 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 }
 
 func (sf *SnowflakeProxy) runSession(sid string) {
+	connectedToClient := false
+	defer func() {
+		if !connectedToClient {
+			tokens.ret()
+		}
+		// Otherwise we'll `tokens.ret()` when the connection finishes.
+	}()
+
 	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
 	if offer == nil {
-		tokens.ret()
 		return
 	}
 	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
@@ -623,7 +630,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	if relayURL != "" {
 		if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
 			log.Printf("bad offer from broker: %v", err)
-			tokens.ret()
 			return
 		}
 	}
@@ -633,7 +639,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	pc, err := sf.makePeerConnectionFromOffer(offer, config, dataChan, dataChannelAdaptor.datachannelHandler)
 	if err != nil {
 		log.Printf("error making WebRTC connection: %s", err)
-		tokens.ret()
 		return
 	}
 
@@ -643,7 +648,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 		if inerr := pc.Close(); inerr != nil {
 			log.Printf("error calling pc.Close: %v", inerr)
 		}
-		tokens.ret()
 		return
 	}
 	// Set a timeout on peerconnection. If the connection state has not
@@ -652,12 +656,12 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	select {
 	case <-dataChan:
 		log.Println("Connection successful")
+		connectedToClient = true
 	case <-time.After(dataChannelTimeout):
 		log.Println("Timed out waiting for client to open data channel.")
 		if err := pc.Close(); err != nil {
 			log.Printf("error calling pc.Close: %v", err)
 		}
-		tokens.ret()
 	}
 }
 
