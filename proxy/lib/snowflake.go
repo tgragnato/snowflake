@@ -651,10 +651,11 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	}
 	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 
-	if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
-		log.Printf("bad offer from broker: %v", err)
-		atomic.AddUint64(&tokens, ^uint64(0))
-		return
+	if relayURL != "" {
+		if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
+			log.Printf("bad offer from broker: %v", err)
+			return
+		}
 	}
 
 	dataChan := make(chan struct{})
