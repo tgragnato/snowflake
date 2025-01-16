@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.62
 	github.com/pion/ice/v4 v4.0.3
-	github.com/pion/sdp/v3 v3.0.9
+	github.com/pion/sdp/v3 v3.0.10
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pion/transport/v3 v3.0.7
 	github.com/pion/webrtc/v4 v4.0.6
