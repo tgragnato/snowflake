@@ -215,13 +215,14 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 			panic(err)
 		}
 
+		// A sleep after the Write makes buffer reuse more likely,
+		// and to allow the connection to flush before close
+		time.Sleep(500 * time.Millisecond)
+
 		err = conn.Close()
 		if err != nil {
 			panic(err)
 		}
-
-		// A sleep after the Write makes buffer reuse more likely.
-		time.Sleep(100 * time.Millisecond)
 
 		if transcript.Length() == 0 {
 			panic("empty transcript")
