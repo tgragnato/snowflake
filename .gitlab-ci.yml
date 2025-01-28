@@ -143,7 +143,14 @@ android:
     - gomobile bind -v -target=android $REPRODUCIBLE_FLAGS .
 
 go-1.21:
-  image: golang:1.21-$DEBIAN_STABLE
+  image: containers.torproject.org/tpo/anti-censorship/duplicatedcontainerimages:golang-1.21-$DEBIAN_STABLE
+  <<: *golang-docker-debian-template
+  <<: *test-template
+  script:
+    - *go-test
+
+go-1.23:
+  image: containers.torproject.org/tpo/anti-censorship/duplicatedcontainerimages:golang-1.23-$DEBIAN_STABLE
   <<: *golang-docker-debian-template
   <<: *test-template
   script:
