@@ -145,7 +145,7 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 		log.Printf("url: %v", strings.Join(server.URLs, " "))
 	}
 
-	// Maintain backwards compatability with old FrontDomain field of ClientConfig
+	// Maintain backwards compatibility with old FrontDomain field of ClientConfig
 	if (len(config.FrontDomains) == 0) && (config.FrontDomain != "") {
 		config.FrontDomains = []string{config.FrontDomain}
 	}

@@ -22,10 +22,10 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
 	github.com/xtaci/kcp-go/v5 v5.6.9
-	github.com/xtaci/smux v1.5.24
+	github.com/xtaci/smux v1.5.33
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.6.0
-	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil v0.0.0-20240710081135-6c4d8ed41027
+	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil v0.0.0-20250130151315-efaf4e0ec0d3
 	golang.org/x/crypto v0.32.0
 	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.29.0
@@ -77,6 +77,7 @@ require (
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20230325130830-408dc5853f86 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.10.1 // indirect
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

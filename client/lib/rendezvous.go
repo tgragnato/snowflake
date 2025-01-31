@@ -15,12 +15,12 @@ import (
 
 	"github.com/pion/webrtc/v4"
 	utls "github.com/refraction-networking/utls"
+	utlsutil "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/utls"
 	"tgragnato.it/snowflake/common/certs"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/nat"
 	"tgragnato.it/snowflake/common/util"
-	utlsutil "tgragnato.it/snowflake/common/utls"
 )
 
 const (
