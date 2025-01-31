@@ -10,12 +10,12 @@ package clientcertificate
 // https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-2
 type Type byte
 
-// ClientCertificateType enums
+// ClientCertificateType enums.
 const (
 	ECDSASign Type = 64
 )
 
-// Types returns all valid ClientCertificate Types
+// Types returns all valid ClientCertificate Types.
 func Types() map[Type]bool {
 	return map[Type]bool{
 		ECDSASign: true,

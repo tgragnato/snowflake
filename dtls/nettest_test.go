@@ -25,6 +25,7 @@ func TestNetTest(t *testing.T) {
 			_ = c1.Close()
 			_ = c2.Close()
 		}
+
 		return
 	})
 }

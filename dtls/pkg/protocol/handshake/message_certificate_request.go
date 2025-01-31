@@ -31,12 +31,12 @@ const (
 	messageCertificateRequestMinLength = 5
 )
 
-// Type returns the Handshake Type
+// Type returns the Handshake Type.
 func (m MessageCertificateRequest) Type() Type {
 	return TypeCertificateRequest
 }
 
-// Marshal encodes the Handshake
+// Marshal encodes the Handshake.
 func (m *MessageCertificateRequest) Marshal() ([]byte, error) {
 	out := []byte{byte(len(m.CertificateTypes))}
 	for _, v := range m.CertificateTypes {
@@ -64,10 +64,11 @@ func (m *MessageCertificateRequest) Marshal() ([]byte, error) {
 			out = append(out, ca...)
 		}
 	}
+
 	return out, nil
 }
 
-// Unmarshal populates the message from encoded data
+// Unmarshal populates the message from encoded data.
 func (m *MessageCertificateRequest) Unmarshal(data []byte) error {
 	if len(data) < messageCertificateRequestMinLength {
 		return errBufferTooSmall

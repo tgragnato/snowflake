@@ -14,7 +14,7 @@ import (
 // https://tools.ietf.org/html/rfc5246#section-7.4
 type Type uint8
 
-// Types of DTLS Handshake messages we know about
+// Types of DTLS Handshake messages we know about.
 const (
 	TypeHelloRequest       Type = 0
 	TypeClientHello        Type = 1
@@ -29,7 +29,7 @@ const (
 	TypeFinished           Type = 20
 )
 
-// String returns the string representation of this type
+// String returns the string representation of this type.
 func (t Type) String() string {
 	switch t {
 	case TypeHelloRequest:
@@ -55,10 +55,11 @@ func (t Type) String() string {
 	case TypeFinished:
 		return "Finished"
 	}
+
 	return ""
 }
 
-// Message is the body of a Handshake datagram
+// Message is the body of a Handshake datagram.
 type Message interface {
 	Marshal() ([]byte, error)
 	Unmarshal(data []byte) error
@@ -78,12 +79,12 @@ type Handshake struct {
 	KeyExchangeAlgorithm types.KeyExchangeAlgorithm
 }
 
-// ContentType returns what kind of content this message is carying
+// ContentType returns what kind of content this message is carying.
 func (h Handshake) ContentType() protocol.ContentType {
 	return protocol.ContentTypeHandshake
 }
 
-// Marshal encodes a handshake into a binary message
+// Marshal encodes a handshake into a binary message.
 func (h *Handshake) Marshal() ([]byte, error) {
 	if h.Message == nil {
 		return nil, errHandshakeMessageUnset
@@ -107,7 +108,7 @@ func (h *Handshake) Marshal() ([]byte, error) {
 	return append(header, msg...), nil
 }
 
-// Unmarshal decodes a handshake from a binary message
+// Unmarshal decodes a handshake from a binary message.
 func (h *Handshake) Unmarshal(data []byte) error {
 	if err := h.Header.Unmarshal(data); err != nil {
 		return err
@@ -146,5 +147,6 @@ func (h *Handshake) Unmarshal(data []byte) error {
 	default:
 		return errNotImplemented
 	}
+
 	return h.Message.Unmarshal(data[HeaderLength:])
 }

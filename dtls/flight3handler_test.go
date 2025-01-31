@@ -18,7 +18,7 @@ import (
 	"github.com/pion/transport/v3/test"
 )
 
-// Assert that SupportedEllipticCurves is only sent when a ECC CipherSuite is available
+// Assert that SupportedEllipticCurves is only sent when a ECC CipherSuite is available.
 func TestSupportedEllipticCurves(t *testing.T) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
@@ -78,10 +78,16 @@ func TestSupportedEllipticCurves(t *testing.T) {
 			EllipticCurves: expectedCurves,
 		}
 
-		if client, err := testClient(ctx, dtlsnet.PacketConnFromConn(caAnalyzer), caAnalyzer.RemoteAddr(), conf, false); err != nil {
+		if client, err := testClient(
+			ctx,
+			dtlsnet.PacketConnFromConn(caAnalyzer),
+			caAnalyzer.RemoteAddr(),
+			conf,
+			false,
+		); err != nil {
 			clientErr <- err
 		} else {
-			clientErr <- client.Close() //nolint
+			clientErr <- client.Close()
 		}
 	}()
 

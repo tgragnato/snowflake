@@ -17,17 +17,20 @@ func TestValidateConfig(t *testing.T) {
 	cert, err := selfsign.GenerateSelfSigned()
 	if err != nil {
 		t.Fatalf("TestValidateConfig: Config validation error(%v), self signed certificate not generated", err)
+
 		return
 	}
 	dsaPrivateKey := &dsa.PrivateKey{}
 	err = dsa.GenerateParameters(&dsaPrivateKey.Parameters, rand.Reader, dsa.L1024N160)
 	if err != nil {
 		t.Fatalf("TestValidateConfig: Config validation error(%v), DSA parameters not generated", err)
+
 		return
 	}
 	err = dsa.GenerateKey(dsaPrivateKey, rand.Reader)
 	if err != nil {
 		t.Fatalf("TestValidateConfig: Config validation error(%v), DSA private key not generated", err)
+
 		return
 	}
 	cases := map[string]struct {

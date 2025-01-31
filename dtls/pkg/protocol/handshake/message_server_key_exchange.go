@@ -12,7 +12,7 @@ import (
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
 )
 
-// MessageServerKeyExchange supports ECDH and PSK
+// MessageServerKeyExchange supports ECDH and PSK.
 type MessageServerKeyExchange struct {
 	IdentityHint []byte
 
@@ -27,12 +27,12 @@ type MessageServerKeyExchange struct {
 	KeyExchangeAlgorithm types.KeyExchangeAlgorithm
 }
 
-// Type returns the Handshake Type
+// Type returns the Handshake Type.
 func (m MessageServerKeyExchange) Type() Type {
 	return TypeServerKeyExchange
 }
 
-// Marshal encodes the Handshake
+// Marshal encodes the Handshake.
 func (m *MessageServerKeyExchange) Marshal() ([]byte, error) {
 	var out []byte
 	if m.IdentityHint != nil {
@@ -66,7 +66,7 @@ func (m *MessageServerKeyExchange) Marshal() ([]byte, error) {
 	return out, nil
 }
 
-// Unmarshal populates the message from encoded data
+// Unmarshal populates the message from encoded data.
 func (m *MessageServerKeyExchange) Unmarshal(data []byte) error {
 	switch {
 	case len(data) < 2:
@@ -84,6 +84,7 @@ func (m *MessageServerKeyExchange) Unmarshal(data []byte) error {
 		if len(data) == 0 {
 			return nil
 		}
+
 		return errLengthMismatch
 	}
 
@@ -144,5 +145,6 @@ func (m *MessageServerKeyExchange) Unmarshal(data []byte) error {
 		return errBufferTooSmall
 	}
 	m.Signature = append([]byte{}, data[offset:offset+signatureLength]...)
+
 	return nil
 }

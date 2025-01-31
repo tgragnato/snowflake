@@ -17,7 +17,13 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 )
 
-func flight5Parse(_ context.Context, c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) (flightVal, *alert.Alert, error) {
+func flight5Parse(
+	_ context.Context,
+	conn flightConn,
+	state *State,
+	cache *handshakeCache,
+	cfg *handshakeConfig,
+) (flightVal, *alert.Alert, error) {
 	_, msgs, ok := cache.fullPullMap(state.handshakeRecvSequence, state.cipherSuite,
 		handshakeCachePullRule{handshake.TypeFinished, cfg.initialEpoch + 1, false, false},
 	)
@@ -57,7 +63,7 @@ func flight5Parse(_ context.Context, c flightConn, state *State, cache *handshak
 			Secret: state.masterSecret,
 		}
 		cfg.log.Tracef("[handshake] save new session: %x", s.ID)
-		if err := cfg.sessionStore.Set(c.sessionKey(), s); err != nil {
+		if err := cfg.sessionStore.Set(conn.sessionKey(), s); err != nil {
 			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
 		}
 	}
@@ -65,7 +71,12 @@ func flight5Parse(_ context.Context, c flightConn, state *State, cache *handshak
 	return flight5, nil, nil
 }
 
-func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *handshakeConfig) ([]*packet, *alert.Alert, error) {
+func flight5Generate(
+	conn flightConn,
+	state *State,
+	cache *handshakeCache,
+	cfg *handshakeConfig,
+) ([]*packet, *alert.Alert, error) {
 	var privateKey crypto.PrivateKey
 	var pkts []*packet
 	if state.remoteRequestedCertificate {
@@ -135,7 +146,7 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 
 	// handshakeMessageServerKeyExchange is optional for PSK
 	if len(serverKeyExchangeData) == 0 {
-		alertPtr, err := handleServerKeyExchange(c, state, cfg, &handshake.MessageServerKeyExchange{})
+		alertPtr, err := handleServerKeyExchange(conn, state, cfg, &handshake.MessageServerKeyExchange{})
 		if err != nil {
 			return nil, alertPtr, err
 		}
@@ -205,7 +216,7 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 		}
 		state.localCertificatesVerify = certVerify
 
-		p := &packet{
+		pkt := &packet{
 			record: &recordlayer.RecordLayer{
 				Header: recordlayer.Header{
 					Version: protocol.Version1_2,
@@ -219,9 +230,9 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 				},
 			},
 		}
-		pkts = append(pkts, p)
+		pkts = append(pkts, pkt)
 
-		h, ok := p.record.Content.(*handshake.Handshake)
+		h, ok := pkt.record.Content.(*handshake.Handshake)
 		if !ok {
 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, errInvalidContentType
 		}
@@ -259,7 +270,11 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 		)
 
 		var err error
-		state.localVerifyData, err = prf.VerifyDataClient(state.masterSecret, append(plainText, merged...), state.cipherSuite.HashFunc())
+		state.localVerifyData, err = prf.VerifyDataClient(
+			state.masterSecret,
+			append(plainText, merged...),
+			state.cipherSuite.HashFunc(),
+		)
 		if err != nil {
 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
 		}
@@ -286,9 +301,15 @@ func flight5Generate(c flightConn, state *State, cache *handshakeCache, cfg *han
 	return pkts, nil, nil
 }
 
-func initializeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeConfig, h *handshake.MessageServerKeyExchange, sendingPlainText []byte) (*alert.Alert, error) {
+func initializeCipherSuite(
+	state *State,
+	cache *handshakeCache,
+	cfg *handshakeConfig,
+	handshakeKeyExchange *handshake.MessageServerKeyExchange,
+	sendingPlainText []byte,
+) (*alert.Alert, error) {
 	if state.cipherSuite.IsInitialized() {
-		return nil, nil //nolint
+		return nil, nil
 	}
 
 	clientRandom := state.localRandom.MarshalFixed()
@@ -308,7 +329,12 @@ func initializeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeCo
 			return &alert.Alert{Level: alert.Fatal, Description: alert.IllegalParameter}, err
 		}
 	} else {
-		state.masterSecret, err = prf.MasterSecret(state.preMasterSecret, clientRandom[:], serverRandom[:], state.cipherSuite.HashFunc())
+		state.masterSecret, err = prf.MasterSecret(
+			state.preMasterSecret,
+			clientRandom[:],
+			serverRandom[:],
+			state.cipherSuite.HashFunc(),
+		)
 		if err != nil {
 			return &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
 		}
@@ -318,8 +344,9 @@ func initializeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeCo
 		// Verify that the pair of hash algorithm and signiture is listed.
 		var validSignatureScheme bool
 		for _, ss := range cfg.localSignatureSchemes {
-			if ss.Hash == h.HashAlgorithm && ss.Signature == h.SignatureAlgorithm {
+			if ss.Hash == handshakeKeyExchange.HashAlgorithm && ss.Signature == handshakeKeyExchange.SignatureAlgorithm {
 				validSignatureScheme = true
+
 				break
 			}
 		}
@@ -327,8 +354,19 @@ func initializeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeCo
 			return &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errNoAvailableSignatureSchemes
 		}
 
-		expectedMsg := valueKeyMessage(clientRandom[:], serverRandom[:], h.PublicKey, h.NamedCurve)
-		if err = verifyKeySignature(expectedMsg, h.Signature, h.HashAlgorithm, state.PeerCertificates); err != nil {
+		expectedMsg := valueKeyMessage(
+			clientRandom[:],
+			serverRandom[:],
+			handshakeKeyExchange.PublicKey,
+			handshakeKeyExchange.NamedCurve,
+		)
+		if err = verifyKeySignature(
+			expectedMsg,
+			handshakeKeyExchange.
+				Signature,
+			handshakeKeyExchange.HashAlgorithm,
+			state.PeerCertificates,
+		); err != nil {
 			return &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, err
 		}
 		var chains [][]*x509.Certificate
@@ -359,5 +397,5 @@ func initializeCipherSuite(state *State, cache *handshakeCache, cfg *handshakeCo
 
 	cfg.writeKeyLog(keyLogLabelTLS12, clientRandom[:], state.masterSecret)
 
-	return nil, nil //nolint
+	return nil, nil
 }

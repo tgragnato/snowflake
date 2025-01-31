@@ -48,6 +48,7 @@ func fromPC(p net.PacketConn, raddr net.Addr) *rw {
 
 func (r *rw) Read(p []byte) (int, error) {
 	n, _, err := r.p.ReadFrom(p)
+
 	return n, err
 }
 
@@ -56,6 +57,8 @@ func (r *rw) Write(p []byte) (int, error) {
 }
 
 func stressDuplex(t *testing.T) {
+	t.Helper()
+
 	listener, ca, cb, err := pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -132,6 +135,7 @@ func TestListenerCloseUnaccepted(t *testing.T) {
 		conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 		if dErr != nil {
 			t.Error(dErr)
+
 			continue
 		}
 		if _, wErr := conn.Write([]byte{byte(i)}); wErr != nil {
@@ -217,6 +221,7 @@ func TestListenerAcceptFilter(t *testing.T) {
 					if !errors.Is(aArr, ErrClosedListener) {
 						t.Error(aArr)
 					}
+
 					return
 				}
 				close(chAccepted)
@@ -266,6 +271,7 @@ func TestListenerConcurrent(t *testing.T) {
 		conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 		if dErr != nil {
 			t.Error(dErr)
+
 			continue
 		}
 		if _, wErr := conn.Write([]byte{byte(i)}); wErr != nil {
@@ -282,6 +288,7 @@ func TestListenerConcurrent(t *testing.T) {
 		conn, _, lErr := listener.Accept()
 		if lErr != nil {
 			t.Error(lErr)
+
 			continue
 		}
 		b := make([]byte, 1)
@@ -373,7 +380,7 @@ func TestConnClose(t *testing.T) {
 		report := test.CheckRoutines(t)
 		defer report()
 
-		l, ca, cb, errPipe := pipe()
+		udpListener, ca, cb, errPipe := pipe()
 		if errPipe != nil {
 			t.Fatal(errPipe)
 		}
@@ -383,7 +390,7 @@ func TestConnClose(t *testing.T) {
 		if err := cb.Close(); err != nil {
 			t.Errorf("Failed to close B side: %v", err)
 		}
-		if err := l.Close(); err != nil {
+		if err := udpListener.Close(); err != nil {
 			t.Errorf("Failed to close listener: %v", err)
 		}
 	})
@@ -392,12 +399,12 @@ func TestConnClose(t *testing.T) {
 		report := test.CheckRoutines(t)
 		defer report()
 
-		l, ca, cb, errPipe := pipe()
+		udpListener, ca, cb, errPipe := pipe()
 		if errPipe != nil {
 			t.Fatal(errPipe)
 		}
 		// Close l.pConn to inject error.
-		if err := l.(*listener).pConn.Close(); err != nil {
+		if err := udpListener.(*listener).pConn.Close(); err != nil {
 			t.Error(err)
 		}
 
@@ -407,7 +414,7 @@ func TestConnClose(t *testing.T) {
 		if err := ca.Close(); err != nil {
 			t.Errorf("Failed to close B side: %v", err)
 		}
-		if err := l.Close(); err == nil {
+		if err := udpListener.Close(); err == nil {
 			t.Errorf("Error is not propagated to Listener.Close")
 		}
 	})
@@ -444,7 +451,7 @@ func TestConnClose(t *testing.T) {
 		report := test.CheckRoutines(t)
 		defer report()
 
-		l, ca, cb, errPipe := pipe()
+		listener, ca, cb, errPipe := pipe()
 		if errPipe != nil {
 			t.Fatal(errPipe)
 		}
@@ -471,7 +478,7 @@ func TestConnClose(t *testing.T) {
 		if err := cb.Close(); err != nil {
 			t.Errorf("Failed to close A side: %v", err)
 		}
-		if err := l.Close(); err != nil {
+		if err := listener.Close(); err != nil {
 			t.Errorf("Failed to close listener: %v", err)
 		}
 	})
@@ -504,6 +511,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			if p.Payload == helloPayload {
 				return "", false
 			}
+
 			return fmt.Sprint(p.ID), true
 		},
 		// Use the outgoing "set" payload to add an identifier for a connection.
@@ -515,6 +523,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			if p.Payload == setPayload {
 				return fmt.Sprint(p.ID), true
 			}
+
 			return "", false
 		},
 	}).Listen(network, addr)
@@ -540,26 +549,30 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			conn, _, err := listener.Accept()
 			if err != nil {
 				t.Error(err)
+
 				return
 			}
 			buf := make([]byte, 100)
 			n, raddr, rErr := conn.ReadFrom(buf)
 			if rErr != nil {
 				t.Error(err)
+
 				return
 			}
-			var p pkt
-			if uErr := json.Unmarshal(buf[:n], &p); uErr != nil {
+			var udpPkt pkt
+			if uErr := json.Unmarshal(buf[:n], &udpPkt); uErr != nil {
 				t.Error(err)
+
 				return
 			}
 			// First message should be a hello and custom connection
 			// ID function will use remote address as identifier.
-			if p.Payload != helloPayload {
+			if udpPkt.Payload != helloPayload {
 				t.Error("Expected hello message")
+
 				return
 			}
-			connID := p.ID
+			connID := udpPkt.ID
 
 			// Send set message to associate ID with this connection.
 			buf, err = json.Marshal(&pkt{
@@ -568,10 +581,12 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			})
 			if err != nil {
 				t.Error(err)
+
 				return
 			}
 			if _, wErr := conn.WriteTo(buf, raddr); wErr != nil {
 				t.Error(wErr)
+
 				return
 			}
 			// Signal to the corresponding clients that connection ID has been
@@ -584,25 +599,29 @@ func TestListenerCustomConnIDs(t *testing.T) {
 				n, _, err := conn.ReadFrom(buf)
 				if err != nil {
 					t.Error(err)
+
 					return
 				}
-				var p pkt
-				if err := json.Unmarshal(buf[:n], &p); err != nil {
+				var udpPkt pkt
+				if err := json.Unmarshal(buf[:n], &udpPkt); err != nil {
 					t.Error(err)
+
 					return
 				}
-				if p.ID != connID {
-					t.Errorf("Expected connection ID %d, but got %d", connID, p.ID)
+				if udpPkt.ID != connID {
+					t.Errorf("Expected connection ID %d, but got %d", connID, udpPkt.ID)
+
 					return
 				}
 				// Ensure we only ever receive one message from
 				// a given client.
 				clientMapMu.Lock()
-				if _, ok := clientMap[p.Payload]; ok {
-					t.Errorf("Multiple messages from single client %s", p.Payload)
+				if _, ok := clientMap[udpPkt.Payload]; ok {
+					t.Errorf("Multiple messages from single client %s", udpPkt.Payload)
+
 					return
 				}
-				clientMap[p.Payload] = struct{}{}
+				clientMap[udpPkt.Payload] = struct{}{}
 				clientMapMu.Unlock()
 			}
 			if err := conn.Close(); err != nil {
@@ -620,6 +639,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 			if dErr != nil {
 				t.Error(dErr)
+
 				return
 			}
 			hbuf, err := json.Marshal(&pkt{
@@ -628,35 +648,41 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			})
 			if err != nil {
 				t.Error(err)
+
 				return
 			}
 			if _, wErr := conn.Write(hbuf); wErr != nil {
 				t.Error(wErr)
+
 				return
 			}
 
-			var p pkt
+			var udpPacket pkt
 			buf := make([]byte, 100)
 			n, err := conn.Read(buf)
 			if err != nil {
 				t.Error(err)
+
 				return
 			}
-			if err := json.Unmarshal(buf[:n], &p); err != nil {
+			if err := json.Unmarshal(buf[:n], &udpPacket); err != nil {
 				t.Error(err)
+
 				return
 			}
 			// Second message should be a set and custom connection identifier
 			// function will update the connection ID from remote address to the
 			// supplied ID.
-			if p.Payload != "set" {
+			if udpPacket.Payload != "set" {
 				t.Error("Expected set message")
+
 				return
 			}
 			// Ensure the connection ID matches what the "hello" message
 			// indicated.
-			if p.ID != connID {
-				t.Errorf("Expected connection ID %d, but got %d", connID, p.ID)
+			if udpPacket.ID != connID {
+				t.Errorf("Expected connection ID %d, but got %d", connID, udpPacket.ID)
+
 				return
 			}
 			// Close connection. We will reconnect from a different remote
@@ -678,6 +704,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 			if dErr != nil {
 				t.Error(dErr)
+
 				return
 			}
 			// Send a packet with a connection ID and this client's local
@@ -688,10 +715,12 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			})
 			if err != nil {
 				t.Error(err)
+
 				return
 			}
 			if _, wErr := conn.Write(buf); wErr != nil {
 				t.Error(wErr)
+
 				return
 			}
 			if cErr := conn.Close(); cErr != nil {

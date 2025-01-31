@@ -52,6 +52,7 @@ func TestReplayProtection(t *testing.T) {
 			}
 			if _, werr := cb.Write(b[:n]); werr != nil {
 				t.Error(werr)
+
 				return
 			}
 
@@ -109,10 +110,12 @@ func TestReplayProtection(t *testing.T) {
 		sent = append(sent, data)
 		if _, werr := ca.Write(data); werr != nil {
 			t.Error(werr)
+
 			return
 		}
 		if _, werr := cb.Write(data); werr != nil {
 			t.Error(werr)
+
 			return
 		}
 	}

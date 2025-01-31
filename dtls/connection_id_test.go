@@ -142,6 +142,7 @@ func TestCIDDatagramRouter(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				return append(altCIDHeader, inner...)
 			}(),
 			ok:   false,
@@ -169,6 +170,7 @@ func TestCIDDatagramRouter(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				return append(altCIDHeader, inner...)
 			}()...), cidHeader...), inner...),
 			ok:   true,

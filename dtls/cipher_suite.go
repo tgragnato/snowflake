@@ -15,29 +15,29 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 )
 
-// CipherSuiteID is an ID for our supported CipherSuites
+// CipherSuiteID is an ID for our supported CipherSuites.
 type CipherSuiteID = ciphersuite.ID
 
-// Supported Cipher Suites
+// Supported Cipher Suites.
 const (
 	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 CipherSuiteID = ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
 	TLS_PSK_WITH_AES_128_GCM_SHA256         CipherSuiteID = ciphersuite.TLS_PSK_WITH_AES_128_GCM_SHA256
 )
 
-// CipherSuiteAuthenticationType controls what authentication method is using during the handshake for a CipherSuite
+// CipherSuiteAuthenticationType controls what authentication method is using during the handshake for a CipherSuite.
 type CipherSuiteAuthenticationType = ciphersuite.AuthenticationType
 
-// AuthenticationType Enums
+// AuthenticationType Enums.
 const (
 	CipherSuiteAuthenticationTypeCertificate  CipherSuiteAuthenticationType = ciphersuite.AuthenticationTypeCertificate
 	CipherSuiteAuthenticationTypePreSharedKey CipherSuiteAuthenticationType = ciphersuite.AuthenticationTypePreSharedKey
 	CipherSuiteAuthenticationTypeAnonymous    CipherSuiteAuthenticationType = ciphersuite.AuthenticationTypeAnonymous
 )
 
-// CipherSuiteKeyExchangeAlgorithm controls what exchange algorithm is using during the handshake for a CipherSuite
+// CipherSuiteKeyExchangeAlgorithm controls what exchange algorithm is using during the handshake for a CipherSuite.
 type CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithm
 
-// CipherSuiteKeyExchangeAlgorithm Bitmask
+// CipherSuiteKeyExchangeAlgorithm Bitmask.
 const (
 	CipherSuiteKeyExchangeAlgorithmNone  CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithmNone
 	CipherSuiteKeyExchangeAlgorithmPsk   CipherSuiteKeyExchangeAlgorithm = ciphersuite.KeyExchangeAlgorithmPsk
@@ -46,7 +46,7 @@ const (
 
 var _ = allCipherSuites() // Necessary until this function isn't only used by Go 1.14
 
-// CipherSuite is an interface that all DTLS CipherSuites must satisfy
+// CipherSuite is an interface that all DTLS CipherSuites must satisfy.
 type CipherSuite interface {
 	// String of CipherSuite, only used for logging
 	String() string
@@ -87,6 +87,7 @@ func CipherSuiteName(id CipherSuiteID) string {
 	if suite != nil {
 		return suite.String()
 	}
+
 	return fmt.Sprintf("0x%04X", uint16(id))
 }
 
@@ -112,7 +113,7 @@ func cipherSuiteForID(id CipherSuiteID, customCiphers func() []CipherSuite) Ciph
 	return nil
 }
 
-// CipherSuites we support in order of preference
+// CipherSuites we support in order of preference.
 func defaultCipherSuites() []CipherSuite {
 	return []CipherSuite{
 		&ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
@@ -131,10 +132,15 @@ func cipherSuiteIDs(cipherSuites []CipherSuite) []uint16 {
 	for _, c := range cipherSuites {
 		rtrn = append(rtrn, uint16(c.ID()))
 	}
+
 	return rtrn
 }
 
-func parseCipherSuites(userSelectedSuites []CipherSuiteID, customCipherSuites func() []CipherSuite, includeCertificateSuites, includePSKSuites bool) ([]CipherSuite, error) {
+func parseCipherSuites(
+	userSelectedSuites []CipherSuiteID,
+	customCipherSuites func() []CipherSuite,
+	includeCertificateSuites, includePSKSuites bool,
+) ([]CipherSuite, error) {
 	cipherSuitesForIDs := func(ids []CipherSuiteID) ([]CipherSuite, error) {
 		cipherSuites := []CipherSuite{}
 		for _, id := range ids {
@@ -144,6 +150,7 @@ func parseCipherSuites(userSelectedSuites []CipherSuiteID, customCipherSuites fu
 			}
 			cipherSuites = append(cipherSuites, c)
 		}
+
 		return cipherSuites, nil
 	}
 
@@ -210,5 +217,6 @@ func filterCipherSuitesForCertificate(cert *tls.Certificate, cipherSuites []Ciph
 			filtered = append(filtered, c)
 		}
 	}
+
 	return filtered
 }

@@ -42,7 +42,12 @@ func valueKeyMessage(clientRandom, serverRandom, publicKey []byte, namedCurve el
 // hash/signature algorithm pair that appears in that extension
 //
 // https://tools.ietf.org/html/rfc5246#section-7.4.2
-func generateKeySignature(clientRandom, serverRandom, publicKey []byte, namedCurve elliptic.Curve, privateKey crypto.PrivateKey, hashAlgorithm hash.Algorithm) ([]byte, error) {
+func generateKeySignature(
+	clientRandom, serverRandom, publicKey []byte,
+	namedCurve elliptic.Curve,
+	privateKey crypto.PrivateKey,
+	hashAlgorithm hash.Algorithm,
+) ([]byte, error) {
 	msg := valueKeyMessage(clientRandom, serverRandom, publicKey, namedCurve)
 	switch p := privateKey.(type) {
 	case ed25519.PrivateKey:
@@ -50,13 +55,18 @@ func generateKeySignature(clientRandom, serverRandom, publicKey []byte, namedCur
 		return p.Sign(rand.Reader, msg, crypto.Hash(0))
 	case *ecdsa.PrivateKey:
 		hashed := hashAlgorithm.Digest(msg)
+
 		return p.Sign(rand.Reader, hashed, hashAlgorithm.CryptoHash())
 	}
 
 	return nil, errKeySignatureGenerateUnimplemented
 }
 
-func verifyKeySignature(message, remoteKeySignature []byte, hashAlgorithm hash.Algorithm, rawCertificates [][]byte) error {
+func verifyKeySignature(
+	message, remoteKeySignature []byte,
+	hashAlgorithm hash.Algorithm,
+	rawCertificates [][]byte,
+) error {
 	if len(rawCertificates) == 0 {
 		return errLengthMismatch
 	}
@@ -65,11 +75,12 @@ func verifyKeySignature(message, remoteKeySignature []byte, hashAlgorithm hash.A
 		return err
 	}
 
-	switch p := certificate.PublicKey.(type) {
+	switch pubKey := certificate.PublicKey.(type) {
 	case ed25519.PublicKey:
-		if ok := ed25519.Verify(p, message, remoteKeySignature); !ok {
+		if ok := ed25519.Verify(pubKey, message, remoteKeySignature); !ok {
 			return errKeySignatureMismatch
 		}
+
 		return nil
 	case *ecdsa.PublicKey:
 		ecdsaSig := &ecdsaSignature{}
@@ -80,9 +91,10 @@ func verifyKeySignature(message, remoteKeySignature []byte, hashAlgorithm hash.A
 			return errInvalidECDSASignature
 		}
 		hashed := hashAlgorithm.Digest(message)
-		if !ecdsa.Verify(p, hashed, ecdsaSig.R, ecdsaSig.S) {
+		if !ecdsa.Verify(pubKey, hashed, ecdsaSig.R, ecdsaSig.S) {
 			return errKeySignatureMismatch
 		}
+
 		return nil
 	}
 
@@ -97,7 +109,11 @@ func verifyKeySignature(message, remoteKeySignature []byte, hashAlgorithm hash.A
 // CertificateVerify message is sent to explicitly verify possession of
 // the private key in the certificate.
 // https://tools.ietf.org/html/rfc5246#section-7.3
-func generateCertificateVerify(handshakeBodies []byte, privateKey crypto.PrivateKey, hashAlgorithm hash.Algorithm) ([]byte, error) {
+func generateCertificateVerify(
+	handshakeBodies []byte,
+	privateKey crypto.PrivateKey,
+	hashAlgorithm hash.Algorithm,
+) ([]byte, error) {
 	if p, ok := privateKey.(ed25519.PrivateKey); ok {
 		// https://pkg.go.dev/crypto/ed25519#PrivateKey.Sign
 		// Sign signs the given message with priv. Ed25519 performs two passes over
@@ -115,7 +131,12 @@ func generateCertificateVerify(handshakeBodies []byte, privateKey crypto.Private
 	return nil, errInvalidSignatureAlgorithm
 }
 
-func verifyCertificateVerify(handshakeBodies []byte, hashAlgorithm hash.Algorithm, remoteKeySignature []byte, rawCertificates [][]byte) error {
+func verifyCertificateVerify(
+	handshakeBodies []byte,
+	hashAlgorithm hash.Algorithm,
+	remoteKeySignature []byte,
+	rawCertificates [][]byte,
+) error {
 	if len(rawCertificates) == 0 {
 		return errLengthMismatch
 	}
@@ -124,11 +145,12 @@ func verifyCertificateVerify(handshakeBodies []byte, hashAlgorithm hash.Algorith
 		return err
 	}
 
-	switch p := certificate.PublicKey.(type) {
+	switch pubKey := certificate.PublicKey.(type) {
 	case ed25519.PublicKey:
-		if ok := ed25519.Verify(p, handshakeBodies, remoteKeySignature); !ok {
+		if ok := ed25519.Verify(pubKey, handshakeBodies, remoteKeySignature); !ok {
 			return errKeySignatureMismatch
 		}
+
 		return nil
 	case *ecdsa.PublicKey:
 		ecdsaSig := &ecdsaSignature{}
@@ -139,9 +161,10 @@ func verifyCertificateVerify(handshakeBodies []byte, hashAlgorithm hash.Algorith
 			return errInvalidECDSASignature
 		}
 		hash := hashAlgorithm.Digest(handshakeBodies)
-		if !ecdsa.Verify(p, hash, ecdsaSig.R, ecdsaSig.S) {
+		if !ecdsa.Verify(pubKey, hash, ecdsaSig.R, ecdsaSig.S) {
 			return errKeySignatureMismatch
 		}
+
 		return nil
 	}
 
@@ -161,6 +184,7 @@ func loadCerts(rawCertificates [][]byte) ([]*x509.Certificate, error) {
 		}
 		certs = append(certs, cert)
 	}
+
 	return certs, nil
 }
 
@@ -179,10 +203,15 @@ func verifyClientCert(rawCertificates [][]byte, roots *x509.CertPool) (chains []
 		Intermediates: intermediateCAPool,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
+
 	return certificate[0].Verify(opts)
 }
 
-func verifyServerCert(rawCertificates [][]byte, roots *x509.CertPool, serverName string) (chains [][]*x509.Certificate, err error) {
+func verifyServerCert(
+	rawCertificates [][]byte,
+	roots *x509.CertPool,
+	serverName string,
+) (chains [][]*x509.Certificate, err error) {
 	certificate, err := loadCerts(rawCertificates)
 	if err != nil {
 		return nil, err
@@ -197,5 +226,6 @@ func verifyServerCert(rawCertificates [][]byte, roots *x509.CertPool, serverName
 		DNSName:       serverName,
 		Intermediates: intermediateCAPool,
 	}
+
 	return certificate[0].Verify(opts)
 }

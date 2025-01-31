@@ -20,12 +20,12 @@ var errInvalidNamedCurve = errors.New("invalid named curve")
 // https://www.iana.org/assignments/tls-parameters/tls-parameters.xml#tls-parameters-9
 type CurvePointFormat byte
 
-// CurvePointFormat enums
+// CurvePointFormat enums.
 const (
 	CurvePointFormatUncompressed CurvePointFormat = 0
 )
 
-// Keypair is a Curve with a Private/Public Keypair
+// Keypair is a Curve with a Private/Public Keypair.
 type Keypair struct {
 	Curve      Curve
 	PublicKey  []byte
@@ -37,12 +37,12 @@ type Keypair struct {
 // https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-10
 type CurveType byte
 
-// CurveType enums
+// CurveType enums.
 const (
 	CurveTypeNamedCurve CurveType = 0x03
 )
 
-// CurveTypes returns all known curves
+// CurveTypes returns all known curves.
 func CurveTypes() map[CurveType]struct{} {
 	return map[CurveType]struct{}{
 		CurveTypeNamedCurve: {},
@@ -54,7 +54,7 @@ func CurveTypes() map[CurveType]struct{} {
 // https://www.iana.org/assignments/tls-parameters/tls-parameters.xml#tls-parameters-8
 type Curve uint16
 
-// Curve enums
+// Curve enums.
 const (
 	P384   Curve = 0x0018
 	X25519 Curve = 0x001d
@@ -67,10 +67,11 @@ func (c Curve) String() string {
 	case X25519:
 		return "X25519"
 	}
+
 	return fmt.Sprintf("%#x", uint16(c))
 }
 
-// Curves returns all curves we implement
+// Curves returns all curves we implement.
 func Curves() map[Curve]bool {
 	return map[Curve]bool{
 		X25519: true,
@@ -78,7 +79,7 @@ func Curves() map[Curve]bool {
 	}
 }
 
-// GenerateKeypair generates a keypair for the given Curve
+// GenerateKeypair generates a keypair for the given Curve.
 func GenerateKeypair(c Curve) (*Keypair, error) {
 	switch c {
 	case X25519:
@@ -91,6 +92,7 @@ func GenerateKeypair(c Curve) (*Keypair, error) {
 		copy(private[:], tmp)
 
 		curve25519.ScalarBaseMult(&public, &private)
+
 		return &Keypair{X25519, public[:], private[:]}, nil
 	case P384:
 		return ellipticCurveKeypair(P384, elliptic.P384(), elliptic.P384())

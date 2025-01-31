@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
-// Package ciphersuite provides TLS Ciphers as registered with the IANA  https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-4
+// Package ciphersuite provides TLS Ciphers as registered with the IANA
+// https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-4
 package ciphersuite
 
 import (
@@ -14,7 +15,7 @@ import (
 
 var errCipherSuiteNotInit = &protocol.TemporaryError{Err: errors.New("CipherSuite has not been initialized")}
 
-// ID is an ID for our supported CipherSuites
+// ID is an ID for our supported CipherSuites.
 type ID uint16
 
 func (i ID) String() string {
@@ -28,16 +29,16 @@ func (i ID) String() string {
 	}
 }
 
-// Supported Cipher Suites
+// Supported Cipher Suites.
 const (
 	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 ID = 0xc02c
 	TLS_PSK_WITH_AES_128_GCM_SHA256         ID = 0x00a8
 )
 
-// AuthenticationType controls what authentication method is using during the handshake
+// AuthenticationType controls what authentication method is using during the handshake.
 type AuthenticationType = types.AuthenticationType
 
-// AuthenticationType Enums
+// AuthenticationType Enums.
 const (
 	AuthenticationTypeCertificate  AuthenticationType = types.AuthenticationTypeCertificate
 	AuthenticationTypePreSharedKey AuthenticationType = types.AuthenticationTypePreSharedKey
@@ -47,7 +48,7 @@ const (
 // KeyExchangeAlgorithm controls what exchange algorithm was chosen.
 type KeyExchangeAlgorithm = types.KeyExchangeAlgorithm
 
-// KeyExchangeAlgorithm Bitmask
+// KeyExchangeAlgorithm Bitmask.
 const (
 	KeyExchangeAlgorithmNone  KeyExchangeAlgorithm = types.KeyExchangeAlgorithmNone
 	KeyExchangeAlgorithmPsk   KeyExchangeAlgorithm = types.KeyExchangeAlgorithmPsk

@@ -31,12 +31,12 @@ type MessageClientHello struct {
 
 const handshakeMessageClientHelloVariableWidthStart = 34
 
-// Type returns the Handshake Type
+// Type returns the Handshake Type.
 func (m MessageClientHello) Type() Type {
 	return TypeClientHello
 }
 
-// Marshal encodes the Handshake
+// Marshal encodes the Handshake.
 func (m *MessageClientHello) Marshal() ([]byte, error) {
 	if len(m.Cookie) > 255 {
 		return nil, errCookieTooLong
@@ -65,7 +65,7 @@ func (m *MessageClientHello) Marshal() ([]byte, error) {
 	return append(out, extensions...), nil
 }
 
-// Unmarshal populates the message from encoded data
+// Unmarshal populates the message from encoded data.
 func (m *MessageClientHello) Unmarshal(data []byte) error {
 	if len(data) < 2+RandomLength {
 		return errBufferTooSmall
@@ -137,5 +137,6 @@ func (m *MessageClientHello) Unmarshal(data []byte) error {
 		return err
 	}
 	m.Extensions = extensions
+
 	return nil
 }

@@ -57,11 +57,15 @@ func TestExtensionUseSRTP(t *testing.T) {
 	t.Run("Invalid Lengths", func(t *testing.T) {
 		unmarshaled := &UseSRTP{}
 
-		if err := unmarshaled.Unmarshal([]byte{0x00, 0x0e, 0x00, 0x05, 0x00, 0x04, 0x00, 0x01, 0x00}); !errors.Is(errLengthMismatch, err) {
+		if err := unmarshaled.Unmarshal(
+			[]byte{0x00, 0x0e, 0x00, 0x05, 0x00, 0x04, 0x00, 0x01, 0x00},
+		); !errors.Is(errLengthMismatch, err) {
 			t.Error(err)
 		}
 
-		if err := unmarshaled.Unmarshal([]byte{0x00, 0x0e, 0x00, 0x0a, 0x00, 0x02, 0x00, 0x01, 0x01}); !errors.Is(errLengthMismatch, err) {
+		if err := unmarshaled.Unmarshal(
+			[]byte{0x00, 0x0e, 0x00, 0x0a, 0x00, 0x02, 0x00, 0x01, 0x01},
+		); !errors.Is(errLengthMismatch, err) {
 			t.Error(err)
 		}
 

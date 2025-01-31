@@ -15,12 +15,16 @@ import (
 )
 
 func equalInt(t *testing.T, expected, actual int) {
+	t.Helper()
+
 	if expected != actual {
 		t.Errorf("Expected %d got %d", expected, actual)
 	}
 }
 
 func equalUDPAddr(t *testing.T, expected, actual net.Addr) {
+	t.Helper()
+
 	if expected == nil && actual == nil {
 		return
 	}
@@ -30,6 +34,8 @@ func equalUDPAddr(t *testing.T, expected, actual net.Addr) {
 }
 
 func equalBytes(t *testing.T, expected, actual []byte) {
+	t.Helper()
+
 	if !bytes.Equal(expected, actual) {
 		t.Errorf("Expected %v got %v", expected, actual)
 	}
@@ -243,6 +249,7 @@ func TestBufferAsync(t *testing.T) {
 		n, raddr, rErr := buffer.ReadFrom(packet)
 		if rErr != nil {
 			done <- rErr.Error()
+
 			return
 		}
 
@@ -282,6 +289,8 @@ func TestBufferAsync(t *testing.T) {
 }
 
 func benchmarkBufferWR(b *testing.B, size int64, write bool, grow int) {
+	b.Helper()
+
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5684")
 	if err != nil {
 		b.Fatalf("net.ResolveUDPAddr: %v", err)
@@ -335,7 +344,7 @@ func BenchmarkBufferWR1400(b *testing.B) {
 	benchmarkBufferWR(b, 1400, false, 128)
 }
 
-// Here, the buffer never becomes empty, which forces wraparound
+// Here, the buffer never becomes empty, which forces wraparound.
 func BenchmarkBufferWWR14(b *testing.B) {
 	benchmarkBufferWR(b, 14, true, 128)
 }
@@ -349,6 +358,8 @@ func BenchmarkBufferWWR1400(b *testing.B) {
 }
 
 func benchmarkBuffer(b *testing.B, size int64) {
+	b.Helper()
+
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5684")
 	if err != nil {
 		b.Fatalf("net.ResolveUDPAddr: %v", err)
@@ -366,6 +377,7 @@ func benchmarkBuffer(b *testing.B, size int64) {
 				break
 			} else if err != nil {
 				b.Error(err)
+
 				break
 			}
 		}

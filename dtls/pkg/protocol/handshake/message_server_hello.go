@@ -29,12 +29,12 @@ type MessageServerHello struct {
 
 const messageServerHelloVariableWidthStart = 2 + RandomLength
 
-// Type returns the Handshake Type
+// Type returns the Handshake Type.
 func (m MessageServerHello) Type() Type {
 	return TypeServerHello
 }
 
-// Marshal encodes the Handshake
+// Marshal encodes the Handshake.
 func (m *MessageServerHello) Marshal() ([]byte, error) {
 	if m.CipherSuiteID == nil {
 		return nil, errCipherSuiteUnset
@@ -65,7 +65,7 @@ func (m *MessageServerHello) Marshal() ([]byte, error) {
 	return append(out, extensions...), nil
 }
 
-// Unmarshal populates the message from encoded data
+// Unmarshal populates the message from encoded data.
 func (m *MessageServerHello) Unmarshal(data []byte) error {
 	if len(data) < 2+RandomLength {
 		return errBufferTooSmall
@@ -110,6 +110,7 @@ func (m *MessageServerHello) Unmarshal(data []byte) error {
 
 	if len(data) <= currOffset {
 		m.Extensions = []extension.Extension{}
+
 		return nil
 	}
 
@@ -118,5 +119,6 @@ func (m *MessageServerHello) Unmarshal(data []byte) error {
 		return err
 	}
 	m.Extensions = extensions
+
 	return nil
 }

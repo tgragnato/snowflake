@@ -22,12 +22,12 @@ type MessageCertificateVerify struct {
 
 const handshakeMessageCertificateVerifyMinLength = 4
 
-// Type returns the Handshake Type
+// Type returns the Handshake Type.
 func (m MessageCertificateVerify) Type() Type {
 	return TypeCertificateVerify
 }
 
-// Marshal encodes the Handshake
+// Marshal encodes the Handshake.
 func (m *MessageCertificateVerify) Marshal() ([]byte, error) {
 	out := make([]byte, 1+1+2+len(m.Signature))
 
@@ -35,10 +35,11 @@ func (m *MessageCertificateVerify) Marshal() ([]byte, error) {
 	out[1] = byte(m.SignatureAlgorithm)
 	binary.BigEndian.PutUint16(out[2:], uint16(len(m.Signature)))
 	copy(out[4:], m.Signature)
+
 	return out, nil
 }
 
-// Unmarshal populates the message from encoded data
+// Unmarshal populates the message from encoded data.
 func (m *MessageCertificateVerify) Unmarshal(data []byte) error {
 	if len(data) < handshakeMessageCertificateVerifyMinLength {
 		return errBufferTooSmall
@@ -60,5 +61,6 @@ func (m *MessageCertificateVerify) Unmarshal(data []byte) error {
 	}
 
 	m.Signature = append([]byte{}, data[4:]...)
+
 	return nil
 }

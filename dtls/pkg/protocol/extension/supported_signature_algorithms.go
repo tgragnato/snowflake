@@ -23,12 +23,12 @@ type SupportedSignatureAlgorithms struct {
 	SignatureHashAlgorithms []signaturehash.Algorithm
 }
 
-// TypeValue returns the extension TypeValue
+// TypeValue returns the extension TypeValue.
 func (s SupportedSignatureAlgorithms) TypeValue() TypeValue {
 	return SupportedSignatureAlgorithmsTypeValue
 }
 
-// Marshal encodes the extension
+// Marshal encodes the extension.
 func (s *SupportedSignatureAlgorithms) Marshal() ([]byte, error) {
 	out := make([]byte, supportedSignatureAlgorithmsHeaderSize)
 
@@ -44,7 +44,7 @@ func (s *SupportedSignatureAlgorithms) Marshal() ([]byte, error) {
 	return out, nil
 }
 
-// Unmarshal populates the extension from encoded data
+// Unmarshal populates the extension from encoded data.
 func (s *SupportedSignatureAlgorithms) Unmarshal(data []byte) error {
 	if len(data) <= supportedSignatureAlgorithmsHeaderSize {
 		return errBufferTooSmall

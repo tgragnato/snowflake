@@ -29,6 +29,7 @@ func TestAddUint48(t *testing.T) {
 			builder: func() *cryptobyte.Builder {
 				var b cryptobyte.Builder
 				b.AddUint64(0xffffffffffffffff)
+
 				return &b
 			}(),
 			in:   0xfefcff3cfdfc,
@@ -39,6 +40,7 @@ func TestAddUint48(t *testing.T) {
 			builder: func() *cryptobyte.Builder {
 				var b cryptobyte.Builder
 				b.AddUint64(0xffffffffffffffff)
+
 				return &b
 			}(),
 			postAdd: func(b *cryptobyte.Builder) {

@@ -19,8 +19,9 @@ func RandomCIDGenerator(size int) func() []byte {
 	return func() []byte {
 		cid := make([]byte, size)
 		if _, err := rand.Read(cid); err != nil {
-			panic(err) //nolint -- nonrecoverable
+			panic(err)
 		}
+
 		return cid
 	}
 }
@@ -54,8 +55,10 @@ func cidDatagramRouter(size int) func([]byte) (string, bool) {
 			if h.ContentType != protocol.ContentTypeConnectionID {
 				continue
 			}
+
 			return string(h.ConnectionID), true
 		}
+
 		return "", false
 	}
 }
@@ -96,6 +99,7 @@ func cidConnIdentifier() func([]byte) (string, bool) {
 				return string(e.CID), true
 			}
 		}
+
 		return "", false
 	}
 }

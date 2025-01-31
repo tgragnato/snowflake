@@ -21,12 +21,12 @@ type SupportedEllipticCurves struct {
 	EllipticCurves []elliptic.Curve
 }
 
-// TypeValue returns the extension TypeValue
+// TypeValue returns the extension TypeValue.
 func (s SupportedEllipticCurves) TypeValue() TypeValue {
 	return SupportedEllipticCurvesTypeValue
 }
 
-// Marshal encodes the extension
+// Marshal encodes the extension.
 func (s *SupportedEllipticCurves) Marshal() ([]byte, error) {
 	out := make([]byte, supportedGroupsHeaderSize)
 
@@ -42,7 +42,7 @@ func (s *SupportedEllipticCurves) Marshal() ([]byte, error) {
 	return out, nil
 }
 
-// Unmarshal populates the extension from encoded data
+// Unmarshal populates the extension from encoded data.
 func (s *SupportedEllipticCurves) Unmarshal(data []byte) error {
 	if len(data) <= supportedGroupsHeaderSize {
 		return errBufferTooSmall
@@ -61,5 +61,6 @@ func (s *SupportedEllipticCurves) Unmarshal(data []byte) error {
 			s.EllipticCurves = append(s.EllipticCurves, supportedGroupID)
 		}
 	}
+
 	return nil
 }

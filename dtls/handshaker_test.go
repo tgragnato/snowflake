@@ -84,6 +84,7 @@ func TestHandshaker(t *testing.T) {
 							cntClientHelloNoCookie++
 						}
 					}
+
 					return true
 				},
 			}
@@ -96,15 +97,23 @@ func TestHandshaker(t *testing.T) {
 					}
 					if _, ok := h.Message.(*handshake.MessageHelloVerifyRequest); ok {
 						cntHelloVerifyRequest++
+
 						return cntHelloVerifyRequest > helloVerifyDrop
 					}
+
 					return true
 				},
 			}
 
 			report := func(t *testing.T) {
+				t.Helper()
+
 				if cntHelloVerifyRequest != helloVerifyDrop+1 {
-					t.Errorf("Number of HelloVerifyRequest retransmit is wrong, expected: %d times, got: %d times", helloVerifyDrop+1, cntHelloVerifyRequest)
+					t.Errorf(
+						"Number of HelloVerifyRequest retransmit is wrong, expected: %d times, got: %d times",
+						helloVerifyDrop+1,
+						cntHelloVerifyRequest,
+					)
 				}
 				if cntClientHelloNoCookie != cntHelloVerifyRequest {
 					t.Errorf(
@@ -132,6 +141,7 @@ func TestHandshaker(t *testing.T) {
 					if _, ok := h.Message.(*handshake.MessageFinished); ok {
 						cntClientFinished++
 					}
+
 					return true
 				},
 			}
@@ -145,11 +155,14 @@ func TestHandshaker(t *testing.T) {
 					if _, ok := h.Message.(*handshake.MessageFinished); ok {
 						cntServerFinished++
 					}
+
 					return true
 				},
 			}
 
 			report := func(t *testing.T) {
+				t.Helper()
+
 				if cntClientFinished != 1 {
 					t.Errorf("Number of client finished is wrong, expected: %d times, got: %d times", 1, cntClientFinished)
 				}
@@ -184,6 +197,7 @@ func TestHandshaker(t *testing.T) {
 							cntClientFinished++
 						}
 					}
+
 					return true
 				},
 				Delay: 0,
@@ -206,6 +220,7 @@ func TestHandshaker(t *testing.T) {
 							cntServerFinished++
 						}
 					}
+
 					return true
 				},
 				Delay: 1000 * time.Millisecond,
@@ -216,8 +231,11 @@ func TestHandshaker(t *testing.T) {
 			}
 
 			report := func(t *testing.T) {
-				// with one second server delay and 100 ms retransmit (+ exponential backoff), there should be close to 4 `Finished` from client
-				// using a range of 3 - 5 for checking
+				t.Helper()
+
+				// with one second server delay and 100 ms retransmit (+ exponential backoff),
+				// there should be close to 4 `Finished` from client
+				// using a range of 3 - 5 for checking.
 				if cntClientFinished < 3 || cntClientFinished > 5 {
 					t.Errorf("Number of client finished is wrong, expected: %d - %d times, got: %d times", 3, 5, cntClientFinished)
 				}
@@ -226,7 +244,11 @@ func TestHandshaker(t *testing.T) {
 				}
 				// there should be no `Finished` last retransmit from client
 				if cntClientFinishedLastRetransmit != 0 {
-					t.Errorf("Number of client finished last retransmit is wrong, expected: %d times, got: %d times", 0, cntClientFinishedLastRetransmit)
+					t.Errorf(
+						"Number of client finished last retransmit is wrong, expected: %d times, got: %d times",
+						0,
+						cntClientFinishedLastRetransmit,
+					)
 				}
 				if cntServerFinished < 1 {
 					t.Errorf("Number of server finished is wrong, expected: at least %d times, got: %d times", 1, cntServerFinished)
@@ -234,9 +256,14 @@ func TestHandshaker(t *testing.T) {
 				if !isServerFinished {
 					t.Errorf("Server is not finished")
 				}
-				// there should be `Finished` last retransmit from server. Because of slow server, client would have sent several `Finished`.
+				// there should be `Finished` last retransmit from server.
+				// Because of slow server, client would have sent several `Finished`.
 				if cntServerFinishedLastRetransmit < 1 {
-					t.Errorf("Number of server finished last retransmit is wrong, expected: at least %d times, got: %d times", 1, cntServerFinishedLastRetransmit)
+					t.Errorf(
+						"Number of server finished last retransmit is wrong, expected: at least %d times, got: %d times",
+						1,
+						cntServerFinishedLastRetransmit,
+					)
 				}
 			}
 
@@ -346,11 +373,16 @@ type TestEndpoint struct {
 	FinishWait time.Duration
 }
 
-func flightTestPipe(ctx context.Context, clientEndpoint TestEndpoint, serverEndpoint TestEndpoint) (*flightTestConn, *flightTestConn) {
+func flightTestPipe(
+	ctx context.Context,
+	clientEndpoint TestEndpoint,
+	serverEndpoint TestEndpoint,
+) (*flightTestConn, *flightTestConn) {
 	ca := newHandshakeCache()
 	cb := newHandshakeCache()
 	chA := make(chan recvHandshakeState)
 	chB := make(chan recvHandshakeState)
+
 	return &flightTestConn{
 			handshakeCache: ca,
 			otherEndCache:  cb,
@@ -399,30 +431,41 @@ func (c *flightTestConn) notify(context.Context, alert.Level, alert.Description)
 
 func (c *flightTestConn) writePackets(_ context.Context, pkts []*packet) error {
 	time.Sleep(c.delay)
-	for _, p := range pkts {
-		if c.filter != nil && !c.filter(p) {
+	for _, pkt := range pkts {
+		if c.filter != nil && !c.filter(pkt) {
 			continue
 		}
-		if h, ok := p.record.Content.(*handshake.Handshake); ok {
-			handshakeRaw, err := p.record.Marshal()
+		if handshake, ok := pkt.record.Content.(*handshake.Handshake); ok {
+			handshakeRaw, err := pkt.record.Marshal()
 			if err != nil {
 				return err
 			}
 
-			c.handshakeCache.push(handshakeRaw[recordlayer.FixedHeaderSize:], p.record.Header.Epoch, h.Header.MessageSequence, h.Header.Type, c.state.isClient)
+			c.handshakeCache.push(
+				handshakeRaw[recordlayer.FixedHeaderSize:],
+				pkt.record.Header.Epoch,
+				handshake.Header.MessageSequence,
+				handshake.Header.Type,
+				c.state.isClient,
+			)
 
-			content, err := h.Message.Marshal()
+			content, err := handshake.Message.Marshal()
 			if err != nil {
 				return err
 			}
-			h.Header.Length = uint32(len(content))
-			h.Header.FragmentLength = uint32(len(content))
-			hdr, err := h.Header.Marshal()
+			handshake.Header.Length = uint32(len(content))
+			handshake.Header.FragmentLength = uint32(len(content))
+			hdr, err := handshake.Header.Marshal()
 			if err != nil {
 				return err
 			}
 			c.otherEndCache.push(
-				append(hdr, content...), p.record.Header.Epoch, h.Header.MessageSequence, h.Header.Type, c.state.isClient)
+				append(hdr, content...),
+				pkt.record.Header.Epoch,
+				handshake.Header.MessageSequence,
+				handshake.Header.Type,
+				c.state.isClient,
+			)
 		}
 	}
 	go func() {

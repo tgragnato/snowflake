@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -37,11 +38,11 @@ var (
 	errHookAPLNFailed    = errors.New("hook failed to modify APLN extension")
 )
 
-func randomPort(t testing.TB) int {
-	t.Helper()
+func randomPort(tb testing.TB) int {
+	tb.Helper()
 	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("failed to pickPort: %v", err)
+		tb.Fatalf("failed to pickPort: %v", err)
 	}
 	defer func() {
 		_ = conn.Close()
@@ -50,7 +51,8 @@ func randomPort(t testing.TB) int {
 	case *net.UDPAddr:
 		return addr.Port
 	default:
-		t.Fatalf("unknown addr type %T", addr)
+		tb.Fatalf("unknown addr type %T", addr)
+
 		return 0
 	}
 }
@@ -61,6 +63,7 @@ func simpleReadWrite(errChan chan error, outChan chan string, conn io.ReadWriter
 		n, err := conn.Read(buffer)
 		if err != nil {
 			errChan <- err
+
 			return
 		}
 
@@ -73,6 +76,7 @@ func simpleReadWrite(errChan chan error, outChan chan string, conn io.ReadWriter
 			break
 		} else if _, err := conn.Write([]byte(testMessage)); err != nil {
 			errChan <- err
+
 			break
 		}
 
@@ -100,9 +104,15 @@ type comm struct {
 	server                     func(*comm)
 }
 
-func newComm(ctx context.Context, clientConfig, serverConfig *dtls.Config, serverPort int, server, client func(*comm)) *comm {
+func newComm(
+	ctx context.Context,
+	clientConfig, serverConfig *dtls.Config,
+	serverPort int,
+	server, client func(*comm),
+) *comm {
 	messageRecvCount := uint64(0)
-	c := &comm{
+
+	com := &comm{
 		ctx:              ctx,
 		clientConfig:     clientConfig,
 		serverConfig:     serverConfig,
@@ -119,10 +129,13 @@ func newComm(ctx context.Context, clientConfig, serverConfig *dtls.Config, serve
 		server:           server,
 		client:           client,
 	}
-	return c
+
+	return com
 }
 
 func (c *comm) assert(t *testing.T) {
+	t.Helper()
+
 	// DTLS Client
 	go c.client(c)
 
@@ -179,6 +192,8 @@ func (c *comm) assert(t *testing.T) {
 }
 
 func (c *comm) cleanup(t *testing.T) {
+	t.Helper()
+
 	clientDone, serverDone := false, false
 	for {
 		select {
@@ -221,11 +236,13 @@ func clientPion(c *comm) {
 	)
 	if err != nil {
 		c.errChan <- err
+
 		return
 	}
 
 	if err := conn.HandshakeContext(c.ctx); err != nil {
 		c.errChan <- err
+
 		return
 	}
 
@@ -247,12 +264,14 @@ func serverPion(c *comm) {
 	)
 	if err != nil {
 		c.errChan <- err
+
 		return
 	}
 	c.serverReady <- struct{}{}
 	c.serverConn, err = c.serverListener.Accept()
 	if err != nil {
 		c.errChan <- err
+
 		return
 	}
 
@@ -260,6 +279,7 @@ func serverPion(c *comm) {
 	if ok {
 		if err := dtlsConn.HandshakeContext(c.ctx); err != nil {
 			c.errChan <- err
+
 			return
 		}
 	}
@@ -277,13 +297,12 @@ func withConnectionIDGenerator(g func() []byte) dtlsConfOpts {
 	}
 }
 
-/*
-	  Simple DTLS Client/Server can communicate
-	    - Assert that you can send messages both ways
-		- Assert that Close() on both ends work
-		- Assert that no Goroutines are leaked
-*/
+// Simple DTLS Client/Server can communicate
+//   - Assert that you can send messages both ways
+//   - Assert that Close() on both ends work
+//   - Assert that no Goroutines are leaked
 func testPionE2ESimple(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -321,6 +340,8 @@ func testPionE2ESimple(t *testing.T, server, client func(*comm), opts ...dtlsCon
 }
 
 func testPionE2ESimplePSK(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -354,6 +375,8 @@ func testPionE2ESimplePSK(t *testing.T, server, client func(*comm), opts ...dtls
 }
 
 func testPionE2EMTUs(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -393,6 +416,8 @@ func testPionE2EMTUs(t *testing.T, server, client func(*comm), opts ...dtlsConfO
 }
 
 func testPionE2ESimpleED25519(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -433,6 +458,8 @@ func testPionE2ESimpleED25519(t *testing.T, server, client func(*comm), opts ...
 }
 
 func testPionE2ESimpleED25519ClientCert(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -481,6 +508,8 @@ func testPionE2ESimpleED25519ClientCert(t *testing.T, server, client func(*comm)
 }
 
 func testPionE2ESimpleECDSAClientCert(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -528,7 +557,59 @@ func testPionE2ESimpleECDSAClientCert(t *testing.T, server, client func(*comm), 
 	comm.assert(t)
 }
 
+func testPionE2ESimpleRSAClientCert(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
+	lim := test.TimeOut(time.Second * 30)
+	defer lim.Stop()
+
+	report := test.CheckRoutines(t)
+	defer report()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	spriv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scert, err := selfsign.SelfSign(spriv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cpriv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ccert, err := selfsign.SelfSign(cpriv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scfg := &dtls.Config{
+		Certificates: []tls.Certificate{scert},
+		CipherSuites: []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+		ClientAuth:   dtls.RequireAnyClientCert,
+	}
+	ccfg := &dtls.Config{
+		Certificates:       []tls.Certificate{ccert},
+		CipherSuites:       []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+		InsecureSkipVerify: true,
+	}
+	for _, o := range opts {
+		o(scfg)
+		o(ccfg)
+	}
+	serverPort := randomPort(t)
+	comm := newComm(ctx, ccfg, scfg, serverPort, server, client)
+	defer comm.cleanup(t)
+	comm.assert(t)
+}
+
 func testPionE2ESimpleClientHelloHook(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -556,11 +637,13 @@ func testPionE2ESimpleClientHelloHook(t *testing.T, server, client func(*comm), 
 				if s.CipherSuiteID != modifiedCipher {
 					return errHookCiphersFailed
 				}
+
 				return nil
 			},
 			CipherSuites: supportedList,
 			ClientHelloMessageHook: func(ch handshake.MessageClientHello) handshake.Message {
 				ch.CipherSuiteIDs = []uint16{uint16(modifiedCipher)}
+
 				return &ch
 			},
 			InsecureSkipVerify: true,
@@ -584,6 +667,8 @@ func testPionE2ESimpleClientHelloHook(t *testing.T, server, client func(*comm), 
 }
 
 func testPionE2ESimpleServerHelloHook(t *testing.T, server, client func(*comm), opts ...dtlsConfOpts) {
+	t.Helper()
+
 	lim := test.TimeOut(time.Second * 30)
 	defer lim.Stop()
 
@@ -609,6 +694,7 @@ func testPionE2ESimpleServerHelloHook(t *testing.T, server, client func(*comm), 
 				if s.NegotiatedProtocol != apln {
 					return errHookAPLNFailed
 				}
+
 				return nil
 			},
 			CipherSuites:       supportedList,
@@ -622,6 +708,7 @@ func testPionE2ESimpleServerHelloHook(t *testing.T, server, client func(*comm), 
 				sh.Extensions = append(sh.Extensions, &extension.ALPN{
 					ProtocolNameList: []string{apln},
 				})
+
 				return &sh
 			},
 			InsecureSkipVerify: true,

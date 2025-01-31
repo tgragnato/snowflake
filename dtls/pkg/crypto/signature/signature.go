@@ -8,14 +8,14 @@ package signature
 // https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-16
 type Algorithm uint16
 
-// SignatureAlgorithm enums
+// SignatureAlgorithm enums.
 const (
 	Anonymous Algorithm = 0
 	ECDSA     Algorithm = 3
 	Ed25519   Algorithm = 7
 )
 
-// Algorithms returns all implemented Signature Algorithms
+// Algorithms returns all implemented Signature Algorithms.
 func Algorithms() map[Algorithm]struct{} {
 	return map[Algorithm]struct{}{
 		Anonymous: {},
