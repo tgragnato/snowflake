@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	ClientTimeout = 10
+	ClientTimeout = 5 // this is calibrated to match the timeout of the CDNs we use for rendezvous
 	ProxyTimeout  = 10
 
 	NATUnknown      = "unknown"
