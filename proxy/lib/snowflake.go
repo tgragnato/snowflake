@@ -334,7 +334,7 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 // conn.RemoteAddr() inside this function, as a workaround for a hang that
 // otherwise occurs inside conn.pc.RemoteDescription() (called by RemoteAddr).
 // https://bugs.torproject.org/18628#comment:8
-func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr, relayURL string) {
+func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteIP net.IP, relayURL string) {
 	defer conn.Close()
 	defer tokens.ret()
 
@@ -342,7 +342,7 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 		relayURL = sf.RelayURL
 	}
 
-	wsConn, err := connectToRelay(relayURL, remoteAddr)
+	wsConn, err := connectToRelay(relayURL, remoteIP)
 	if err != nil {
 		log.Print(err)
 		return
@@ -353,17 +353,16 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 	log.Printf("datachannelHandler ends")
 }
 
-func connectToRelay(relayURL string, remoteAddr net.Addr) (*websocketconn.Conn, error) {
+func connectToRelay(relayURL string, remoteIP net.IP) (*websocketconn.Conn, error) {
 	u, err := url.Parse(relayURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid relay url: %s", err)
 	}
 
-	if remoteAddr != nil {
+	if remoteIP != nil {
 		// Encode client IP address in relay URL
 		q := u.Query()
-		clientIP := remoteAddr.String()
-		q.Set("client_ip", clientIP)
+		q.Set("client_ip", remoteIP.String())
 		u.RawQuery = q.Encode()
 	} else {
 		log.Printf("no remote address given in websocket")
@@ -384,8 +383,8 @@ type dataChannelHandlerWithRelayURL struct {
 	sf       *SnowflakeProxy
 }
 
-func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr) {
-	d.sf.datachannelHandler(conn, remoteAddr, d.RelayURL)
+func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, remoteIP net.IP) {
+	d.sf.datachannelHandler(conn, remoteIP, d.RelayURL)
 }
 
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
@@ -436,7 +435,7 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 	sdp *webrtc.SessionDescription,
 	config webrtc.Configuration, dataChan chan struct{},
-	handler func(conn *webRTCConn, remoteAddr net.Addr),
+	handler func(conn *webRTCConn, remoteIP net.IP),
 ) (*webrtc.PeerConnection, error) {
 	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
@@ -504,7 +503,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			}
 		})
 
-		go handler(conn, conn.RemoteAddr())
+		go handler(conn, conn.RemoteIP())
 	})
 	// As of v3.0.0, pion-webrtc uses trickle ICE by default.
 	// We have to wait for candidate gathering to complete
