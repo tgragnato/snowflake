@@ -1,6 +1,6 @@
 module tgragnato.it/snowflake
 
-go 1.23.1
+go 1.23.6
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.1
@@ -21,12 +21,12 @@ require (
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
-	github.com/xtaci/kcp-go/v5 v5.6.9
+	github.com/xtaci/kcp-go/v5 v5.6.18
 	github.com/xtaci/smux v1.5.33
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.6.0
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil v0.0.0-20250130151315-efaf4e0ec0d3
-	golang.org/x/crypto v0.32.0
+	golang.org/x/crypto v0.33.0
 	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.30.0
 )
@@ -75,7 +75,7 @@ require (
 	github.com/templexxx/cpu v0.1.1 // indirect
 	github.com/templexxx/xorsimd v0.4.3 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	github.com/txthinking/runnergroup v0.0.0-20230325130830-408dc5853f86 // indirect
+	github.com/txthinking/runnergroup v0.0.0-20241229123329-7b873ad00768 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.10.1 // indirect
 	golang.org/x/mod v0.23.0 // indirect
@@ -86,4 +86,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/pion/dtls/v3 v3.0.4 => ./dtls
+replace (
+	github.com/pion/dtls/v3 v3.0.4 => ./dtls
+	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.10.1 => .
+)
