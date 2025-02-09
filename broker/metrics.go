@@ -45,6 +45,8 @@ type CountryStats struct {
 
 // Implements Observable
 type Metrics struct {
+	sync.Mutex
+
 	logger  *log.Logger
 	geoipdb *geoip.Geoip
 
@@ -61,9 +63,6 @@ type Metrics struct {
 	proxyPollWithRelayURLExtension         uint
 	proxyPollWithoutRelayURLExtension      uint
 	proxyPollRejectedWithRelayURLExtension uint
-
-	// synchronization for access to snowflake metrics
-	lock sync.Mutex
 
 	promMetrics *PromMetrics
 }
@@ -105,6 +104,9 @@ func (s CountryStats) Display() string {
 }
 
 func (m *Metrics) UpdateCountryStats(addr string, proxyType string, natType string) {
+	m.Lock()
+	defer m.Unlock()
+
 	var country string
 	var ok bool
 
@@ -148,6 +150,9 @@ func (m *Metrics) UpdateCountryStats(addr string, proxyType string, natType stri
 }
 
 func (m *Metrics) UpdateRendezvousStats(addr string, rendezvousMethod messages.RendezvousMethod, natType string, matched bool) {
+	m.Lock()
+	defer m.Unlock()
+
 	ip := net.ParseIP(addr)
 	country := "??"
 	if m.geoipdb != nil {
@@ -179,6 +184,24 @@ func (m *Metrics) UpdateRendezvousStats(addr string, rendezvousMethod messages.R
 	}).Inc()
 }
 
+func (m *Metrics) UpdateProxyPollStats(pollType string, natType string, proxyType string) {
+	m.Lock()
+	defer m.Unlock()
+
+	switch pollType {
+	case "without_relay_url_extension":
+		m.proxyPollWithoutRelayURLExtension++
+	case "with_relay_url_extension":
+		m.proxyPollWithRelayURLExtension++
+	case "rejected_relay_url_extension":
+		m.proxyPollRejectedWithRelayURLExtension++
+	case "idle":
+		m.proxyIdleCount++
+	}
+
+	m.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
+}
+
 func (m *Metrics) DisplayRendezvousStatsByCountry(rendezvoudMethod messages.RendezvousMethod) string {
 	output := ""
 
@@ -200,11 +223,9 @@ func (m *Metrics) DisplayRendezvousStatsByCountry(rendezvoudMethod messages.Rend
 	return output
 }
 
-func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) error {
-
-	// Load geoip databases
-	var err error
-	log.Println("Loading geoip databases")
+func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) (err error) {
+	m.Lock()
+	defer m.Unlock()
 	m.geoipdb, err = geoip.New(geoipDB, geoip6DB)
 	return err
 }
@@ -253,7 +274,7 @@ func (m *Metrics) logMetrics() {
 }
 
 func (m *Metrics) printMetrics() {
-	m.lock.Lock()
+	m.Lock()
 	m.logger.Println(
 		"snowflake-stats-end",
 		time.Now().UTC().Format("2006-01-02 15:04:05"),
@@ -286,7 +307,7 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("snowflake-ips-nat-restricted", len(m.countryStats.natRestricted))
 	m.logger.Println("snowflake-ips-nat-unrestricted", len(m.countryStats.natUnrestricted))
 	m.logger.Println("snowflake-ips-nat-unknown", len(m.countryStats.natUnknown))
-	m.lock.Unlock()
+	m.Unlock()
 }
 
 // Restores all metrics to original values
