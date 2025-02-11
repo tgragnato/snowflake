@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/constants"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
 )
 
 const (
-	ClientTimeout = 5 // this is calibrated to match the timeout of the CDNs we use for rendezvous
+	ClientTimeout = constants.BrokerClientTimeout
 	ProxyTimeout  = 10
 
 	NATUnknown      = "unknown"

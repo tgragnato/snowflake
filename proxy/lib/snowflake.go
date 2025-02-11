@@ -45,14 +45,13 @@ import (
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
 
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/constants"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/event"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/namematcher"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/task"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/websocketconn"
-
-	snowflakeClient "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/client/lib"
 )
 
 const (
@@ -540,11 +539,12 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 	}
 
 	// Wait for ICE candidate gathering to complete,
-	// or for whatever we managed to gather before the client times out.
+	// or for whatever we managed to gather before the broker
+	// responds with an error to the client offer.
 	// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40230
 	select {
 	case <-done:
-	case <-time.After(snowflakeClient.DataChannelTimeout / 2):
+	case <-time.After(constants.BrokerClientTimeout * time.Second * 3 / 4):
 		log.Print("ICE gathering is not yet complete, but let's send the answer" +
 			" before the client times out")
 	}
