@@ -520,9 +520,6 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 
 	log.Println("Generating answer...")
 	answer, err := pc.CreateAnswer(nil)
-	// blocks on ICE gathering. we need to add a timeout if needed
-	// not putting this in a separate go routine, because we need
-	// SetLocalDescription(answer) to be called before sendAnswer
 	if err != nil {
 		if inerr := pc.Close(); inerr != nil {
 			log.Printf("ICE gathering has generated an error when calling pc.Close: %v", inerr)
