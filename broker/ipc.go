@@ -214,7 +214,9 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
 		// Initial tracking of elapsed time.
+		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
+		i.ctx.metrics.lock.Unlock()
 	case <-time.After(time.Second * ClientTimeout):
 		log.Println("Client: Timed out.")
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
