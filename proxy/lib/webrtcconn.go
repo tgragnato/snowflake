@@ -113,13 +113,9 @@ func (c *webRTCConn) LocalAddr() net.Addr {
 	return nil
 }
 
-func (c *webRTCConn) RemoteAddr() net.Addr {
+func (c *webRTCConn) RemoteIP() net.IP {
 	//Parse Remote SDP offer and extract client IP
-	clientIP := remoteIPFromSDP(c.pc.RemoteDescription().SDP)
-	if clientIP == nil {
-		return nil
-	}
-	return &net.IPAddr{IP: clientIP, Zone: ""}
+	return remoteIPFromSDP(c.pc.RemoteDescription().SDP)
 }
 
 func (c *webRTCConn) SetDeadline(t time.Time) error {

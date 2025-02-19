@@ -9,11 +9,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"tgragnato.it/snowflake/common/bridgefingerprint"
+	"tgragnato.it/snowflake/common/constants"
 	"tgragnato.it/snowflake/common/messages"
 )
 
 const (
-	ClientTimeout = 5 // this is calibrated to match the timeout of the CDNs we use for rendezvous
+	ClientTimeout = constants.BrokerClientTimeout
 	ProxyTimeout  = 10
 
 	NATUnknown      = "unknown"

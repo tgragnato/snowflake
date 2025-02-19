@@ -37,6 +37,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -46,13 +47,12 @@ import (
 	"github.com/pion/ice/v4"
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
+	"tgragnato.it/snowflake/common/constants"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/namematcher"
 	"tgragnato.it/snowflake/common/task"
 	"tgragnato.it/snowflake/common/util"
-
-	snowflakeClient "tgragnato.it/snowflake/client/lib"
 )
 
 const (
@@ -86,6 +86,7 @@ var (
 	currentNATTypeAccess = &sync.RWMutex{}
 	tokens               uint64
 	config               webrtc.Configuration
+	client               http.Client
 	customtransport      = &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   5 * time.Minute,
@@ -132,6 +133,10 @@ func setCurrentNATType(newType string) {
 	currentNATTypeAccess.Lock()
 	defer currentNATTypeAccess.Unlock()
 	currentNATType = newType
+}
+
+type GeoIP interface {
+	GetCountryByAddr(net.IP) (string, bool)
 }
 
 // SnowflakeProxy is used to configure an embedded
@@ -188,6 +193,9 @@ type SnowflakeProxy struct {
 
 	// SummaryInterval is the time interval at which proxy stats will be logged
 	SummaryInterval time.Duration
+
+	// GeoIP will be used to detect the country of the clients if provided
+	GeoIP GeoIP
 
 	periodicProxyStats *periodicProxyStats
 	bytesLogger        bytesLogger
@@ -366,7 +374,7 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 // conn.RemoteAddr() inside this function, as a workaround for a hang that
 // otherwise occurs inside conn.pc.RemoteDescription() (called by RemoteAddr).
 // https://bugs.torproject.org/18628#comment:8
-func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr, relayURL string) {
+func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteIP net.IP, relayURL string) {
 	atomic.AddUint64(&tokens, 1)
 	defer atomic.AddUint64(&tokens, ^uint64(0))
 	defer conn.Close()
@@ -375,7 +383,7 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 		relayURL = sf.RelayURL
 	}
 
-	wsConn, err := connectToRelay(relayURL, remoteAddr)
+	wsConn, err := connectToRelay(relayURL, remoteIP)
 	if err != nil {
 		log.Print(err)
 		return
@@ -386,17 +394,16 @@ func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteAddr net.Ad
 	log.Printf("datachannelHandler ends")
 }
 
-func connectToRelay(relayURL string, remoteAddr net.Addr) (net.Conn, error) {
+func connectToRelay(relayURL string, remoteIP net.IP) (net.Conn, error) {
 	u, err := url.Parse(relayURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid relay url: %s", err)
 	}
 
-	if remoteAddr != nil {
+	if remoteIP != nil {
 		// Encode client IP address in relay URL
 		q := u.Query()
-		clientIP := remoteAddr.String()
-		q.Set("client_ip", clientIP)
+		q.Set("client_ip", remoteIP.String())
 		u.RawQuery = q.Encode()
 	} else {
 		log.Printf("no remote address given in websocket")
@@ -417,8 +424,8 @@ type dataChannelHandlerWithRelayURL struct {
 	sf       *SnowflakeProxy
 }
 
-func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, remoteAddr net.Addr) {
-	d.sf.datachannelHandler(conn, remoteAddr, d.RelayURL)
+func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, remoteIP net.IP) {
+	d.sf.datachannelHandler(conn, remoteIP, d.RelayURL)
 }
 
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
@@ -469,7 +476,7 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 	sdp *webrtc.SessionDescription,
 	config webrtc.Configuration, dataChan chan struct{},
-	handler func(conn *webRTCConn, remoteAddr net.Addr),
+	handler func(conn *webRTCConn, remoteIP net.IP),
 ) (*webrtc.PeerConnection, error) {
 	api := sf.makeWebRTCAPI()
 	pc, err := api.NewPeerConnection(config)
@@ -483,6 +490,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 
 		pr, pw := io.Pipe()
 		conn := newWebRTCConn(pc, dc, pr, sf.bytesLogger)
+		remoteIP := conn.RemoteIP()
 
 		dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 
@@ -513,7 +521,13 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
-			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{})
+
+			country := ""
+			if sf.GeoIP != nil && !reflect.ValueOf(sf.GeoIP).IsNil() && remoteIP != nil {
+				country, _ = sf.GeoIP.GetCountryByAddr(remoteIP)
+			}
+			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{Country: country})
+
 			conn.dc = nil
 			dc.Close()
 			pw.Close()
@@ -537,7 +551,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			}
 		})
 
-		go handler(conn, conn.RemoteAddr())
+		go handler(conn, remoteIP)
 	})
 	// As of v3.0.0, pion-webrtc uses trickle ICE by default.
 	// We have to wait for candidate gathering to complete
@@ -553,9 +567,6 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 
 	log.Println("Generating answer...")
 	answer, err := pc.CreateAnswer(nil)
-	// blocks on ICE gathering. we need to add a timeout if needed
-	// not putting this in a separate go routine, because we need
-	// SetLocalDescription(answer) to be called before sendAnswer
 	if err != nil {
 		if inerr := pc.Close(); inerr != nil {
 			log.Printf("ICE gathering has generated an error when calling pc.Close: %v", inerr)
@@ -572,11 +583,12 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 	}
 
 	// Wait for ICE candidate gathering to complete,
-	// or for whatever we managed to gather before the client times out.
+	// or for whatever we managed to gather before the broker
+	// responds with an error to the client offer.
 	// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40230
 	select {
 	case <-done:
-	case <-time.After(snowflakeClient.DataChannelTimeout / 2):
+	case <-time.After(constants.BrokerClientTimeout * time.Second * 3 / 4):
 		log.Print("ICE gathering is not yet complete, but let's send the answer" +
 			" before the client times out")
 	}
@@ -613,7 +625,19 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 	})
 	dc.OnClose(func() {
 		log.Println("WebRTC: DataChannel.OnClose")
-		dc.Close()
+		go func() {
+			// A hack to make NAT testing more reliable and not mis-identify
+			// as "restricted".
+			// See https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40419#note_3141855.
+			// Instead we should just `dc.Close()` without waiting
+			// and without a goroutine.
+			// (or, perhaps, `dc.Close()` is not needed at all
+			// in the OnClose callback?)
+			<-time.After(5 * time.Second)
+
+			log.Print("NAT check: WebRTC: dc.Close()")
+			dc.Close()
+		}()
 	})
 
 	offer, err := pc.CreateOffer(nil)
