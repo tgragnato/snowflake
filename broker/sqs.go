@@ -213,7 +213,7 @@ func newSQSHandler(context context.Context, client sqsclient.SQSClient, sqsQueue
 
 func (r *sqsHandler) PollAndHandleMessages(ctx context.Context) {
 	log.Println("SQSHandler: Starting to poll for messages at: " + *r.SQSQueueURL)
-	messagesChn := make(chan *types.Message, 2)
+	messagesChn := make(chan *types.Message, 20)
 	go r.pollMessages(ctx, messagesChn)
 	go r.cleanupClientQueues(ctx)
 
@@ -223,8 +223,10 @@ func (r *sqsHandler) PollAndHandleMessages(ctx context.Context) {
 			// if context is cancelled
 			return
 		default:
-			r.handleMessage(ctx, message)
-			r.deleteMessage(ctx, message)
+			go func(msg *types.Message) {
+				r.handleMessage(ctx, msg)
+				r.deleteMessage(ctx, msg)
+			}(message)
 		}
 	}
 }
