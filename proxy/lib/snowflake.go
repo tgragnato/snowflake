@@ -86,7 +86,6 @@ var (
 	currentNATTypeAccess = &sync.RWMutex{}
 	tokens               uint64
 	config               webrtc.Configuration
-	client               http.Client
 	customtransport      = &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   5 * time.Minute,
