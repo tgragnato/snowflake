@@ -1,6 +1,6 @@
 module github.com/pion/dtls/v3
 
-go 1.23.1
+go 1.24.0
 
 require (
 	github.com/pion/logging v0.2.3
