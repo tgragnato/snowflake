@@ -42,11 +42,14 @@ func (p *proxyEventLogger) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 }
 
 type periodicProxyStats struct {
-	bytesLogger     bytesLogger
+	bytesLogger bytesLogger
+	// Completed successful connections.
 	connectionCount int
-	logPeriod       time.Duration
-	task            *task.Periodic
-	dispatcher      event.SnowflakeEventDispatcher
+	// Connections that failed to establish.
+	failedConnectionCount uint
+	logPeriod             time.Duration
+	task                  *task.Periodic
+	dispatcher            event.SnowflakeEventDispatcher
 }
 
 func newPeriodicProxyStats(logPeriod time.Duration, dispatcher event.SnowflakeEventDispatcher, bytesLogger bytesLogger) *periodicProxyStats {
@@ -60,19 +63,23 @@ func (p *periodicProxyStats) OnNewSnowflakeEvent(e event.SnowflakeEvent) {
 	switch e.(type) {
 	case event.EventOnProxyConnectionOver:
 		p.connectionCount += 1
+	case event.EventOnProxyConnectionFailed:
+		p.failedConnectionCount += 1
 	}
 }
 
 func (p *periodicProxyStats) logTick() error {
 	inboundSum, outboundSum := p.bytesLogger.GetStat()
 	e := event.EventOnProxyStats{
-		SummaryInterval: p.logPeriod,
-		ConnectionCount: p.connectionCount,
+		SummaryInterval:       p.logPeriod,
+		ConnectionCount:       p.connectionCount,
+		FailedConnectionCount: p.failedConnectionCount,
 	}
 	e.InboundBytes, e.InboundUnit = formatTraffic(inboundSum)
 	e.OutboundBytes, e.OutboundUnit = formatTraffic(outboundSum)
 	p.dispatcher.OnNewSnowflakeEvent(e)
 	p.connectionCount = 0
+	p.failedConnectionCount = 0
 	return nil
 }
 

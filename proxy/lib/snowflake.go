@@ -682,6 +682,9 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 		connectedToClient = true
 	case <-time.After(dataChannelTimeout):
 		log.Println("Timed out waiting for client to open data channel.")
+		sf.EventDispatcher.OnNewSnowflakeEvent(
+			event.EventOnProxyConnectionFailed{},
+		)
 		if err := pc.Close(); err != nil {
 			log.Printf("error calling pc.Close: %v", err)
 		}
