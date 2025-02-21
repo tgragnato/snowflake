@@ -140,8 +140,8 @@ func TestSQS(t *testing.T) {
 					mockSQSClient.EXPECT().ReceiveMessage(sqsHandlerContext, &sqsReceiveMessageInput).AnyTimes().DoAndReturn(
 						func(ctx context.Context, input *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
 
+							snowflake := ipcCtx.AddSnowflake("fake", "", NATUnrestricted, 0)
 							go func(c C) {
-								snowflake := ipcCtx.AddSnowflake("fake", "", NATUnrestricted, 0)
 								<-snowflake.offerChannel
 								snowflake.answerChannel <- "fake answer"
 							}(c)
