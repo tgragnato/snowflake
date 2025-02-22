@@ -136,30 +136,33 @@ func TestSQS(t *testing.T) {
 
 				Convey("and responds with a proxy answer if available.", func(c C) {
 					sqsHandlerContext, sqsCancelFunc := context.WithCancel(context.Background())
+					var numTimes atomic.Uint32
 
 					mockSQSClient.EXPECT().ReceiveMessage(sqsHandlerContext, &sqsReceiveMessageInput).AnyTimes().DoAndReturn(
 						func(ctx context.Context, input *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
 
-							snowflake := ipcCtx.AddSnowflake("fake", "", NATUnrestricted, 0)
-							go func(c C) {
-								<-snowflake.offerChannel
-								snowflake.answerChannel <- "fake answer"
-							}(c)
-							return validMessage, nil
+							n := numTimes.Add(1)
+							if n == 1 {
+								snowflake := ipcCtx.AddSnowflake("fake", "", NATUnrestricted, 0)
+								go func(c C) {
+									<-snowflake.offerChannel
+									snowflake.answerChannel <- "fake answer"
+								}(c)
+								return validMessage, nil
+							}
+							return nil, errors.New("error")
+
 						})
 					mockSQSClient.EXPECT().CreateQueue(sqsHandlerContext, &sqsCreateQueueInput).Return(&sqs.CreateQueueOutput{
 						QueueUrl: responseQueueURL,
 					}, nil).AnyTimes()
 					mockSQSClient.EXPECT().DeleteMessage(gomock.Any(), gomock.Any()).AnyTimes()
-					var numTimes atomic.Uint32
-					mockSQSClient.EXPECT().SendMessage(sqsHandlerContext, gomock.Any()).MinTimes(1).DoAndReturn(
+					mockSQSClient.EXPECT().SendMessage(sqsHandlerContext, gomock.Any()).Times(1).DoAndReturn(
 						func(ctx context.Context, input *sqs.SendMessageInput, optFns ...func(*sqs.Options)) (*sqs.SendMessageOutput, error) {
-							n := numTimes.Add(1)
-							if n == 1 {
-								c.So(input.MessageBody, ShouldEqual, aws.String("{\"answer\":\"fake answer\"}"))
-								// Ensure that match is correctly recorded in metrics
-								ipcCtx.metrics.printMetrics()
-								c.So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+							c.So(input.MessageBody, ShouldEqual, aws.String("{\"answer\":\"fake answer\"}"))
+							// Ensure that match is correctly recorded in metrics
+							ipcCtx.metrics.printMetrics()
+							c.So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
@@ -170,8 +173,7 @@ client-ampcache-ips
 client-sqs-count 8
 client-sqs-ips ??=8
 `)
-								sqsCancelFunc()
-							}
+							sqsCancelFunc()
 							return &sqs.SendMessageOutput{}, nil
 						},
 					)
