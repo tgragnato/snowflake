@@ -11,7 +11,7 @@ updates:
       - "dependencies"
       - "go"
     commit-message:
-      prefix: "chore"
+      prefix: "build"
       include: "scope"
 
   - package-ecosystem: "gomod"
@@ -26,7 +26,7 @@ updates:
       - "go"
       - "dtls"
     commit-message:
-      prefix: "chore"
+      prefix: "build"
       include: "scope"
 
   - package-ecosystem: "github-actions"
@@ -37,5 +37,16 @@ updates:
       - "dependencies"
       - "github-actions"
     commit-message:
-      prefix: "chore"
+      prefix: "ci"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "ci"
       include: "scope"
