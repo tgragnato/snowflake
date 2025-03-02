@@ -224,7 +224,6 @@ func main() {
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
 	flag.Parse()
 
-	var err error
 	var metricsFile io.Writer
 	var logOutput io.Writer = os.Stderr
 	if unsafeLogging {
@@ -237,6 +236,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
 	if metricsFilename != "" {
+		var err error
 		metricsFile, err = os.OpenFile(metricsFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 		if err != nil {
@@ -262,7 +262,7 @@ func main() {
 	}
 
 	if !disableGeoip {
-		err = ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database)
+		err := ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
@@ -313,7 +313,7 @@ func main() {
 		for {
 			signal := <-sigChan
 			log.Printf("Received signal: %s. Reloading geoip databases.", signal)
-			if err = ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database); err != nil {
+			if err := ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database); err != nil {
 				log.Fatalf("reload of Geo IP databases on signal %s returned error: %v", signal, err)
 			}
 		}
@@ -326,12 +326,13 @@ func main() {
 	//   --disable-tls
 	// The outputs of this block of code are the disableTLS,
 	// needHTTP01Listener, certManager, and getCertificate variables.
+	var err error
 	if acmeHostnamesCommas != "" {
 		acmeHostnames := strings.Split(acmeHostnamesCommas, ",")
 		log.Printf("ACME hostnames: %q", acmeHostnames)
 
 		var cache autocert.Cache
-		if err = os.MkdirAll(acmeCertCacheDir, 0700); err != nil {
+		if err := os.MkdirAll(acmeCertCacheDir, 0700); err != nil {
 			log.Printf("Warning: Couldn't create cache directory %q (reason: %s) so we're *not* using our certificate cache.", acmeCertCacheDir, err)
 		} else {
 			cache = autocert.DirCache(acmeCertCacheDir)

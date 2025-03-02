@@ -504,8 +504,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			pw.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var n int
-			n, err = pw.Write(msg.Data)
+			n, err := pw.Write(msg.Data)
 			if err != nil {
 				if inErr := pw.CloseWithError(err); inErr != nil {
 					log.Printf("close with error generated an error: %v", inErr)
