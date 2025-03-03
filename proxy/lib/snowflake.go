@@ -485,6 +485,10 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			}
 		})
 		dc.OnClose(func() {
+			// Make sure that the `Write()`s are not blocked any more.
+			dc.OnBufferedAmountLow(func() {})
+			close(conn.sendMoreCh)
+
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
