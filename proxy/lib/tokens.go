@@ -7,7 +7,7 @@ import (
 type tokens_t struct {
 	ch       chan struct{}
 	capacity uint
-	clients  int64
+	clients  atomic.Int64
 }
 
 func newTokens(capacity uint) *tokens_t {
@@ -19,12 +19,12 @@ func newTokens(capacity uint) *tokens_t {
 	return &tokens_t{
 		ch:       ch,
 		capacity: capacity,
-		clients:  0,
+		clients:  atomic.Int64{},
 	}
 }
 
 func (t *tokens_t) get() {
-	atomic.AddInt64(&t.clients, 1)
+	t.clients.Add(1)
 
 	if t.capacity != 0 {
 		t.ch <- struct{}{}
@@ -32,13 +32,13 @@ func (t *tokens_t) get() {
 }
 
 func (t *tokens_t) ret() {
-	atomic.AddInt64(&t.clients, -1)
+	t.clients.Add(-1)
 
 	if t.capacity != 0 {
 		<-t.ch
 	}
 }
 
-func (t tokens_t) count() int64 {
-	return atomic.LoadInt64(&t.clients)
+func (t *tokens_t) count() int64 {
+	return t.clients.Load()
 }
