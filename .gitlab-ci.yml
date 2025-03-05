@@ -176,7 +176,7 @@ debian-testing:
 shadow-integration:
   image: ${DOCKER_REGISTRY_URL}/golang:1.22-$DEBIAN_STABLE
   variables:
-    SHADOW_VERSION: "193924aae0dab30ffda0abe29467f552949849fa"
+    SHADOW_VERSION: "27d0bcf2cf1c7f0d403b6ad3efd575e45ae93126"
     TGEN_VERSION: "v1.1.2"
   cache:
     - key: sf-integration-shadow-$SHADOW_VERSION
