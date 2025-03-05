@@ -711,7 +711,13 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	}
 }
 
-// Returns nil if the relayURL is acceptable
+// Returns nil if the relayURL is acceptable.
+// This is a pure function.
+// If the hostname in the `relayURL` is not an IP address
+// (but a name instead, e.g. `localhost`),
+// this function will _not_ perform a DNS request to figure out
+// if the name resolves to a private IP address,
+// i.e. the private / public check will effectively be skipped.
 func checkIsRelayURLAcceptable(
 	allowedHostNamePattern string,
 	allowPrivateIPs bool,

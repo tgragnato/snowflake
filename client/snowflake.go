@@ -59,7 +59,8 @@ func copyLoop(socks, sfconn io.ReadWriter) {
 }
 
 // Accept local SOCKS connections and connect to a Snowflake connection
-func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan struct{}, wg *sync.WaitGroup) {
+func socksAcceptLoop(ln *pt.SocksListener, baseConfig sf.ClientConfig,
+	shutdown chan struct{}, wg *sync.WaitGroup) {
 	defer ln.Close()
 	for {
 		conn, err := ln.AcceptSocks()
@@ -73,6 +74,7 @@ func socksAcceptLoop(ln *pt.SocksListener, config sf.ClientConfig, shutdown chan
 			defer wg.Done()
 			defer conn.Close()
 
+			config := baseConfig
 			// Check to see if our command line options are overriden by SOCKS options
 			if arg, ok := conn.Req.Args.Get("ampcache"); ok {
 				config.AmpCacheURL = arg
