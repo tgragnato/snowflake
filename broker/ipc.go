@@ -199,7 +199,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		snowflake.offerChannel <- offer
 	} else {
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, false)
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
@@ -209,7 +209,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	select {
 	case answer := <-snowflake.answerChannel:
 		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, true)
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
 		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
@@ -218,7 +218,9 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
 		i.ctx.metrics.lock.Unlock()
 	case <-time.After(time.Second * ClientTimeout):
-		log.Println("Client: Timed out.")
+		i.ctx.metrics.lock.Lock()
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
+		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
 		err = sendClientResponse(resp, response)
 	}
@@ -261,7 +263,6 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 		// The snowflake took too long to respond with an answer, so its client
 		// disappeared / the snowflake is no longer recognized by the Broker.
 		success = false
-		log.Printf("Warning: matching with snowflake client failed")
 	}
 
 	b, err := messages.EncodeAnswerResponse(success)

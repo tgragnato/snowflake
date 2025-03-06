@@ -148,6 +148,7 @@ func TestBroker(t *testing.T) {
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
+client-snowflake-timeout-count 0
 client-http-count 8
 client-http-ips ??=8
 client-ampcache-count 0
@@ -178,6 +179,7 @@ client-sqs-ips
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
+client-snowflake-timeout-count 0
 client-http-count 8
 client-http-ips ??=8
 client-ampcache-count 0
@@ -249,6 +251,7 @@ client-sqs-ips
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
+client-snowflake-timeout-count 0
 client-http-count 8
 client-http-ips ??=8
 client-ampcache-count 0
@@ -279,6 +282,7 @@ client-sqs-ips
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
+client-snowflake-timeout-count 0
 client-http-count 8
 client-http-ips ??=8
 client-ampcache-count 0
@@ -335,6 +339,7 @@ client-sqs-ips
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
+client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 8
@@ -367,6 +372,7 @@ client-sqs-ips
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
+client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 8
@@ -729,6 +735,7 @@ client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
+client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 0
@@ -757,6 +764,7 @@ snowflake-ips-nat-unknown 1
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
+client-snowflake-timeout-count 0
 client-http-count 8
 client-http-ips CA=8
 client-ampcache-count 0
@@ -781,6 +789,7 @@ client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 0
+client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 0

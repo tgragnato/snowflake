@@ -166,6 +166,7 @@ func TestSQS(t *testing.T) {
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
+client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 0
