@@ -5,6 +5,6 @@ go 1.24.0
 require (
 	github.com/pion/logging v0.2.3
 	github.com/pion/transport/v3 v3.0.7
-	golang.org/x/crypto v0.35.0
-	golang.org/x/net v0.36.0
+	golang.org/x/crypto v0.36.0
+	golang.org/x/net v0.37.0
 )
