@@ -1,8 +1,6 @@
 # Snowflake
 
-[![Build Status](https://travis-ci.org/keroserene/snowflake.svg?branch=master)](https://travis-ci.org/keroserene/snowflake)
-
-Pluggable Transport using WebRTC, inspired by Flashproxy.
+Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by Flashproxy.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -55,8 +53,7 @@ There is a Docker-based test environment at https://github.com/cohosh/snowbox.
 
 In the Tor use-case:
 
-1. Volunteers visit websites which host the "snowflake" proxy. (just
-like flashproxy)
+1. Volunteers visit websites that host the 'snowflake' proxy, run a snowflake [web extension](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake-webext), or use a standalone proxy.
 2. Tor clients automatically find available browser proxies via the Broker
 (the domain fronted signaling channel).
 3. Tor client and browser proxy establish a WebRTC peer connection.
