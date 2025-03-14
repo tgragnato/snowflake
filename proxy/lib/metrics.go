@@ -30,8 +30,8 @@ func NewMetrics() *Metrics {
 		),
 		totalFailedConnections: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: metricNamespace,
-			Name:      "failed_connections_total",
-			Help:      "The total number of client connection attempts that failed after successful rendezvous",
+			Name:      "connection_timeouts_total",
+			Help:      "The total number of client connection attempts that failed after successful rendezvous. Note that failures can occur for reasons outside of the proxy's control, such as the client's NAT and censorship situation.",
 		}),
 		totalInBoundTraffic: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: metricNamespace,
