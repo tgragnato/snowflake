@@ -13,8 +13,8 @@ stages:
 
 variables:
   DEBIAN_FRONTEND: noninteractive
-  DEBIAN_OLD_STABLE: buster
-  DEBIAN_STABLE: bullseye
+  DEBIAN_OLD_STABLE: bullseye
+  DEBIAN_STABLE: bookworm
   REPRODUCIBLE_FLAGS: -trimpath -ldflags=-buildid=
   # Don't fail pulling images if dependency_proxy.yml is not included
   DOCKER_REGISTRY_URL: "docker.io"
@@ -102,7 +102,7 @@ variables:
 # -- jobs ------------------------------------------------------------
 
 android:
-  image: ${DOCKER_REGISTRY_URL}/golang:1.23-$DEBIAN_STABLE
+  image: ${DOCKER_REGISTRY_URL}/golang:1.23-$DEBIAN_OLD_STABLE
   variables:
     ANDROID_HOME: /usr/lib/android-sdk
     LANG: C.UTF-8
