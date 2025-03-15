@@ -152,8 +152,8 @@ android:
     - go get golang.org/x/mobile/bind
     - gomobile bind -v -target=android $REPRODUCIBLE_FLAGS .
 
-go-1.21:
-  image: ${DOCKER_REGISTRY_URL}/golang:1.21-$DEBIAN_STABLE
+go-1.22:
+  image: ${DOCKER_REGISTRY_URL}/golang:1.22-$DEBIAN_STABLE
   <<: *golang-docker-debian-template
   <<: *test-template
   script:
@@ -174,7 +174,7 @@ debian-testing:
     - *go-test
 
 shadow-integration:
-  image: ${DOCKER_REGISTRY_URL}/golang:1.21-$DEBIAN_STABLE
+  image: ${DOCKER_REGISTRY_URL}/golang:1.22-$DEBIAN_STABLE
   variables:
     SHADOW_VERSION: "193924aae0dab30ffda0abe29467f552949849fa"
     TGEN_VERSION: "v1.1.2"
@@ -263,7 +263,7 @@ shadow-integration:
 
 generate_tarball:
   stage: deploy
-  image: ${DOCKER_REGISTRY_URL}/golang:1.21-$DEBIAN_STABLE
+  image: ${DOCKER_REGISTRY_URL}/golang:1.22-$DEBIAN_STABLE
   rules:
     - if: $CI_COMMIT_TAG
   script:
