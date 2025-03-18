@@ -44,9 +44,8 @@ type BrokerContext struct {
 	proxyPolls    chan *ProxyPoll
 	metrics       *Metrics
 
-	bridgeList                     BridgeListHolderFileBased
-	allowedRelayPattern            string
-	presumedPatternForLegacyClient string
+	bridgeList          BridgeListHolderFileBased
+	allowedRelayPattern string
 }
 
 func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprint) (BridgeInfo, error) {
@@ -55,8 +54,7 @@ func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprin
 
 func NewBrokerContext(
 	metricsLogger *log.Logger,
-	allowedRelayPattern,
-	presumedPatternForLegacyClient string,
+	allowedRelayPattern string,
 ) *BrokerContext {
 	snowflakes := new(SnowflakeHeap)
 	heap.Init(snowflakes)
@@ -79,14 +77,13 @@ func NewBrokerContext(
 	bridgeListHolder.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges)))
 
 	return &BrokerContext{
-		snowflakes:                     snowflakes,
-		restrictedSnowflakes:           rSnowflakes,
-		idToSnowflake:                  make(map[string]*Snowflake),
-		proxyPolls:                     make(chan *ProxyPoll),
-		metrics:                        metrics,
-		bridgeList:                     bridgeListHolder,
-		allowedRelayPattern:            allowedRelayPattern,
-		presumedPatternForLegacyClient: presumedPatternForLegacyClient,
+		snowflakes:           snowflakes,
+		restrictedSnowflakes: rSnowflakes,
+		idToSnowflake:        make(map[string]*Snowflake),
+		proxyPolls:           make(chan *ProxyPoll),
+		metrics:              metrics,
+		bridgeList:           bridgeListHolder,
+		allowedRelayPattern:  allowedRelayPattern,
 	}
 }
 
@@ -176,7 +173,7 @@ func (ctx *BrokerContext) InstallBridgeListProfile(reader io.Reader) error {
 
 func (ctx *BrokerContext) CheckProxyRelayPattern(pattern string, nonSupported bool) bool {
 	if nonSupported {
-		pattern = ctx.presumedPatternForLegacyClient
+		return false
 	}
 	proxyPattern := namematcher.NewNameMatcher(pattern)
 	brokerPattern := namematcher.NewNameMatcher(ctx.allowedRelayPattern)
@@ -197,7 +194,7 @@ func main() {
 	var addr string
 	var geoipDatabase string
 	var geoip6Database string
-	var bridgeListFilePath, allowedRelayPattern, presumedPatternForLegacyClient string
+	var bridgeListFilePath, allowedRelayPattern string
 	var brokerSQSQueueName, brokerSQSQueueRegion string
 	var disableTLS bool
 	var certFilename, keyFilename string
@@ -215,7 +212,6 @@ func main() {
 	flag.StringVar(&geoip6Database, "geoip6db", "/usr/share/tor/geoip6", "path to correctly formatted geoip database mapping IPv6 address ranges to country codes")
 	flag.StringVar(&bridgeListFilePath, "bridge-list-path", "", "file path for bridgeListFile")
 	flag.StringVar(&allowedRelayPattern, "allowed-relay-pattern", "", "allowed pattern for relay host name. The broker will reject proxies whose AcceptedRelayPattern is more restrictive than this")
-	flag.StringVar(&presumedPatternForLegacyClient, "default-relay-pattern", "", "presumed pattern for legacy client")
 	flag.StringVar(&brokerSQSQueueName, "broker-sqs-name", "", "name of broker SQS queue to listen for incoming messages on")
 	flag.StringVar(&brokerSQSQueueRegion, "broker-sqs-region", "", "name of AWS region of broker SQS queue")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
@@ -248,7 +244,7 @@ func main() {
 
 	metricsLogger := log.New(metricsFile, "", 0)
 
-	ctx := NewBrokerContext(metricsLogger, allowedRelayPattern, presumedPatternForLegacyClient)
+	ctx := NewBrokerContext(metricsLogger, allowedRelayPattern)
 
 	if bridgeListFilePath != "" {
 		bridgeListFile, err := os.Open(bridgeListFilePath)

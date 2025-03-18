@@ -89,7 +89,7 @@ func TestBroker(t *testing.T) {
 
 	Convey("Context", t, func() {
 		buf := new(bytes.Buffer)
-		ctx := NewBrokerContext(log.New(buf, "", 0), "", "")
+		ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
 		i := &IPC{ctx}
 
 		Convey("Adds Snowflake", func() {
@@ -407,7 +407,7 @@ client-sqs-ips
 		Convey("Responds to proxy polls...", func() {
 			done := make(chan bool)
 			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
+			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0", "AcceptedRelayPattern": "snowflake.torproject.net"}`))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
 			So(err, ShouldBeNil)
 
@@ -493,7 +493,7 @@ client-sqs-ips
 	})
 
 	Convey("End-To-End", t, func() {
-		ctx := NewBrokerContext(NullLogger(), "", "")
+		ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
 		i := &IPC{ctx}
 
 		Convey("Check for client/proxy data race", func() {
@@ -504,7 +504,7 @@ client-sqs-ips
 
 			// Make proxy poll
 			wp := httptest.NewRecorder()
-			datap := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
+			datap := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
 			So(err, ShouldBeNil)
 
@@ -549,7 +549,7 @@ client-sqs-ips
 			polled := make(chan bool)
 
 			// Proxy polls with its ID first...
-			dataP := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
+			dataP := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			wP := httptest.NewRecorder()
 			rP, err := http.NewRequest("POST", "snowflake.broker/proxy", dataP)
 			So(err, ShouldBeNil)
@@ -646,7 +646,7 @@ func TestSnowflakeHeap(t *testing.T) {
 func TestInvalidGeoipFile(t *testing.T) {
 	Convey("Geoip", t, func() {
 		// Make sure things behave properly if geoip file fails to load
-		ctx := NewBrokerContext(NullLogger(), "", "")
+		ctx := NewBrokerContext(NullLogger(), "")
 		if err := ctx.metrics.LoadGeoipDatabases("invalid_filename", "invalid_filename6"); err != nil {
 			log.Printf("loading geo ip databases returned error: %v", err)
 		}
@@ -660,7 +660,7 @@ func TestMetrics(t *testing.T) {
 	Convey("Test metrics...", t, func() {
 		done := make(chan bool)
 		buf := new(bytes.Buffer)
-		ctx := NewBrokerContext(log.New(buf, "", 0), "", "")
+		ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
 		i := &IPC{ctx}
 
 		err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
@@ -669,7 +669,7 @@ func TestMetrics(t *testing.T) {
 		//Test addition of proxy polls
 		Convey("for proxy polls", func() {
 			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\"}"))
+			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
 			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
@@ -682,7 +682,7 @@ func TestMetrics(t *testing.T) {
 			<-done
 
 			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"standalone"}`))
+			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"standalone","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
 			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
@@ -695,7 +695,7 @@ func TestMetrics(t *testing.T) {
 			<-done
 
 			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"badge"}`))
+			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"badge","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
 			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
@@ -708,7 +708,7 @@ func TestMetrics(t *testing.T) {
 			<-done
 
 			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"webext"}`))
+			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"webext","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
 			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
@@ -728,8 +728,8 @@ func TestMetrics(t *testing.T) {
 			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-webext 1\n")
 			So(metricsStr, ShouldEndWith, `snowflake-ips-total 4
 snowflake-idle-count 8
-snowflake-proxy-poll-with-relay-url-count 0
-snowflake-proxy-poll-without-relay-url-count 8
+snowflake-proxy-poll-with-relay-url-count 8
+snowflake-proxy-poll-without-relay-url-count 0
 snowflake-proxy-rejected-for-relay-url-count 0
 client-denied-count 0
 client-restricted-denied-count 0
@@ -899,7 +899,7 @@ snowflake-ips-nat-unknown 0
 		//Test unique ip
 		Convey("proxy counts by unique ip", func() {
 			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
+			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
 			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
@@ -911,7 +911,7 @@ snowflake-ips-nat-unknown 0
 			p.offerChannel <- nil
 			<-done
 
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
+			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
 			if err != nil {
 				log.Printf("unable to get NewRequest with error: %v", err)
@@ -933,7 +933,7 @@ snowflake-ips-nat-unknown 0
 		//Test NAT types
 		Convey("proxy counts by NAT type", func() {
 			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"restricted"}`))
+			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"restricted","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
 			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
 			So(err, ShouldBeNil)
@@ -948,7 +948,7 @@ snowflake-ips-nat-unknown 0
 			ctx.metrics.printMetrics()
 			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 0\nsnowflake-ips-nat-unknown 0")
 
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"unrestricted"}`))
+			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"unrestricted","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
 			if err != nil {
 				log.Printf("unable to get NewRequest with error: %v", err)

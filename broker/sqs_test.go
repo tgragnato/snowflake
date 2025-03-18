@@ -23,7 +23,7 @@ func TestSQS(t *testing.T) {
 
 	Convey("Context", t, func() {
 		buf := new(bytes.Buffer)
-		ipcCtx := NewBrokerContext(log.New(buf, "", 0), "", "")
+		ipcCtx := NewBrokerContext(log.New(buf, "", 0), "")
 		i := &IPC{ipcCtx}
 
 		Convey("Responds to SQS client offers...", func() {
