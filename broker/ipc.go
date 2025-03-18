@@ -217,7 +217,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
 		i.ctx.metrics.lock.Unlock()
-	case <-time.After(time.Second * ClientTimeout):
+	case <-arg.Context.Done():
 		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
 		i.ctx.metrics.lock.Unlock()

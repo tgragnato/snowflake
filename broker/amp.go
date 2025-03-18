@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/amp"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
@@ -16,6 +18,9 @@ import (
 // HTTP request body (because an AMP cache does not support POST), and the
 // encoded client poll response is sent back as AMP-armored HTML.
 func ampClientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), ClientTimeout*time.Second)
+	defer cancel()
+
 	// The encoded client poll message immediately follows the /amp/client/
 	// path prefix, so this function unfortunately needs to be aware of and
 	// remote its own routing prefix.
@@ -38,6 +43,7 @@ func ampClientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 			Body:             encPollReq,
 			RemoteAddr:       util.GetClientIp(r),
 			RendezvousMethod: messages.RendezvousAmpCache,
+			Context:          ctx,
 		}
 		err = i.ClientOffers(arg, &response)
 	} else {

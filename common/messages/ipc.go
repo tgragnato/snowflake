@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"context"
 	"errors"
 )
 
@@ -16,6 +17,7 @@ type Arg struct {
 	Body             []byte
 	RemoteAddr       string
 	RendezvousMethod RendezvousMethod
+	Context          context.Context
 }
 
 var (
