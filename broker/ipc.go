@@ -91,7 +91,6 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		i.ctx.metrics.promMetrics.ProxyPollRejectedForRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
 		i.ctx.metrics.lock.Unlock()
 
-		log.Printf("bad request: rejected relay pattern from proxy = %v", messages.ErrBadRequest)
 		b, err := messages.EncodePollResponseWithRelayURL("", false, "", "", "incorrect relay pattern")
 		*response = b
 		if err != nil {
