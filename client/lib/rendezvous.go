@@ -24,10 +24,9 @@ import (
 )
 
 const (
-	brokerErrorUnexpected string = "Unexpected error, no answer."
-	rendezvousErrorMsg    string = "One of SQS, AmpCache, or Domain Fronting rendezvous methods must be used."
-
-	readLimit = 100000 //Maximum number of bytes to be read from an HTTP response
+	brokerErrorUnexpected string = "Unexpected error, no answer"
+	rendezvousErrorMsg    string = "One of SQS, AmpCache, or Domain Fronting rendezvous methods must be used"
+	readLimit                    = 100000 //Maximum number of bytes to be read from an HTTP response
 )
 
 // RendezvousMethod represents a way of communicating with the broker: sending
