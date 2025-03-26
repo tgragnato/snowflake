@@ -119,7 +119,6 @@ func (r *sqsHandler) cleanupClientQueues(ctx context.Context) {
 
 				}
 			}
-			log.Printf("SQSHandler: finished running iteration of client queue cleanup. found and deleted %d client queues.\n", numDeleted)
 		}
 	}
 }

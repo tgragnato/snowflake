@@ -220,7 +220,6 @@ func proxyAnswers(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	err = validateSDP(body)
 	if err != nil {
-		log.Println("Error proxy SDP: ", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
