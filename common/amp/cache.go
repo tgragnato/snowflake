@@ -25,11 +25,11 @@ func domainPrefixBasic(domain string) (string, error) {
 
 	// 2. Replace any "-" (hyphen) character in the output of step 1 with
 	//    "--" (two hyphens).
-	prefix = strings.Replace(prefix, "-", "--", -1)
+	prefix = strings.ReplaceAll(prefix, "-", "--")
 
 	// 3. Replace any "." (dot) character in the output of step 2 with "-"
 	//    (hyphen).
-	prefix = strings.Replace(prefix, ".", "-", -1)
+	prefix = strings.ReplaceAll(prefix, ".", "-")
 
 	// 4. If the output of step 3 has a "-" (hyphen) at both positions 3 and
 	//    4, then to the output of step 3, add a prefix of "0-" and add a
