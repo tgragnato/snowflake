@@ -56,7 +56,7 @@ func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 
 	mapTestConn, err := connect(addrStr, proxy)
 	if err != nil {
-		return false, fmt.Errorf("Error creating STUN connection: %w", err)
+		return false, fmt.Errorf("error creating STUN connection: %w", err)
 	}
 
 	defer mapTestConn.Close()
@@ -66,12 +66,12 @@ func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 
 	resp, err := mapTestConn.RoundTrip(message, mapTestConn.PrimaryAddr)
 	if err != nil {
-		return false, fmt.Errorf("Error completing roundtrip map test: %w", err)
+		return false, fmt.Errorf("error completing roundtrip map test: %w", err)
 	}
 
 	// Decoding XOR-MAPPED-ADDRESS attribute from message.
 	if err = xorAddr1.GetFrom(resp); err != nil {
-		return false, fmt.Errorf("Error retrieving XOR-MAPPED-ADDRESS resonse: %w", err)
+		return false, fmt.Errorf("error retrieving XOR-MAPPED-ADDRESS resonse: %w", err)
 	}
 
 	// Decoding OTHER-ADDRESS attribute from message.
@@ -81,18 +81,18 @@ func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 	}
 
 	if err = mapTestConn.AddOtherAddr(otherAddr.String()); err != nil {
-		return false, fmt.Errorf("Error resolving address %s: %w", otherAddr.String(), err)
+		return false, fmt.Errorf("error resolving address %s: %w", otherAddr.String(), err)
 	}
 
 	// Test II: Send binding request to other address
 	resp, err = mapTestConn.RoundTrip(message, mapTestConn.OtherAddr)
 	if err != nil {
-		return false, fmt.Errorf("Error retrieveing server response: %w", err)
+		return false, fmt.Errorf("error retrieveing server response: %w", err)
 	}
 
 	// Decoding XOR-MAPPED-ADDRESS attribute from message.
 	if err = xorAddr2.GetFrom(resp); err != nil {
-		return false, fmt.Errorf("Error retrieving XOR-MAPPED-ADDRESS resonse: %w", err)
+		return false, fmt.Errorf("error retrieving XOR-MAPPED-ADDRESS resonse: %w", err)
 	}
 
 	return xorAddr1.String() != xorAddr2.String(), nil
