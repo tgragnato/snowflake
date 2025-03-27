@@ -53,7 +53,7 @@ func (p *Peers) Collect() (*WebRTCPeer, error) {
 	defer p.collectLock.Unlock()
 	select {
 	case <-p.melt:
-		return nil, fmt.Errorf("Snowflakes have melted")
+		return nil, fmt.Errorf("snowflakes have melted")
 	default:
 	}
 	if nil == p.Tongue {
@@ -63,7 +63,7 @@ func (p *Peers) Collect() (*WebRTCPeer, error) {
 	capacity := p.GetMax()
 	s := fmt.Sprintf("Currently at [%d/%d]", cnt, capacity)
 	if cnt >= capacity {
-		return nil, fmt.Errorf("At capacity [%d/%d]", cnt, capacity)
+		return nil, fmt.Errorf("at capacity [%d/%d]", cnt, capacity)
 	}
 	log.Println("WebRTC: Collecting a new Snowflake.", s)
 	// BUG: some broker conflict here.
