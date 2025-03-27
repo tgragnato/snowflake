@@ -39,7 +39,7 @@ func DeserializeSessionDescription(msg string) (*webrtc.SessionDescription, erro
 	var stype webrtc.SDPType
 	switch parsed["type"].(string) {
 	default:
-		return nil, errors.New("Unknown SDP type")
+		return nil, errors.New("unknown SDP type")
 	case "offer":
 		stype = webrtc.SDPTypeOffer
 	case "pranswer":
