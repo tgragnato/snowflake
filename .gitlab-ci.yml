@@ -179,9 +179,12 @@ shadow-integration:
     SHADOW_VERSION: "193924aae0dab30ffda0abe29467f552949849fa"
     TGEN_VERSION: "v1.1.2"
   cache:
-    key: sf-integration-$SHADOW_VERSION-$TGEN_VERSION
-    paths:
-      - /opt/
+    - key: sf-integration-shadow-$SHADOW_VERSION
+      paths:
+      - opt/shadow
+    - key: sf-integration-tgen-$TGEN_VERSION
+      paths:
+      - opt/tgen
   artifacts:
     paths:
       - shadow.data.tar.gz
@@ -191,15 +194,15 @@ shadow-integration:
     - tpa
   script:
     - apt-get update
-    - apt-get install -y git tor
+    - apt-get install -y git tor libglib2.0-0 libigraph3
     - mkdir -p ~/.local/bin
     - mkdir -p ~/.local/src
-    - export PATH=$PATH:$CI_PROJECT_DIR/opt/bin/
+    - export PATH=$PATH:$CI_PROJECT_DIR/opt/shadow/bin/:$CI_PROJECT_DIR/opt/tgen/bin/
 
     # Install shadow and tgen
     - pushd ~/.local/src
     - |
-      if [ ! -f opt/shadow/bin/shadow ]
+      if [ ! -f $CI_PROJECT_DIR/opt/shadow/bin/shadow ]
       then
         echo "The required version of shadow was not cached, building from source"
         git clone --shallow-since=2021-08-01 https://github.com/shadow/shadow.git
@@ -208,24 +211,24 @@ shadow-integration:
         CONTAINER=debian:stable-slim ci/container_scripts/install_deps.sh
         CC=gcc CONTAINER=debian:stable-slim ci/container_scripts/install_extra_deps.sh
         export PATH="$HOME/.cargo/bin:${PATH}"
-        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/
+        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
         ./setup install
         popd
       fi
     - |
-      if [ ! -f opt/shadow/bin/tgen ]
+      if [ ! -f $CI_PROJECT_DIR/opt/tgen/bin/tgen ]
       then
         echo "The required version of tgen was not cached, building from source"
         git clone --branch $TGEN_VERSION --depth 1 https://github.com/shadow/tgen.git
         pushd tgen/
         apt-get install -y cmake libglib2.0-dev libigraph-dev
         mkdir build && cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/
+        cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/tgen
         make
         make install
         popd
       fi
-      install $CI_PROJECT_DIR/opt/bin/tgen ~/.local/bin/tgen
+      install $CI_PROJECT_DIR/opt/tgen/bin/tgen ~/.local/bin/tgen
     - popd
 
     # Apply snowflake patch(es)
