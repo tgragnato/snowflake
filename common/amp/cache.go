@@ -136,7 +136,7 @@ func CacheURL(pubURL, cacheURL *url.URL, contentType string) (*url.URL, error) {
 		return nil, fmt.Errorf("publisher URL may not contain userinfo")
 	}
 	if port := pubURL.Port(); port != "" {
-		if !((pubURL.Scheme == "http" && port == "80") || (pubURL.Scheme == "https" && port == "443")) {
+		if (pubURL.Scheme != "http" || port != "80") && (pubURL.Scheme != "https" || port != "443") {
 			return nil, fmt.Errorf("publisher URL port %+q is not the default for scheme %+q", port, pubURL.Scheme)
 		}
 	}
