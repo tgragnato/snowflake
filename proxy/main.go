@@ -51,7 +51,7 @@ func main() {
 	geoip6Database := flag.String("geoip6db", "/usr/share/tor/geoip6", "path to correctly formatted geoip database mapping IPv6 address ranges to country codes")
 	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
 
-	var ephemeralPortsRange []uint16 = []uint16{0, 0}
+	var ephemeralPortsRange = []uint16{0, 0}
 
 	flag.Parse()
 
