@@ -202,7 +202,7 @@ type SnowflakeProxy struct {
 
 // Checks whether an IP address is a remote address for the client
 func isRemoteAddress(ip net.IP) bool {
-	return !(util.IsLocal(ip) || ip.IsUnspecified() || ip.IsLoopback())
+	return !util.IsLocal(ip) && !ip.IsUnspecified() && !ip.IsLoopback()
 }
 
 func genSessionID() string {
