@@ -1,40 +1,62 @@
+version: "2"
+
 run:
   concurrency: 4
-  timeout: 5m
   tests: true
   allow-parallel-runners: true
   go: '1.24'
 
-issues:
-  exclude-rules:
+linters:
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
 
-    - path: common/turbotunnel/queuepacketconn.go
-      linters:
-        - staticcheck
-      text: "SA6002: argument should be pointer-like to avoid allocations"
+    rules:
 
-    - path: client/lib/
-      linters:
-        - gosec
-      text: "G404: Use of weak random number generator"
+      - linters:
+          - staticcheck
+        path: common/turbotunnel/queuepacketconn.go
+        text: 'SA6002: argument should be pointer-like to avoid allocations'
 
-    - path: common/turbotunnel/redialpacketconn.go
-      linters:
-        - errcheck
+      - linters:
+          - gosec
+        path: client/lib/
+        text: 'G404: Use of weak random number generator'
 
-    - path: test.go
-      linters:
-        - errcheck
-        - gosec
-        - ineffassign
-        - staticcheck
+      - linters:
+          - errcheck
+        path: common/turbotunnel/redialpacketconn.go
 
-    - path: broker/
-      linters:
-        - errcheck
-      text: "Error return value of"
+      - linters:
+          - errcheck
+          - gosec
+          - ineffassign
+          - staticcheck
+        path: test.go
 
-    - path: server/
-      linters:
-        - errcheck
-      text: "Error return value of"
+      - linters:
+          - errcheck
+        path: broker/
+        text: Error return value of
+
+      - linters:
+          - errcheck
+        path: server/
+        text: Error return value of
+
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
