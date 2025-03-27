@@ -165,7 +165,7 @@ func (enc *elementEncoder) Write(p []byte) (n int, err error) {
 
 func (enc *elementEncoder) Close() error {
 	var err error
-	if !(enc.elementCounter == 0 && enc.chunkCounter == 0) {
+	if enc.elementCounter != 0 || enc.chunkCounter != 0 {
 		if enc.chunkCounter == 0 {
 			_, err = enc.w.Write([]byte("</pre>\n"))
 		} else {
