@@ -2,11 +2,13 @@ module tgragnato.it/snowflake
 
 go 1.24.0
 
+toolchain go1.24.1
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.11
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.64
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.2
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.3
 	github.com/coder/websocket v1.8.13
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.64
