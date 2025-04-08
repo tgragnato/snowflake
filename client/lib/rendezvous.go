@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pion/webrtc/v4"
@@ -185,8 +186,9 @@ func (bc *BrokerChannel) GetNATType() string {
 	return bc.natType
 }
 
+// All of the methods of the struct are thread-safe.
 type NATPolicy struct {
-	assumedUnrestrictedNATAndFailedToConnect bool
+	assumedUnrestrictedNATAndFailedToConnect atomic.Bool
 }
 
 // When our NAT type is unknown, we want to try to connect to a
@@ -198,7 +200,8 @@ type NATPolicy struct {
 // This is useful when our STUN servers are blocked or don't support
 // the NAT discovery feature, or if they're just slow.
 func (p *NATPolicy) NATTypeToSend(actualNatType string) string {
-	if !p.assumedUnrestrictedNATAndFailedToConnect && actualNatType == nat.NATUnknown {
+	if !p.assumedUnrestrictedNATAndFailedToConnect.Load() &&
+		actualNatType == nat.NATUnknown {
 		// If our NAT type is unknown, and we haven't failed to connect
 		// with a spoofed NAT type yet, then spoof a NATUnrestricted
 		// type.
@@ -235,7 +238,7 @@ func (p *NATPolicy) Failure(actualNATType, sentNATType string) {
 				"is \"%v\", and failed. Let's not do that again.",
 			actualNATType,
 		)
-		p.assumedUnrestrictedNATAndFailedToConnect = true
+		p.assumedUnrestrictedNATAndFailedToConnect.Store(true)
 	}
 }
 

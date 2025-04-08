@@ -119,15 +119,17 @@ func (r *sqsHandler) cleanupClientQueues(ctx context.Context) {
 
 				}
 			}
-			log.Printf("SQSHandler: finished running iteration of client queue cleanup. found and deleted %d client queues.\n", numDeleted)
 		}
 	}
 }
 
-func (r *sqsHandler) handleMessage(context context.Context, message *types.Message) {
+func (r *sqsHandler) handleMessage(mainCtx context.Context, message *types.Message) {
 	var encPollReq []byte
 	var response []byte
 	var err error
+
+	ctx, cancel := context.WithTimeout(mainCtx, ClientTimeout*time.Second)
+	defer cancel()
 
 	clientID := message.MessageAttributes["ClientID"].StringValue
 	if clientID == nil {
@@ -135,7 +137,7 @@ func (r *sqsHandler) handleMessage(context context.Context, message *types.Messa
 		return
 	}
 
-	res, err := r.SQSClient.CreateQueue(context, &sqs.CreateQueueInput{
+	res, err := r.SQSClient.CreateQueue(ctx, &sqs.CreateQueueInput{
 		QueueName: aws.String("snowflake-client-" + *clientID),
 	})
 	if err != nil {
@@ -167,6 +169,7 @@ func (r *sqsHandler) handleMessage(context context.Context, message *types.Messa
 		Body:             encPollReq,
 		RemoteAddr:       remoteAddr,
 		RendezvousMethod: messages.RendezvousSqs,
+		Context:          ctx,
 	}
 	err = r.IPC.ClientOffers(arg, &response)
 
@@ -175,7 +178,7 @@ func (r *sqsHandler) handleMessage(context context.Context, message *types.Messa
 		return
 	}
 
-	r.SQSClient.SendMessage(context, &sqs.SendMessageInput{
+	r.SQSClient.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:    answerSQSURL,
 		MessageBody: aws.String(string(response)),
 	})

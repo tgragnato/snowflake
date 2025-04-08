@@ -240,7 +240,7 @@ func (c *WebRTCPeer) connect(
 		}
 	case <-time.After(DataChannelTimeout):
 		c.transport.Close()
-		err = errors.New("timeout waiting for DataChannel.OnOpen")
+		err := errors.New("timeout waiting for DataChannel.OnOpen")
 		if natPolicy != nil {
 			natPolicy.Failure(actualNatType, natTypeToSend)
 		}
@@ -258,7 +258,6 @@ func (c *WebRTCPeer) preparePeerConnection(
 	config *webrtc.Configuration,
 	keepLocalAddresses bool,
 ) error {
-	var err error
 	s := webrtc.SettingEngine{}
 
 	if !keepLocalAddresses {
@@ -281,7 +280,7 @@ func (c *WebRTCPeer) preparePeerConnection(
 	vnet, _ = stdnet.NewNet()
 
 	if c.proxy != nil {
-		if err = proxy.CheckProxyProtocolSupport(c.proxy); err != nil {
+		if err := proxy.CheckProxyProtocolSupport(c.proxy); err != nil {
 			return err
 		}
 		socksClient := proxy.NewSocks5UDPClient(c.proxy)
@@ -291,6 +290,7 @@ func (c *WebRTCPeer) preparePeerConnection(
 	s.SetNet(vnet)
 
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	var err error
 	c.pc, err = api.NewPeerConnection(*config)
 	if err != nil {
 		log.Printf("NewPeerConnection ERROR: %s", err)

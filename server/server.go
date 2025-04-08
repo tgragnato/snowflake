@@ -186,8 +186,7 @@ func main() {
 		log.Printf("ACME hostnames: %q", acmeHostnames)
 
 		var cache autocert.Cache
-		var cacheDir string
-		cacheDir, err = getCertificateCacheDir()
+		cacheDir, err := getCertificateCacheDir()
 		if err == nil {
 			log.Printf("caching ACME certificates in directory %q", cacheDir)
 			cache = autocert.DirCache(cacheDir)
@@ -221,7 +220,7 @@ func main() {
 			addr.Port = 80
 			log.Printf("Starting HTTP-01 ACME listener")
 			var lnHTTP01 *net.TCPListener
-			lnHTTP01, err = net.ListenTCP("tcp", &addr)
+			lnHTTP01, err := net.ListenTCP("tcp", &addr)
 			if err != nil {
 				log.Printf("error opening HTTP-01 ACME listener: %s", err)
 				pt.SmethodError(bindaddr.MethodName, "HTTP-01 ACME listener: "+err.Error())

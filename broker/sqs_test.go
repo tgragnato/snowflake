@@ -24,7 +24,7 @@ func TestSQS(t *testing.T) {
 
 	Convey("Context", t, func() {
 		buf := new(bytes.Buffer)
-		ipcCtx := NewBrokerContext(log.New(buf, "", 0), "", "")
+		ipcCtx := NewBrokerContext(log.New(buf, "", 0), "")
 		i := &IPC{ipcCtx}
 
 		Convey("Responds to SQS client offers...", func() {
@@ -139,7 +139,7 @@ func TestSQS(t *testing.T) {
 					sqsHandlerContext, sqsCancelFunc := context.WithCancel(context.Background())
 					var numTimes atomic.Uint32
 
-					mockSQSClient.EXPECT().ReceiveMessage(sqsHandlerContext, &sqsReceiveMessageInput).AnyTimes().DoAndReturn(
+					mockSQSClient.EXPECT().ReceiveMessage(gomock.Any(), &sqsReceiveMessageInput).AnyTimes().DoAndReturn(
 						func(ctx context.Context, input *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
 
 							n := numTimes.Add(1)
@@ -154,11 +154,11 @@ func TestSQS(t *testing.T) {
 							return nil, errors.New("error")
 
 						})
-					mockSQSClient.EXPECT().CreateQueue(sqsHandlerContext, &sqsCreateQueueInput).Return(&sqs.CreateQueueOutput{
+					mockSQSClient.EXPECT().CreateQueue(gomock.Any(), &sqsCreateQueueInput).Return(&sqs.CreateQueueOutput{
 						QueueUrl: responseQueueURL,
 					}, nil).AnyTimes()
 					mockSQSClient.EXPECT().DeleteMessage(gomock.Any(), gomock.Any()).AnyTimes()
-					mockSQSClient.EXPECT().SendMessage(sqsHandlerContext, gomock.Any()).Times(1).DoAndReturn(
+					mockSQSClient.EXPECT().SendMessage(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 						func(ctx context.Context, input *sqs.SendMessageInput, optFns ...func(*sqs.Options)) (*sqs.SendMessageOutput, error) {
 							c.So(input.MessageBody, ShouldEqual, aws.String("{\"answer\":\"fake answer\"}"))
 							// Ensure that match is correctly recorded in metrics
@@ -167,6 +167,7 @@ func TestSQS(t *testing.T) {
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-snowflake-match-count 8
+client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 0

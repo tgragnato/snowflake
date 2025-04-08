@@ -81,7 +81,6 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	if !i.ctx.CheckProxyRelayPattern(relayPattern, !relayPatternSupported) {
 		i.ctx.metrics.UpdateProxyPollStats("rejected_relay_url_extension", natType, proxyType)
 
-		log.Printf("bad request: rejected relay pattern from proxy = %v", messages.ErrBadRequest)
 		b, err := messages.EncodePollResponseWithRelayURL("", false, "", "", "incorrect relay pattern")
 		*response = b
 		if err != nil {
@@ -177,7 +176,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if snowflake != nil {
 		snowflake.offerChannel <- offer
 	} else {
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, false)
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
 	}
@@ -185,13 +184,13 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	// Wait for the answer to be returned on the channel or timeout.
 	select {
 	case answer := <-snowflake.answerChannel:
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, true)
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
 		// Initial tracking of elapsed time.
 		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
-	case <-time.After(time.Second * ClientTimeout):
-		log.Println("Client: Timed out.")
+	case <-arg.Context.Done():
+		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
 		err = sendClientResponse(resp, response)
 	}
@@ -234,7 +233,6 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 		// The snowflake took too long to respond with an answer, so its client
 		// disappeared / the snowflake is no longer recognized by the Broker.
 		success = false
-		log.Printf("Warning: matching with snowflake client failed")
 	}
 
 	b, err := messages.EncodeAnswerResponse(success)

@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/tgragnato/snowflake)](https://goreportcard.com/report/github.com/tgragnato/snowflake)
 [![codecov](https://codecov.io/gh/tgragnato/snowflake/branch/main/graph/badge.svg)](https://codecov.io/gh/tgragnato/snowflake)
 
-Pluggable Transport using WebRTC, inspired by Flashproxy.
+Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by Flashproxy.
 
 ### Custom fork
 
@@ -64,8 +64,7 @@ Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports
 
 In the Tor use-case:
 
-1. Volunteers visit websites which host the "snowflake" proxy. (just
-like flashproxy)
+1. Volunteers visit websites that host the 'snowflake' proxy, run a snowflake [web extension](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake-webext), or use a standalone proxy.
 2. Tor clients automatically find available browser proxies via the Broker
 (the domain fronted signaling channel).
 3. Tor client and browser proxy establish a WebRTC peer connection.

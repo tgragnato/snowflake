@@ -43,9 +43,8 @@ type BrokerContext struct {
 	proxyPolls    chan *ProxyPoll
 	metrics       *Metrics
 
-	bridgeList                     BridgeListHolderFileBased
-	allowedRelayPattern            string
-	presumedPatternForLegacyClient string
+	bridgeList          BridgeListHolderFileBased
+	allowedRelayPattern string
 }
 
 func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprint) (BridgeInfo, error) {
@@ -54,8 +53,7 @@ func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprin
 
 func NewBrokerContext(
 	metricsLogger *log.Logger,
-	allowedRelayPattern,
-	presumedPatternForLegacyClient string,
+	allowedRelayPattern string,
 ) *BrokerContext {
 	snowflakes := new(SnowflakeHeap)
 	heap.Init(snowflakes)
@@ -78,14 +76,13 @@ func NewBrokerContext(
 	bridgeListHolder.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges)))
 
 	return &BrokerContext{
-		snowflakes:                     snowflakes,
-		restrictedSnowflakes:           rSnowflakes,
-		idToSnowflake:                  make(map[string]*Snowflake),
-		proxyPolls:                     make(chan *ProxyPoll),
-		metrics:                        metrics,
-		bridgeList:                     bridgeListHolder,
-		allowedRelayPattern:            allowedRelayPattern,
-		presumedPatternForLegacyClient: presumedPatternForLegacyClient,
+		snowflakes:           snowflakes,
+		restrictedSnowflakes: rSnowflakes,
+		idToSnowflake:        make(map[string]*Snowflake),
+		proxyPolls:           make(chan *ProxyPoll),
+		metrics:              metrics,
+		bridgeList:           bridgeListHolder,
+		allowedRelayPattern:  allowedRelayPattern,
 	}
 }
 
@@ -175,7 +172,7 @@ func (ctx *BrokerContext) InstallBridgeListProfile(reader io.Reader) error {
 
 func (ctx *BrokerContext) CheckProxyRelayPattern(pattern string, nonSupported bool) bool {
 	if nonSupported {
-		pattern = ctx.presumedPatternForLegacyClient
+		return false
 	}
 	proxyPattern := namematcher.NewNameMatcher(pattern)
 	brokerPattern := namematcher.NewNameMatcher(ctx.allowedRelayPattern)
@@ -196,7 +193,7 @@ func main() {
 	var addr string
 	var geoipDatabase string
 	var geoip6Database string
-	var bridgeListFilePath, allowedRelayPattern, presumedPatternForLegacyClient string
+	var bridgeListFilePath, allowedRelayPattern string
 	var brokerSQSQueueName, brokerSQSQueueRegion string
 	var disableTLS bool
 	var certFilename, keyFilename string
@@ -216,7 +213,6 @@ func main() {
 	flag.StringVar(&geoip6Database, "geoip6db", "/usr/share/tor/geoip6", "path to correctly formatted geoip database mapping IPv6 address ranges to country codes")
 	flag.StringVar(&bridgeListFilePath, "bridge-list-path", "", "file path for bridgeListFile")
 	flag.StringVar(&allowedRelayPattern, "allowed-relay-pattern", "", "allowed pattern for relay host name. The broker will reject proxies whose AcceptedRelayPattern is more restrictive than this")
-	flag.StringVar(&presumedPatternForLegacyClient, "default-relay-pattern", "", "presumed pattern for legacy client")
 	flag.StringVar(&brokerSQSQueueName, "broker-sqs-name", "", "name of broker SQS queue to listen for incoming messages on")
 	flag.StringVar(&brokerSQSQueueRegion, "broker-sqs-region", "", "name of AWS region of broker SQS queue")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
@@ -228,7 +224,6 @@ func main() {
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
 	flag.Parse()
 
-	var err error
 	var metricsFile io.Writer
 	var logOutput io.Writer = os.Stderr
 	if unsafeLogging {
@@ -241,6 +236,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
 	if metricsFilename != "" {
+		var err error
 		metricsFile, err = os.OpenFile(metricsFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 		if err != nil {
@@ -252,7 +248,7 @@ func main() {
 
 	metricsLogger := log.New(metricsFile, "", 0)
 
-	ctx := NewBrokerContext(metricsLogger, allowedRelayPattern, presumedPatternForLegacyClient)
+	ctx := NewBrokerContext(metricsLogger, allowedRelayPattern)
 
 	if bridgeListFilePath != "" {
 		bridgeListFile, err := os.Open(bridgeListFilePath)
@@ -266,7 +262,7 @@ func main() {
 	}
 
 	if !disableGeoip {
-		err = ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database)
+		err := ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
@@ -318,7 +314,7 @@ func main() {
 		for {
 			signal := <-sigChan
 			log.Printf("Received signal: %s. Reloading geoip databases.", signal)
-			if err = ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database); err != nil {
+			if err := ctx.metrics.LoadGeoipDatabases(geoipDatabase, geoip6Database); err != nil {
 				log.Fatalf("reload of Geo IP databases on signal %s returned error: %v", signal, err)
 			}
 		}
@@ -331,12 +327,13 @@ func main() {
 	//   --disable-tls
 	// The outputs of this block of code are the disableTLS,
 	// needHTTP01Listener, certManager, and getCertificate variables.
+	var err error
 	if acmeHostnamesCommas != "" {
 		acmeHostnames := strings.Split(acmeHostnamesCommas, ",")
 		log.Printf("ACME hostnames: %q", acmeHostnames)
 
 		var cache autocert.Cache
-		if err = os.MkdirAll(acmeCertCacheDir, 0700); err != nil {
+		if err := os.MkdirAll(acmeCertCacheDir, 0700); err != nil {
 			log.Printf("Warning: Couldn't create cache directory %q (reason: %s) so we're *not* using our certificate cache.", acmeCertCacheDir, err)
 		} else {
 			cache = autocert.DirCache(acmeCertCacheDir)

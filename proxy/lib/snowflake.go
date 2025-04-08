@@ -517,6 +517,10 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			}
 		})
 		dc.OnClose(func() {
+			// Make sure that the `Write()`s are not blocked any more.
+			dc.OnBufferedAmountLow(func() {})
+			close(conn.sendMoreCh)
+
 			conn.lock.Lock()
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
@@ -532,8 +536,7 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			pw.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var n int
-			n, err = pw.Write(msg.Data)
+			n, err := pw.Write(msg.Data)
 			if err != nil {
 				if inErr := pw.CloseWithError(err); inErr != nil {
 					log.Printf("close with error generated an error: %v", inErr)
@@ -705,6 +708,9 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 		log.Println("Connection successful")
 	case <-time.After(dataChannelTimeout):
 		log.Println("Timed out waiting for client to open data channel.")
+		sf.EventDispatcher.OnNewSnowflakeEvent(
+			event.EventOnProxyConnectionFailed{},
+		)
 		if err := pc.Close(); err != nil {
 			log.Printf("error calling pc.Close: %v", err)
 		}

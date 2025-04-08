@@ -144,7 +144,7 @@ func (enc *elementEncoder) Write(p []byte) (n int, err error) {
 		if enc.chunkCounter >= bytesPerChunk {
 			enc.chunkCounter = 0
 			enc.elementCounter += 1
-			nn, err = enc.w.Write([]byte("\n"))
+			nn, err := enc.w.Write([]byte("\n"))
 			if err != nil {
 				return total, err
 			}
@@ -153,7 +153,7 @@ func (enc *elementEncoder) Write(p []byte) (n int, err error) {
 
 		if enc.elementCounter >= chunksPerElement {
 			enc.elementCounter = 0
-			nn, err = enc.w.Write([]byte("</pre>\n"))
+			nn, err := enc.w.Write([]byte("</pre>\n"))
 			if err != nil {
 				return total, err
 			}

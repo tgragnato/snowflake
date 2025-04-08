@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/util"
@@ -132,6 +134,9 @@ snowflake proxy, which responds with the SDP answer to be sent in
 the HTTP response back to the client.
 */
 func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), ClientTimeout*time.Second)
+	defer cancel()
+
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if err != nil {
 		log.Printf("Error reading client request: %s", err.Error())
@@ -163,6 +168,7 @@ func clientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 		Body:             body,
 		RemoteAddr:       util.GetClientIp(r),
 		RendezvousMethod: messages.RendezvousHttp,
+		Context:          ctx,
 	}
 
 	var response []byte
@@ -214,7 +220,6 @@ func proxyAnswers(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	err = validateSDP(body)
 	if err != nil {
-		log.Println("Error proxy SDP: ", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

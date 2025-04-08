@@ -75,6 +75,8 @@ func (e EventOnProxyClientConnected) String() string {
 	return "Client connected"
 }
 
+// The connection with the client has now been closed,
+// after getting successfully established.
 type EventOnProxyConnectionOver struct {
 	SnowflakeEvent
 	Country string
@@ -84,16 +86,29 @@ func (e EventOnProxyConnectionOver) String() string {
 	return "Proxy connection closed"
 }
 
+// Rendezvous with a client succeeded,
+// but a data channel has not been created.
+type EventOnProxyConnectionFailed struct {
+	SnowflakeEvent
+}
+
+func (e EventOnProxyConnectionFailed) String() string {
+	return "Failed to connect to the client"
+}
+
 type EventOnProxyStats struct {
 	SnowflakeEvent
-	ConnectionCount             int
+	// Completed successful connections.
+	ConnectionCount int
+	// Connections that failed to establish.
+	FailedConnectionCount       uint
 	InboundBytes, OutboundBytes int64
 	InboundUnit, OutboundUnit   string
 	SummaryInterval             time.Duration
 }
 
 func (e EventOnProxyStats) String() string {
-	statString := fmt.Sprintf("In the last %v, there were %v completed connections. Traffic Relayed ↓ %v %v (%.2f %v%s), ↑ %v %v (%.2f %v%s).",
+	statString := fmt.Sprintf("In the last %v, there were %v completed successful connections. Traffic Relayed ↓ %v %v (%.2f %v%s), ↑ %v %v (%.2f %v%s).",
 		e.SummaryInterval.String(), e.ConnectionCount,
 		e.InboundBytes, e.InboundUnit, float64(e.InboundBytes)/e.SummaryInterval.Seconds(), e.InboundUnit, "/s",
 		e.OutboundBytes, e.OutboundUnit, float64(e.OutboundBytes)/e.SummaryInterval.Seconds(), e.OutboundUnit, "/s")
