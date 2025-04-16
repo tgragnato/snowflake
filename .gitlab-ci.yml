@@ -1,7 +1,7 @@
 include:
   - project: tpo/tpa/ci-templates
     file: [ dependency_proxy.yml ]
-    inputs: { namespace: tpo/anti-censorship }
+    inputs: { namespace: tpo/anti-censorship/pluggable-transports/ }
     rules:
       - if: $CI_PROJECT_URL =~ /gitlab.torproject.org/
 
