@@ -67,7 +67,7 @@ require (
 	github.com/pion/rtp v1.8.13 // indirect
 	github.com/pion/sctp v1.8.38 // indirect
 	github.com/pion/srtp/v3 v3.0.4 // indirect
-	github.com/pion/turn/v4 v4.0.0 // indirect
+	github.com/pion/turn/v4 v4.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
