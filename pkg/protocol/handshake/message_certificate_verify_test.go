@@ -4,11 +4,11 @@
 package handshake
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandshakeMessageCertificateVerify(t *testing.T) {
@@ -26,10 +26,16 @@ func TestHandshakeMessageCertificateVerify(t *testing.T) {
 	}
 
 	c := &MessageCertificateVerify{}
-	assert.NoError(t, c.Unmarshal(rawCertificateVerify))
-	assert.Equal(t, parsedCertificateVerify, c)
+	if err := c.Unmarshal(rawCertificateVerify); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(c, parsedCertificateVerify) {
+		t.Errorf("handshakeMessageCertificate unmarshal: got %#v, want %#v", c, parsedCertificateVerify)
+	}
 
 	raw, err := c.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawCertificateVerify, raw)
+	if err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(raw, rawCertificateVerify) {
+		t.Errorf("handshakeMessageCertificateVerify marshal: got %#v, want %#v", raw, rawCertificateVerify)
+	}
 }

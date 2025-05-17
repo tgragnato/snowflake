@@ -4,13 +4,13 @@
 package handshake
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandshakeMessageServerKeyExchange(t *testing.T) {
@@ -18,12 +18,18 @@ func TestHandshakeMessageServerKeyExchange(t *testing.T) {
 		c := &MessageServerKeyExchange{
 			KeyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
 		}
-		assert.NoError(t, c.Unmarshal(rawServerKeyExchange))
-		assert.Equal(t, parsedServerKeyExchange, c)
+		if err := c.Unmarshal(rawServerKeyExchange); err != nil {
+			t.Error(err)
+		} else if !reflect.DeepEqual(c, parsedServerKeyExchange) {
+			t.Errorf("handshakeMessageServerKeyExchange unmarshal: got %#v, want %#v", c, parsedServerKeyExchange)
+		}
 
 		raw, err := c.Marshal()
-		assert.NoError(t, err)
-		assert.Equal(t, rawServerKeyExchange, raw)
+		if err != nil {
+			t.Error(err)
+		} else if !reflect.DeepEqual(raw, rawServerKeyExchange) {
+			t.Errorf("handshakeMessageServerKeyExchange marshal: got %#v, want %#v", raw, rawServerKeyExchange)
+		}
 	}
 
 	t.Run("Hash+Signature", func(*testing.T) {

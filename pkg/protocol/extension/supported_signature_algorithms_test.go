@@ -4,12 +4,12 @@
 package extension
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
 	"github.com/pion/dtls/v3/pkg/crypto/signaturehash"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestExtensionSupportedSignatureAlgorithms(t *testing.T) {
@@ -30,10 +30,22 @@ func TestExtensionSupportedSignatureAlgorithms(t *testing.T) {
 	}
 
 	raw, err := parsedExtensionSupportedSignatureAlgorithms.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawExtensionSupportedSignatureAlgorithms, raw)
+	if err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(raw, rawExtensionSupportedSignatureAlgorithms) {
+		t.Fatalf(
+			"extensionSupportedSignatureAlgorithms marshal: got %#v, want %#v",
+			raw, rawExtensionSupportedSignatureAlgorithms,
+		)
+	}
 
 	roundtrip := &SupportedSignatureAlgorithms{}
-	assert.NoError(t, roundtrip.Unmarshal(raw))
-	assert.Equal(t, parsedExtensionSupportedSignatureAlgorithms, roundtrip)
+	if err := roundtrip.Unmarshal(raw); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(roundtrip, parsedExtensionSupportedSignatureAlgorithms) {
+		t.Errorf(
+			"extensionSupportedSignatureAlgorithms unmarshal: got %#v, want %#v",
+			roundtrip, parsedExtensionSupportedSignatureAlgorithms,
+		)
+	}
 }

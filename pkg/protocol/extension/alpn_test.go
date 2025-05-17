@@ -4,9 +4,9 @@
 package extension
 
 import (
+	"errors"
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestALPN(t *testing.T) {
@@ -15,22 +15,38 @@ func TestALPN(t *testing.T) {
 	}
 
 	raw, err := extension.Marshal()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	newExtension := ALPN{}
-	assert.NoError(t, newExtension.Unmarshal(raw))
-	assert.Equal(t, extension.ProtocolNameList, newExtension.ProtocolNameList)
+	err = newExtension.Unmarshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(newExtension.ProtocolNameList, extension.ProtocolNameList) {
+		t.Errorf("extensionALPN marshal: got %s expected %s", newExtension.ProtocolNameList, extension.ProtocolNameList)
+	}
 }
 
 func TestALPNProtocolSelection(t *testing.T) {
 	selectedProtocol, err := ALPNProtocolSelection([]string{"http/1.1", "spd/1"}, []string{"spd/1"})
-	assert.NoError(t, err)
-	assert.Equal(t, "spd/1", selectedProtocol)
-
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selectedProtocol != "spd/1" {
+		t.Errorf("expected: spd/1, got: %v", selectedProtocol)
+	}
 	_, err = ALPNProtocolSelection([]string{"http/1.1"}, []string{"spd/1"})
-	assert.ErrorIs(t, err, errALPNNoAppProto)
-
+	if !errors.Is(err, errALPNNoAppProto) {
+		t.Fatal("expected to fail negotiating an application protocol")
+	}
 	selectedProtocol, err = ALPNProtocolSelection([]string{"http/1.1", "spd/1"}, []string{})
-	assert.NoError(t, err)
-	assert.Empty(t, selectedProtocol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selectedProtocol != "" {
+		t.Errorf("expected not to negotiate a protocol, got: %v", selectedProtocol)
+	}
 }

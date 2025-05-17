@@ -4,10 +4,10 @@
 package extension
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestExtensionSupportedPointFormats(t *testing.T) {
@@ -17,10 +17,19 @@ func TestExtensionSupportedPointFormats(t *testing.T) {
 	}
 
 	raw, err := parsedExtensionSupportedPointFormats.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawExtensionSupportedPointFormats, raw)
+	if err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(raw, rawExtensionSupportedPointFormats) {
+		t.Fatalf("extensionSupportedPointFormats marshal: got %#v, want %#v", raw, rawExtensionSupportedPointFormats)
+	}
 
 	roundtrip := &SupportedPointFormats{}
-	assert.NoError(t, roundtrip.Unmarshal(raw))
-	assert.Equal(t, parsedExtensionSupportedPointFormats, roundtrip)
+	if err := roundtrip.Unmarshal(raw); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(roundtrip, parsedExtensionSupportedPointFormats) {
+		t.Errorf(
+			"extensionSupportedPointFormats unmarshal: got %#v, want %#v",
+			roundtrip, parsedExtensionSupportedPointFormats,
+		)
+	}
 }

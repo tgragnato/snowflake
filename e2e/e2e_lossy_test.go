@@ -14,7 +14,6 @@ import (
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	transportTest "github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -35,10 +34,14 @@ func TestPionE2ELossy(t *testing.T) { //nolint:cyclop
 	}
 
 	serverCert, err := selfsign.GenerateSelfSigned()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	clientCert, err := selfsign.GenerateSelfSigned()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, test := range []struct {
 		LossChanceRange             int
@@ -143,7 +146,9 @@ func TestPionE2ELossy(t *testing.T) { //nolint:cyclop
 			clientDone := make(chan runResult)
 			br := transportTest.NewBridge()
 
-			assert.NoError(t, br.SetLossChance(chosenLoss))
+			if err = br.SetLossChance(chosenLoss); err != nil {
+				t.Fatal(err)
+			}
 
 			go func() {
 				cfg := &dtls.Config{
@@ -186,10 +191,14 @@ func TestPionE2ELossy(t *testing.T) { //nolint:cyclop
 			var serverConn, clientConn *dtls.Conn
 			defer func() {
 				if serverConn != nil {
-					assert.NoError(t, serverConn.Close())
+					if err = serverConn.Close(); err != nil {
+						t.Error(err)
+					}
 				}
 				if clientConn != nil {
-					assert.NoError(t, clientConn.Close())
+					if err = clientConn.Close(); err != nil {
+						t.Error(err)
+					}
 				}
 			}()
 
@@ -202,8 +211,10 @@ func TestPionE2ELossy(t *testing.T) { //nolint:cyclop
 				select {
 				case serverResult := <-serverDone:
 					if serverResult.err != nil {
-						assert.Failf(t, "Fail, serverError", "clientComplete(%t) serverComplete(%t) LossChance(%d) error(%v)",
-							clientConn != nil, serverConn != nil, chosenLoss, serverResult.err)
+						t.Errorf(
+							"Fail, serverError: clientComplete(%t) serverComplete(%t) LossChance(%d) error(%v)",
+							clientConn != nil, serverConn != nil, chosenLoss, serverResult.err,
+						)
 
 						return
 					}
@@ -211,16 +222,20 @@ func TestPionE2ELossy(t *testing.T) { //nolint:cyclop
 					serverConn = serverResult.dtlsConn
 				case clientResult := <-clientDone:
 					if clientResult.err != nil {
-						assert.Failf(t, "Fail, clientError", "clientComplete(%t) serverComplete(%t) LossChance(%d) error(%v)",
-							clientConn != nil, serverConn != nil, chosenLoss, clientResult.err)
+						t.Errorf(
+							"Fail, clientError: clientComplete(%t) serverComplete(%t) LossChance(%d) error(%v)",
+							clientConn != nil, serverConn != nil, chosenLoss, clientResult.err,
+						)
 
 						return
 					}
 
 					clientConn = clientResult.dtlsConn
 				case <-testTimer.C:
-					assert.Failf(t, "Test expired", "clientComplete(%t) serverComplete(%t) LossChance(%d)",
-						clientConn != nil, serverConn != nil, chosenLoss)
+					t.Errorf(
+						"Test expired: clientComplete(%t) serverComplete(%t) LossChance(%d)",
+						clientConn != nil, serverConn != nil, chosenLoss,
+					)
 
 					return
 				case <-time.After(10 * time.Millisecond):

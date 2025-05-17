@@ -4,12 +4,12 @@
 package extension
 
 import (
+	"errors"
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
-func TestExtensionUseSRTP(t *testing.T) {
+func TestExtensionUseSRTP(t *testing.T) { //nolint:cyclop
 	t.Run("No MasterKeyIdentifier", func(t *testing.T) {
 		rawUseSRTP := []byte{0x00, 0x0e, 0x00, 0x05, 0x00, 0x02, 0x00, 0x01, 0x00}
 		parsedUseSRTP := &UseSRTP{
@@ -18,12 +18,18 @@ func TestExtensionUseSRTP(t *testing.T) {
 		}
 
 		marshaled, err := parsedUseSRTP.Marshal()
-		assert.NoError(t, err)
-		assert.Equal(t, rawUseSRTP, marshaled)
+		if err != nil {
+			t.Error(err)
+		} else if !reflect.DeepEqual(marshaled, rawUseSRTP) {
+			t.Errorf("extensionUseSRTP marshal: got %#v, want %#v", marshaled, rawUseSRTP)
+		}
 
 		unmarshaled := &UseSRTP{}
-		assert.NoError(t, unmarshaled.Unmarshal(rawUseSRTP))
-		assert.Equal(t, parsedUseSRTP, unmarshaled)
+		if err := unmarshaled.Unmarshal(rawUseSRTP); err != nil {
+			t.Error(err)
+		} else if !reflect.DeepEqual(unmarshaled, parsedUseSRTP) {
+			t.Errorf("extensionUseSRTP unmarshal: got %#v, want %#v", unmarshaled, parsedUseSRTP)
+		}
 	})
 
 	t.Run("With MasterKeyIdentifier", func(t *testing.T) {
@@ -34,27 +40,40 @@ func TestExtensionUseSRTP(t *testing.T) {
 		}
 
 		marshaled, err := parsedUseSRTP.Marshal()
-		assert.NoError(t, err)
-		assert.Equal(t, rawUseSRTP, marshaled)
+		if err != nil {
+			t.Error(err)
+		} else if !reflect.DeepEqual(marshaled, rawUseSRTP) {
+			t.Errorf("extensionUseSRTP marshal: got %#v, want %#v", marshaled, rawUseSRTP)
+		}
 
 		unmarshaled := &UseSRTP{}
-		assert.NoError(t, unmarshaled.Unmarshal(rawUseSRTP))
-		assert.Equal(t, parsedUseSRTP, unmarshaled)
+		if err := unmarshaled.Unmarshal(rawUseSRTP); err != nil {
+			t.Error(err)
+		} else if !reflect.DeepEqual(unmarshaled, parsedUseSRTP) {
+			t.Errorf("extensionUseSRTP unmarshal: got %#v, want %#v", unmarshaled, parsedUseSRTP)
+		}
 	})
 
 	t.Run("Invalid Lengths", func(t *testing.T) {
 		unmarshaled := &UseSRTP{}
 
-		err := unmarshaled.Unmarshal([]byte{0x00, 0x0e, 0x00, 0x05, 0x00, 0x04, 0x00, 0x01, 0x00})
-		assert.ErrorIs(t, err, errLengthMismatch)
+		if err := unmarshaled.Unmarshal(
+			[]byte{0x00, 0x0e, 0x00, 0x05, 0x00, 0x04, 0x00, 0x01, 0x00},
+		); !errors.Is(errLengthMismatch, err) {
+			t.Error(err)
+		}
 
-		err = unmarshaled.Unmarshal([]byte{0x00, 0x0e, 0x00, 0x0a, 0x00, 0x02, 0x00, 0x01, 0x01})
-		assert.ErrorIs(t, err, errLengthMismatch)
+		if err := unmarshaled.Unmarshal(
+			[]byte{0x00, 0x0e, 0x00, 0x0a, 0x00, 0x02, 0x00, 0x01, 0x01},
+		); !errors.Is(errLengthMismatch, err) {
+			t.Error(err)
+		}
 
-		_, err = (&UseSRTP{
+		if _, err := (&UseSRTP{
 			ProtectionProfiles:  []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
 			MasterKeyIdentifier: make([]byte, 500),
-		}).Marshal()
-		assert.ErrorIs(t, err, errMasterKeyIdentifierTooLarge)
+		}).Marshal(); !errors.Is(errMasterKeyIdentifierTooLarge, err) {
+			panic(err)
+		}
 	})
 }

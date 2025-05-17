@@ -16,7 +16,6 @@ import (
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -36,7 +35,7 @@ func fatal(t *testing.T, errChan chan error, err error) {
 	t.Helper()
 
 	close(errChan)
-	assert.NoError(t, err)
+	t.Fatal(err)
 }
 
 //nolint:cyclop
@@ -56,7 +55,9 @@ func DoTestResume(
 	defer report()
 
 	certificate, err := selfsign.GenerateSelfSigned()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Generate connections
 	localConn1, rc1 := net.Pipe()
@@ -67,7 +68,9 @@ func DoTestResume(
 	errChan := make(chan error, 1)
 	defer func() {
 		err = <-errChan
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}()
 	config := &Config{
 		Certificates:         []tls.Certificate{certificate},
@@ -87,7 +90,9 @@ func DoTestResume(
 			recv := make([]byte, 1024)
 			var n int
 			n, errR = remote.Read(recv)
-			assert.NoError(t, errR)
+			if errR != nil {
+				errChan <- errR
+			}
 
 			if _, errR = remote.Write(recv[:n]); errR != nil {
 				errChan <- errR

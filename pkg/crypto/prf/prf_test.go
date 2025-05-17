@@ -4,11 +4,12 @@
 package prf
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPreMasterSecret(t *testing.T) {
@@ -26,8 +27,11 @@ func TestPreMasterSecret(t *testing.T) {
 	}
 
 	preMasterSecret, err := PreMasterSecret(publicKey, privateKey, elliptic.X25519)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedPreMasterSecret, preMasterSecret)
+	if err != nil {
+		t.Fatal(err)
+	} else if !bytes.Equal(expectedPreMasterSecret, preMasterSecret) {
+		t.Fatalf("PremasterSecret exp: % 02x actual: % 02x", expectedPreMasterSecret, preMasterSecret)
+	}
 }
 
 func TestMasterSecret(t *testing.T) {
@@ -50,8 +54,11 @@ func TestMasterSecret(t *testing.T) {
 	}
 
 	masterSecret, err := MasterSecret(preMasterSecret, clientRandom, serverRandom, sha256.New)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedMasterSecret, masterSecret)
+	if err != nil {
+		t.Fatal(err)
+	} else if !bytes.Equal(expectedMasterSecret, masterSecret) {
+		t.Fatalf("masterSecret exp: % 02x actual: % 02x", expectedMasterSecret, masterSecret)
+	}
 }
 
 func TestEncryptionKeys(t *testing.T) {
@@ -83,8 +90,12 @@ func TestEncryptionKeys(t *testing.T) {
 		ServerWriteIV: []byte{0xf7, 0x81, 0xfa, 0xd2},
 	}
 	keys, err := GenerateEncryptionKeys(masterSecret, clientRandom, serverRandom, 0, 16, 4, sha256.New)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedEncryptionKeys, keys)
+
+	if err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(expectedEncryptionKeys, keys) {
+		t.Fatalf("masterSecret exp: %q actual: %q", expectedEncryptionKeys, keys)
+	}
 }
 
 func TestVerifyData(t *testing.T) {
@@ -208,6 +219,9 @@ func TestVerifyData(t *testing.T) {
 
 	expectedVerifyData := []byte{0xcf, 0x91, 0x96, 0x26, 0xf1, 0x36, 0x0c, 0x53, 0x6a, 0xaa, 0xd7, 0x3a}
 	verifyData, err := VerifyDataClient(masterSecret, finalMsg, sha256.New)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedVerifyData, verifyData)
+	if err != nil {
+		t.Fatal(err)
+	} else if !bytes.Equal(expectedVerifyData, verifyData) {
+		t.Fatalf("verifyData exp: %q actual: %q", expectedVerifyData, verifyData)
+	}
 }

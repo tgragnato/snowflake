@@ -8,6 +8,7 @@
 package udp
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,13 +20,9 @@ import (
 
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
-var (
-	errHandshakeFailed = errors.New("handshake failed")
-	errUDPCastFailed   = fmt.Errorf("failed to cast listener Addr to *net.UDPAddr")
-)
+var errHandshakeFailed = errors.New("handshake failed")
 
 func TestStressDuplex(t *testing.T) {
 	// Limit runtime in case of deadlocks
@@ -66,12 +63,20 @@ func stressDuplex(t *testing.T) {
 	t.Helper()
 
 	listener, ca, cb, err := pipe()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	defer func() {
-		assert.NoError(t, ca.Close())
-		assert.NoError(t, cb.Close())
-		assert.NoError(t, listener.Close())
+		if ca.Close() != nil {
+			t.Fatal(err)
+		}
+		if cb.Close() != nil {
+			t.Fatal(err)
+		}
+		if listener.Close() != nil {
+			t.Fatal(err)
+		}
 	}()
 
 	opt := test.Options{
@@ -79,7 +84,9 @@ func stressDuplex(t *testing.T) {
 		MsgCount: 1, // Can't rely on UDP message order in CI
 	}
 
-	assert.NoError(t, test.StressDuplex(fromPC(ca, cb.LocalAddr()), cb, opt))
+	if err := test.StressDuplex(fromPC(ca, cb.LocalAddr()), cb, opt); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestListenerCloseTimeout(t *testing.T) {
@@ -92,12 +99,20 @@ func TestListenerCloseTimeout(t *testing.T) {
 	defer report()
 
 	listener, ca, _, err := pipe()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	assert.NoError(t, listener.Close())
+	err = listener.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Close client after server closes to cleanup
-	assert.NoError(t, ca.Close())
+	err = ca.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestListenerCloseUnaccepted(t *testing.T) {
@@ -115,29 +130,34 @@ func TestListenerCloseUnaccepted(t *testing.T) {
 	listener, err := (&ListenConfig{
 		Backlog: backlog,
 	}).Listen(network, addr)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for i := 0; i < backlog; i++ {
-		aAddr, ok := listener.Addr().(*net.UDPAddr)
-		assert.True(t, ok)
-		conn, dErr := net.DialUDP(network, nil, aAddr)
+		conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 		if dErr != nil {
-			assert.Fail(t, "dial failed: %v", dErr)
+			t.Error(dErr)
 
 			continue
 		}
-		_, wErr := conn.Write([]byte{byte(i)})
-		assert.NoError(t, wErr)
-		assert.NoError(t, conn.Close())
+		if _, wErr := conn.Write([]byte{byte(i)}); wErr != nil {
+			t.Error(wErr)
+		}
+		if cErr := conn.Close(); cErr != nil {
+			t.Error(cErr)
+		}
 	}
 
 	time.Sleep(100 * time.Millisecond) // Wait all packets being processed by readLoop
 
 	// Unaccepted connections must be closed by listener.Close()
-	assert.NoError(t, listener.Close())
+	if err = listener.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
-func TestListenerAcceptFilter(t *testing.T) {
+func TestListenerAcceptFilter(t *testing.T) { //nolint:cyclop
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
 	defer lim.Stop()
@@ -169,24 +189,30 @@ func TestListenerAcceptFilter(t *testing.T) {
 					return pkt[0] == 0xAA
 				},
 			}).Listen(network, addr)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			var wgAcceptLoop sync.WaitGroup
 			wgAcceptLoop.Add(1)
 			defer func() {
-				assert.NoError(t, listener.Close())
+				if lErr := listener.Close(); lErr != nil {
+					t.Fatal(lErr)
+				}
 				wgAcceptLoop.Wait()
 			}()
-			aAddr, ok := listener.Addr().(*net.UDPAddr)
-			assert.True(t, ok)
-			conn, err := net.DialUDP(network, nil, aAddr)
-			assert.NoError(t, err)
 
-			_, err = conn.Write(testCase.packet)
-			assert.NoError(t, err)
-
+			conn, err := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := conn.Write(testCase.packet); err != nil {
+				t.Fatal(err)
+			}
 			defer func() {
-				assert.NoError(t, conn.Close())
+				if err := conn.Close(); err != nil {
+					t.Error(err)
+				}
 			}()
 
 			chAccepted := make(chan struct{})
@@ -195,12 +221,16 @@ func TestListenerAcceptFilter(t *testing.T) {
 
 				conn, _, aArr := listener.Accept()
 				if aArr != nil {
-					assert.ErrorIs(t, aArr, ErrClosedListener)
+					if !errors.Is(aArr, ErrClosedListener) {
+						t.Error(aArr)
+					}
 
 					return
 				}
 				close(chAccepted)
-				assert.NoError(t, conn.Close())
+				if err := conn.Close(); err != nil {
+					t.Error(err)
+				}
 			}()
 
 			var accepted bool
@@ -210,12 +240,18 @@ func TestListenerAcceptFilter(t *testing.T) {
 			case <-time.After(10 * time.Millisecond):
 			}
 
-			assert.Equal(t, testCase.accept, accepted)
+			if accepted != testCase.accept {
+				if testCase.accept {
+					t.Error("Packet should create new conn")
+				} else {
+					t.Error("Packet should not create new conn")
+				}
+			}
 		})
 	}
 }
 
-func TestListenerConcurrent(t *testing.T) { //nolint:gocyclo
+func TestListenerConcurrent(t *testing.T) { //nolint:gocyclo,cyclop
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(time.Second * 20)
 	defer lim.Stop()
@@ -230,20 +266,23 @@ func TestListenerConcurrent(t *testing.T) { //nolint:gocyclo
 	listener, err := (&ListenConfig{
 		Backlog: backlog,
 	}).Listen(network, addr)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for i := 0; i < backlog+1; i++ {
-		addr, ok := listener.Addr().(*net.UDPAddr)
-		assert.True(t, ok)
-		conn, dErr := net.DialUDP(network, nil, addr)
+		conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 		if dErr != nil {
-			assert.Fail(t, "Failed to dial UDP: %v", dErr)
+			t.Error(dErr)
 
 			continue
 		}
-		_, wErr := conn.Write([]byte{byte(i)})
-		assert.NoError(t, wErr)
-		assert.NoError(t, conn.Close())
+		if _, wErr := conn.Write([]byte{byte(i)}); wErr != nil {
+			t.Error(wErr)
+		}
+		if cErr := conn.Close(); cErr != nil {
+			t.Error(cErr)
+		}
 	}
 
 	time.Sleep(100 * time.Millisecond) // Wait all packets being processed by readLoop
@@ -251,30 +290,39 @@ func TestListenerConcurrent(t *testing.T) { //nolint:gocyclo
 	for i := 0; i < backlog; i++ {
 		conn, _, lErr := listener.Accept()
 		if lErr != nil {
-			assert.Fail(t, "Failed to accept connection: %v", lErr)
+			t.Error(lErr)
 
 			continue
 		}
 		b := make([]byte, 1)
 		n, _, lErr := conn.ReadFrom(b)
-		assert.NoError(t, lErr)
-		assert.Equal(t, b[:n], []byte{byte(i)})
-		assert.NoError(t, conn.Close())
+		if lErr != nil {
+			t.Error(lErr)
+		} else if !bytes.Equal([]byte{byte(i)}, b[:n]) {
+			t.Errorf("Packet from connection %d is wrong, expected: [%d], got: %v", i, i, b[:n])
+		}
+		if lErr = conn.Close(); lErr != nil {
+			t.Error(lErr)
+		}
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		conn, _, lErr := listener.Accept()
-		assert.ErrorIs(t, lErr, ErrClosedListener)
-		if lErr == nil {
-			assert.NoError(t, conn.Close())
+		if conn, _, lErr := listener.Accept(); !errors.Is(lErr, ErrClosedListener) {
+			t.Errorf("Connection exceeding backlog limit must be discarded: %v", lErr)
+			if lErr == nil {
+				_ = conn.Close()
+			}
 		}
 	}()
 
 	time.Sleep(100 * time.Millisecond) // Last Accept should be discarded
-	assert.NoError(t, listener.Close())
+	err = listener.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	wg.Wait()
 }
@@ -289,11 +337,7 @@ func pipe() (dtlsnet.PacketListener, net.PacketConn, *net.UDPConn, error) {
 
 	// Open a connection
 	var dConn *net.UDPConn
-	dAddr, ok := listener.Addr().(*net.UDPAddr)
-	if !ok {
-		return nil, nil, nil, errUDPCastFailed
-	}
-	dConn, err = net.DialUDP(network, nil, dAddr)
+	dConn, err = net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to dial: %w", err)
 	}
@@ -340,10 +384,18 @@ func TestConnClose(t *testing.T) { //nolint:cyclop
 		defer report()
 
 		udpListener, ca, cb, errPipe := pipe()
-		assert.NoError(t, errPipe)
-		assert.NoError(t, ca.Close())
-		assert.NoError(t, cb.Close())
-		assert.NoError(t, udpListener.Close())
+		if errPipe != nil {
+			t.Fatal(errPipe)
+		}
+		if err := ca.Close(); err != nil {
+			t.Errorf("Failed to close A side: %v", err)
+		}
+		if err := cb.Close(); err != nil {
+			t.Errorf("Failed to close B side: %v", err)
+		}
+		if err := udpListener.Close(); err != nil {
+			t.Errorf("Failed to close listener: %v", err)
+		}
 	})
 	t.Run("CloseError1", func(t *testing.T) {
 		// Check for leaking routines
@@ -351,15 +403,23 @@ func TestConnClose(t *testing.T) { //nolint:cyclop
 		defer report()
 
 		udpListener, ca, cb, errPipe := pipe()
-		assert.NoError(t, errPipe)
-
+		if errPipe != nil {
+			t.Fatal(errPipe)
+		}
 		// Close l.pConn to inject error.
-		listener, ok := udpListener.(*listener)
-		assert.True(t, ok)
-		assert.NoError(t, listener.pConn.Close())
-		assert.NoError(t, cb.Close())
-		assert.NoError(t, ca.Close())
-		assert.Error(t, udpListener.Close())
+		if err := udpListener.(*listener).pConn.Close(); err != nil { //nolint:forcetypeassert
+			t.Error(err)
+		}
+
+		if err := cb.Close(); err != nil {
+			t.Errorf("Failed to close A side: %v", err)
+		}
+		if err := ca.Close(); err != nil {
+			t.Errorf("Failed to close B side: %v", err)
+		}
+		if err := udpListener.Close(); err == nil {
+			t.Errorf("Error is not propagated to Listener.Close")
+		}
 	})
 	t.Run("CloseError2", func(t *testing.T) {
 		// Check for leaking routines
@@ -367,15 +427,23 @@ func TestConnClose(t *testing.T) { //nolint:cyclop
 		defer report()
 
 		l, ca, cb, errPipe := pipe()
-		assert.NoError(t, errPipe)
-
+		if errPipe != nil {
+			t.Fatal(errPipe)
+		}
 		// Close l.pConn to inject error.
-		listener, ok := l.(*listener)
-		assert.True(t, ok)
-		assert.NoError(t, listener.pConn.Close())
-		assert.NoError(t, cb.Close())
-		assert.NoError(t, l.Close())
-		assert.Error(t, ca.Close())
+		if err := l.(*listener).pConn.Close(); err != nil { //nolint:forcetypeassert
+			t.Error(err)
+		}
+
+		if err := cb.Close(); err != nil {
+			t.Errorf("Failed to close A side: %v", err)
+		}
+		if err := l.Close(); err != nil {
+			t.Errorf("Failed to close listener: %v", err)
+		}
+		if err := ca.Close(); err == nil {
+			t.Errorf("Error is not propagated to Conn.Close")
+		}
 	})
 	t.Run("CancelRead", func(t *testing.T) {
 		// Limit runtime in case of deadlocks
@@ -387,7 +455,9 @@ func TestConnClose(t *testing.T) { //nolint:cyclop
 		defer report()
 
 		listener, ca, cb, errPipe := pipe()
-		assert.NoError(t, errPipe)
+		if errPipe != nil {
+			t.Fatal(errPipe)
+		}
 
 		errC := make(chan error, 1)
 		go func() {
@@ -398,13 +468,22 @@ func TestConnClose(t *testing.T) { //nolint:cyclop
 			errC <- err
 		}()
 
-		assert.NoError(t, ca.Close()) // Trigger Read cancellation.
+		if err := ca.Close(); err != nil { // Trigger Read cancellation.
+			t.Errorf("Failed to close B side: %v", err)
+		}
 
 		// Main test condition, Read should return
 		// after ca.Close() by closing the buffer.
-		assert.ErrorIs(t, <-errC, io.EOF)
-		assert.NoError(t, cb.Close())
-		assert.NoError(t, listener.Close())
+		if err := <-errC; !errors.Is(err, io.EOF) {
+			t.Errorf("expected err to be io.EOF but got %v", err)
+		}
+
+		if err := cb.Close(); err != nil {
+			t.Errorf("Failed to close A side: %v", err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Errorf("Failed to close listener: %v", err)
+		}
 	})
 }
 
@@ -451,7 +530,9 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 			return "", false
 		},
 	}).Listen(network, addr)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var clientWg sync.WaitGroup
 	var phaseOne [5]chan struct{}
@@ -469,18 +550,31 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 			// The first payload from the accepted connection should inform
 			// which connection this server is.
 			conn, _, err := listener.Accept()
-			assert.NoError(t, err)
+			if err != nil {
+				t.Error(err)
 
+				return
+			}
 			buf := make([]byte, 100)
 			n, raddr, rErr := conn.ReadFrom(buf)
-			assert.NoError(t, rErr)
+			if rErr != nil {
+				t.Error(err)
 
+				return
+			}
 			var udpPkt pkt
-			assert.NoError(t, json.Unmarshal(buf[:n], &udpPkt))
+			if uErr := json.Unmarshal(buf[:n], &udpPkt); uErr != nil {
+				t.Error(err)
 
+				return
+			}
 			// First message should be a hello and custom connection
 			// ID function will use remote address as identifier.
-			assert.Equal(t, helloPayload, udpPkt.Payload)
+			if udpPkt.Payload != helloPayload {
+				t.Error("Expected hello message")
+
+				return
+			}
 			connID := udpPkt.ID
 
 			// Send set message to associate ID with this connection.
@@ -488,11 +582,16 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 				ID:      connID,
 				Payload: "set",
 			})
-			assert.NoError(t, err)
+			if err != nil {
+				t.Error(err)
 
-			_, wErr := conn.WriteTo(buf, raddr)
-			assert.NoError(t, wErr)
+				return
+			}
+			if _, wErr := conn.WriteTo(buf, raddr); wErr != nil {
+				t.Error(wErr)
 
+				return
+			}
 			// Signal to the corresponding clients that connection ID has been
 			// set.
 			close(phaseOne[connID])
@@ -501,20 +600,36 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 			for j := 0; j < clientCount/serverCount; j++ {
 				buf := make([]byte, 100)
 				n, _, err := conn.ReadFrom(buf)
-				assert.NoError(t, err)
+				if err != nil {
+					t.Error(err)
 
+					return
+				}
 				var udpPkt pkt
-				assert.NoError(t, json.Unmarshal(buf[:n], &udpPkt))
-				assert.Equal(t, connID, udpPkt.ID)
+				if err := json.Unmarshal(buf[:n], &udpPkt); err != nil {
+					t.Error(err)
 
-				// Ensure we only ever receive one message from a given client.
+					return
+				}
+				if udpPkt.ID != connID {
+					t.Errorf("Expected connection ID %d, but got %d", connID, udpPkt.ID)
+
+					return
+				}
+				// Ensure we only ever receive one message from
+				// a given client.
 				clientMapMu.Lock()
-				_, exists := clientMap[udpPkt.Payload]
-				assert.Falsef(t, exists, "Multiple messages from single client %s", udpPkt.Payload)
+				if _, ok := clientMap[udpPkt.Payload]; ok {
+					t.Errorf("Multiple messages from single client %s", udpPkt.Payload)
+
+					return
+				}
 				clientMap[udpPkt.Payload] = struct{}{}
 				clientMapMu.Unlock()
 			}
-			assert.NoError(t, conn.Close())
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
 		}()
 	}
 
@@ -524,39 +639,60 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 		clientWg.Add(1)
 		go func(connID int) {
 			defer clientWg.Done()
-			addr, ok := listener.Addr().(*net.UDPAddr)
-			assert.True(t, ok)
-			conn, dErr := net.DialUDP(network, nil, addr)
-			assert.NoError(t, dErr)
+			conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
+			if dErr != nil {
+				t.Error(dErr)
 
+				return
+			}
 			hbuf, err := json.Marshal(&pkt{
 				ID:      connID,
 				Payload: helloPayload,
 			})
-			assert.NoError(t, err)
+			if err != nil {
+				t.Error(err)
 
-			_, wErr := conn.Write(hbuf)
-			assert.NoError(t, wErr)
+				return
+			}
+			if _, wErr := conn.Write(hbuf); wErr != nil {
+				t.Error(wErr)
+
+				return
+			}
 
 			var udpPacket pkt
 			buf := make([]byte, 100)
 			n, err := conn.Read(buf)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Error(err)
 
-			assert.NoError(t, json.Unmarshal(buf[:n], &udpPacket))
+				return
+			}
+			if err := json.Unmarshal(buf[:n], &udpPacket); err != nil {
+				t.Error(err)
 
+				return
+			}
 			// Second message should be a set and custom connection identifier
 			// function will update the connection ID from remote address to the
 			// supplied ID.
-			assert.Equal(t, "set", udpPacket.Payload)
+			if udpPacket.Payload != "set" {
+				t.Error("Expected set message")
 
+				return
+			}
 			// Ensure the connection ID matches what the "hello" message
 			// indicated.
-			assert.Equal(t, connID, udpPacket.ID)
+			if udpPacket.ID != connID {
+				t.Errorf("Expected connection ID %d, but got %d", connID, udpPacket.ID)
 
+				return
+			}
 			// Close connection. We will reconnect from a different remote
 			// address using the same connection ID.
-			assert.NoError(t, conn.Close())
+			if cErr := conn.Close(); cErr != nil {
+				t.Error(cErr)
+			}
 		}(i)
 	}
 
@@ -568,22 +704,31 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 			// Ensure that we are using a connection ID for packet
 			// routing prior to sending any messages.
 			<-phaseOne[connID]
-			addr, ok := listener.Addr().(*net.UDPAddr)
-			assert.True(t, ok)
-			conn, dErr := net.DialUDP(network, nil, addr)
-			assert.NoError(t, dErr)
+			conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
+			if dErr != nil {
+				t.Error(dErr)
 
+				return
+			}
 			// Send a packet with a connection ID and this client's local
 			// address. The latter is used to identify this client as unique.
 			buf, err := json.Marshal(&pkt{
 				ID:      connID,
 				Payload: conn.LocalAddr().String(),
 			})
-			assert.NoError(t, err)
+			if err != nil {
+				t.Error(err)
 
-			_, wErr := conn.Write(buf)
-			assert.NoError(t, wErr)
-			assert.NoError(t, conn.Close())
+				return
+			}
+			if _, wErr := conn.Write(buf); wErr != nil {
+				t.Error(wErr)
+
+				return
+			}
+			if cErr := conn.Close(); cErr != nil {
+				t.Error(cErr)
+			}
 		}(i % serverCount)
 	}
 
@@ -591,5 +736,7 @@ func TestListenerCustomConnIDs(t *testing.T) { //nolint:gocyclo,cyclop,maintidx
 	clientWg.Wait()
 	// Wait for servers to exit.
 	serverWg.Wait()
-	assert.NoError(t, listener.Close())
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
 }

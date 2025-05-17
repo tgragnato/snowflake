@@ -7,6 +7,7 @@
 package dtls
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -18,7 +19,6 @@ import (
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/transport/v3/dpipe"
 	"github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestContextConfig(t *testing.T) { //nolint:cyclop
@@ -30,20 +30,27 @@ func TestContextConfig(t *testing.T) { //nolint:cyclop
 	defer report()
 
 	addrListen, err := net.ResolveUDPAddr("udp", "localhost:0")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	// Dummy listener
 	listen, err := net.ListenUDP("udp", addrListen)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	defer func() {
 		_ = listen.Close()
 	}()
 	addr, ok := listen.LocalAddr().(*net.UDPAddr)
-	assert.True(t, ok)
+	if !ok {
+		t.Fatal("Failed to cast net.UDPAddr")
+	}
 
 	cert, err := selfsign.GenerateSelfSigned()
-	assert.NoError(t, err)
-
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	config := &Config{
 		Certificates: []tls.Certificate{cert},
 	}
@@ -120,7 +127,7 @@ func TestContextConfig(t *testing.T) { //nolint:cyclop
 				defer cancel()
 				var netError net.Error
 				if !errors.As(err, &netError) || !netError.Temporary() { //nolint:staticcheck
-					assert.Fail(t, "Dial failed with unexpected error", "err: %v", err)
+					t.Errorf("Client error exp(Temporary network error) failed(%v)", err)
 					close(done)
 
 					return
@@ -149,7 +156,9 @@ func TestContextConfig(t *testing.T) { //nolint:cyclop
 					}
 				}
 			}()
-			assert.Equal(t, dial.order, order, "Invalid cancel timing")
+			if !bytes.Equal(dial.order, order) {
+				t.Errorf("Invalid cancel timing, expected: %v, got: %v", dial.order, order)
+			}
 		})
 	}
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol/extension"
 	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 	"github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -45,8 +44,9 @@ var (
 func randomPort(tb testing.TB) int {
 	tb.Helper()
 	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	assert.NoError(tb, err, "failed to pick port")
-
+	if err != nil {
+		tb.Fatalf("failed to pickPort: %v", err)
+	}
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -54,7 +54,7 @@ func randomPort(tb testing.TB) int {
 	case *net.UDPAddr:
 		return addr.Port
 	default:
-		assert.Fail(tb, "failed to acquire port", "unknown addr type %T", addr)
+		tb.Fatalf("unknown addr type %T", addr)
 
 		return 0
 	}
@@ -147,13 +147,19 @@ func (c *comm) assert(t *testing.T) { //nolint:cyclop
 
 	defer func() {
 		if c.clientConn != nil {
-			assert.NoError(t, c.clientConn.Close())
+			if err := c.clientConn.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if c.serverConn != nil {
-			assert.NoError(t, c.serverConn.Close())
+			if err := c.serverConn.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if c.serverListener != nil {
-			assert.NoError(t, c.serverListener.Close())
+			if err := c.serverListener.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}()
 
@@ -162,18 +168,22 @@ func (c *comm) assert(t *testing.T) { //nolint:cyclop
 		for {
 			select {
 			case err := <-c.errChan:
-				assert.NoError(t, err)
+				t.Fatal(err)
 			case <-time.After(testTimeLimit):
-				assert.Failf(t, "Test timeout", "seenClient %t seenServer %t", seenClient, seenServer)
+				t.Fatalf("Test timeout, seenClient %t seenServer %t", seenClient, seenServer)
 			case clientMsg := <-c.clientChan:
-				assert.Equal(t, testMessage, clientMsg)
+				if clientMsg != testMessage {
+					t.Fatalf("clientMsg does not equal test message: %s %s", clientMsg, testMessage)
+				}
 
 				seenClient = true
 				if seenClient && seenServer {
 					return
 				}
 			case serverMsg := <-c.serverChan:
-				assert.Equal(t, testMessage, serverMsg)
+				if serverMsg != testMessage {
+					t.Fatalf("serverMsg does not equal test message: %s %s", serverMsg, testMessage)
+				}
 
 				seenServer = true
 				if seenClient && seenServer {
@@ -184,26 +194,30 @@ func (c *comm) assert(t *testing.T) { //nolint:cyclop
 	}()
 }
 
-func (c *comm) cleanup(t *testing.T) {
+func (c *comm) cleanup(t *testing.T) { //nolint:cyclop
 	t.Helper()
 
 	clientDone, serverDone := false, false
 	for {
 		select {
 		case err := <-c.clientDone:
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			clientDone = true
 			if clientDone && serverDone {
 				return
 			}
 		case err := <-c.serverDone:
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			serverDone = true
 			if clientDone && serverDone {
 				return
 			}
 		case <-time.After(testTimeLimit):
-			assert.Fail(t, "Test timeout waiting for server shutdown")
+			t.Fatalf("Test timeout waiting for server shutdown")
 		}
 	}
 }
@@ -309,7 +323,9 @@ func testPionE2ESimple(t *testing.T, server, client func(*comm), opts ...dtlsCon
 			defer cancel()
 
 			cert, err := selfsign.GenerateSelfSignedWithDNS("localhost")
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			cfg := &dtls.Config{
 				Certificates:       []tls.Certificate{cert},
@@ -386,7 +402,9 @@ func testPionE2EMTUs(t *testing.T, server, client func(*comm), opts ...dtlsConfO
 			defer cancel()
 
 			cert, err := selfsign.GenerateSelfSignedWithDNS("localhost")
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			cfg := &dtls.Config{
 				Certificates:       []tls.Certificate{cert},
@@ -427,9 +445,13 @@ func testPionE2ESimpleED25519(t *testing.T, server, client func(*comm), opts ...
 			defer cancel()
 
 			_, key, err := ed25519.GenerateKey(rand.Reader)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			cert, err := selfsign.SelfSign(key)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			cfg := &dtls.Config{
 				Certificates:       []tls.Certificate{cert},
@@ -460,14 +482,22 @@ func testPionE2ESimpleED25519ClientCert(t *testing.T, server, client func(*comm)
 	defer cancel()
 
 	_, skey, err := ed25519.GenerateKey(rand.Reader)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	scert, err := selfsign.SelfSign(skey)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, ckey, err := ed25519.GenerateKey(rand.Reader)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ccert, err := selfsign.SelfSign(ckey)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	scfg := &dtls.Config{
 		Certificates: []tls.Certificate{scert},
@@ -502,14 +532,20 @@ func testPionE2ESimpleECDSAClientCert(t *testing.T, server, client func(*comm), 
 	defer cancel()
 
 	scert, err := selfsign.GenerateSelfSigned()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ccert, err := selfsign.GenerateSelfSigned()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	clientCAs := x509.NewCertPool()
 	caCert, err := x509.ParseCertificate(ccert.Certificate[0])
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	clientCAs.AddCert(caCert)
 
 	scfg := &dtls.Config{
@@ -546,14 +582,22 @@ func testPionE2ESimpleRSAClientCert(t *testing.T, server, client func(*comm), op
 	defer cancel()
 
 	spriv, err := rsa.GenerateKey(rand.Reader, 2048)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	scert, err := selfsign.SelfSign(spriv)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cpriv, err := rsa.GenerateKey(rand.Reader, 2048)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ccert, err := selfsign.SelfSign(cpriv)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	scfg := &dtls.Config{
 		Certificates: []tls.Certificate{scert},
@@ -589,7 +633,9 @@ func testPionE2ESimpleClientHelloHook(t *testing.T, server, client func(*comm), 
 		defer cancel()
 
 		cert, err := selfsign.GenerateSelfSignedWithDNS("localhost")
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		modifiedCipher := dtls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
 		supportedList := []dtls.CipherSuiteID{
@@ -646,7 +692,9 @@ func testPionE2ESimpleServerHelloHook(t *testing.T, server, client func(*comm), 
 		defer cancel()
 
 		cert, err := selfsign.GenerateSelfSignedWithDNS("localhost")
-		assert.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		supportedList := []dtls.CipherSuiteID{dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM}
 

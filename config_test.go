@@ -12,32 +12,31 @@ import (
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
-	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateConfig(t *testing.T) {
+func TestValidateConfig(t *testing.T) { //nolint:cyclop
 	cert, err := selfsign.GenerateSelfSigned()
 	if err != nil {
-		assert.NoError(t, err, "TestValidateConfig: Config validation error, self signed certificate not generated")
+		t.Fatalf("TestValidateConfig: Config validation error(%v), self signed certificate not generated", err)
 
 		return
 	}
 	dsaPrivateKey := &dsa.PrivateKey{}
 	err = dsa.GenerateParameters(&dsaPrivateKey.Parameters, rand.Reader, dsa.L1024N160)
 	if err != nil {
-		assert.NoError(t, err, "TestValidateConfig: Config validation error, DSA parameters not generated")
+		t.Fatalf("TestValidateConfig: Config validation error(%v), DSA parameters not generated", err)
 
 		return
 	}
 	err = dsa.GenerateKey(dsaPrivateKey, rand.Reader)
 	if err != nil {
-		assert.NoError(t, err, "TestValidateConfig: Config validation error, DSA private key not generated")
+		t.Fatalf("TestValidateConfig: Config validation error(%v), DSA private key not generated", err)
 
 		return
 	}
 	rsaPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		assert.NoError(t, err, "TestValidateConfig: Config validation error, RSA private key not generated")
+		t.Fatalf("TestValidateConfig: Config validation error(%v), RSA private key not generated", err)
 
 		return
 	}
@@ -134,9 +133,11 @@ func TestValidateConfig(t *testing.T) {
 			err := validateConfig(testCase.config)
 			if testCase.expErr != nil || testCase.wantAnyErr {
 				if testCase.expErr != nil && !errors.Is(err, testCase.expErr) {
-					assert.ErrorIs(t, err, testCase.expErr, "TestValidateConfig")
+					t.Fatalf("TestValidateConfig: Config validation error exp(%v) failed(%v)", testCase.expErr, err)
 				}
-				assert.Error(t, err, "TestValidateConfig: Config validation expected an error")
+				if err == nil {
+					t.Fatalf("TestValidateConfig: Config validation expected an error")
+				}
 			}
 		})
 	}

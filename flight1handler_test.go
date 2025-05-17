@@ -13,7 +13,6 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 	"github.com/pion/logging"
 	"github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
 type flight1TestMockFlightConn struct{}
@@ -34,7 +33,7 @@ type flight1TestMockCipherSuite struct {
 }
 
 func (f *flight1TestMockCipherSuite) IsInitialized() bool {
-	assert.Fail(f.t, "IsInitialized called with Certificate but not CertificateVerify")
+	f.t.Fatal("IsInitialized called with Certificate but not CertificateVerify")
 
 	return true
 }
@@ -270,13 +269,17 @@ func TestFlight1_Process_ServerHelloLateArrival(t *testing.T) { //nolint:maintid
 	cache.push(certificateRequest, 0, 4, handshake.TypeCertificateRequest, false)
 	cache.push(serverHelloDone, 0, 5, handshake.TypeServerHelloDone, false)
 
-	_, alt, err := flight1Parse(context.TODO(), mockConn, state, cache, cfg)
-	assert.NoError(t, err)
-	assert.Nil(t, alt)
+	if _, alt, err := flight1Parse(context.TODO(), mockConn, state, cache, cfg); err != nil {
+		t.Fatal(err)
+	} else if alt != nil {
+		t.Fatal(alt.String())
+	}
 
 	cache.push(serverHello, 0, 0, handshake.TypeServerHello, false)
 	cache.push(certificate1, 0, 1, handshake.TypeCertificate, false)
-	_, alt, err = flight1Parse(context.TODO(), mockConn, state, cache, cfg)
-	assert.NoError(t, err)
-	assert.Nil(t, alt)
+	if _, alt, err := flight1Parse(context.TODO(), mockConn, state, cache, cfg); err != nil {
+		t.Fatal(err)
+	} else if alt != nil {
+		t.Fatal(alt.String())
+	}
 }

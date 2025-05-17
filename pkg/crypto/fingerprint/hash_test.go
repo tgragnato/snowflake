@@ -5,35 +5,50 @@ package fingerprint
 
 import (
 	"crypto"
+	"errors"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHashFromString(t *testing.T) {
 	t.Run("InvalidHashAlgorithm", func(t *testing.T) {
 		_, err := HashFromString("invalid-hash-algorithm")
-		assert.ErrorIs(t, err, errInvalidHashAlgorithm)
+		if !errors.Is(err, errInvalidHashAlgorithm) {
+			t.Errorf("Expected error '%v' for invalid hash name, got '%v'", errInvalidHashAlgorithm, err)
+		}
 	})
 	t.Run("ValidHashAlgorithm", func(t *testing.T) {
 		h, err := HashFromString("sha-512")
-		assert.NoError(t, err)
-		assert.Equal(t, h, crypto.SHA512)
+		if err != nil {
+			t.Fatalf("Unexpected error for valid hash name, got '%v'", err)
+		}
+		if h != crypto.SHA512 {
+			t.Errorf("Expected hash ID of %d, got %d", int(crypto.SHA512), int(h)) //nolint:gosec //G115
+		}
 	})
 	t.Run("ValidCaseInsensitiveHashAlgorithm", func(t *testing.T) {
 		h, err := HashFromString("SHA-512")
-		assert.NoError(t, err)
-		assert.Equal(t, h, crypto.SHA512)
+		if err != nil {
+			t.Fatalf("Unexpected error for valid hash name, got '%v'", err)
+		}
+		if h != crypto.SHA512 {
+			//nolint:gosec // G115
+			t.Errorf("Expected hash ID of %d, got %d", int(crypto.SHA512), int(h))
+		}
 	})
 }
 
 func TestStringFromHash_Roundtrip(t *testing.T) {
 	for _, h := range nameToHash() {
 		s, err := StringFromHash(h)
-		assert.NoError(t, err)
-
+		if err != nil {
+			t.Fatalf("Unexpected error for valid hash algorithm, got '%v'", err)
+		}
 		h2, err := HashFromString(s)
-		assert.NoError(t, err)
-		assert.Equal(t, h, h2)
+		if err != nil {
+			t.Fatalf("Unexpected error for valid hash name, got '%v'", err)
+		}
+		if h != h2 {
+			t.Errorf("Hash value doesn't match, expected: 0x%x, got 0x%x", h, h2)
+		}
 	}
 }

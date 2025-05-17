@@ -4,13 +4,13 @@
 package dtls
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/pion/dtls/v3/pkg/protocol"
 	"github.com/pion/dtls/v3/pkg/protocol/extension"
 	"github.com/pion/dtls/v3/pkg/protocol/handshake"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandshakeMessage(t *testing.T) {
@@ -44,10 +44,16 @@ func TestHandshakeMessage(t *testing.T) {
 	}
 
 	h := &handshake.Handshake{}
-	assert.NoError(t, h.Unmarshal(rawHandshakeMessage))
-	assert.Equal(t, parsedHandshake, h, "handshakeMessageClientHello unmarshal")
+	if err := h.Unmarshal(rawHandshakeMessage); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(h, parsedHandshake) {
+		t.Errorf("handshakeMessageClientHello unmarshal: got %#v, want %#v", h, parsedHandshake)
+	}
 
 	raw, err := h.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawHandshakeMessage, raw, "handshakeMessageClientHello marshal")
+	if err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(raw, rawHandshakeMessage) {
+		t.Errorf("handshakeMessageClientHello marshal: got %#v, want %#v", raw, rawHandshakeMessage)
+	}
 }

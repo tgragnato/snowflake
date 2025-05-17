@@ -6,6 +6,7 @@ package dtls
 import (
 	"context"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/pion/transport/v3/dpipe"
 	"github.com/pion/transport/v3/test"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestReplayProtection(t *testing.T) { //nolint:cyclop
@@ -50,16 +50,20 @@ func TestReplayProtection(t *testing.T) { //nolint:cyclop
 			if rerr != nil {
 				return
 			}
-			_, werr := cb.Write(b[:n])
-			assert.NoError(t, werr)
+			if _, werr := cb.Write(b[:n]); werr != nil {
+				t.Error(werr)
+
+				return
+			}
 
 			atomic.AddInt32(&cntReplays, 1)
 			go func() {
 				defer replaySendDone()
 				// Replay bit later
 				time.Sleep(time.Millisecond)
-				_, werr := cb.Write(b[:n])
-				assert.NoError(t, werr)
+				if _, werr := cb.Write(b[:n]); werr != nil {
+					t.Error(werr)
+				}
 			}()
 		}
 	}
@@ -68,7 +72,9 @@ func TestReplayProtection(t *testing.T) { //nolint:cyclop
 	go replayer(conn[2], conn[1])
 
 	ca, cb, err := pipeConn(conn[0], conn[3])
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	const numMsgs = 10
 
@@ -102,10 +108,16 @@ func TestReplayProtection(t *testing.T) { //nolint:cyclop
 	for i := 0; i < numMsgs; i++ {
 		data := []byte{byte(i)}
 		sent = append(sent, data)
-		_, werr := ca.Write(data)
-		assert.NoError(t, werr)
-		_, werr = cb.Write(data)
-		assert.NoError(t, werr)
+		if _, werr := ca.Write(data); werr != nil {
+			t.Error(werr)
+
+			return
+		}
+		if _, werr := cb.Write(data); werr != nil {
+			t.Error(werr)
+
+			return
+		}
 	}
 
 	replaySendDone()
@@ -113,13 +125,21 @@ func TestReplayProtection(t *testing.T) { //nolint:cyclop
 	time.Sleep(10 * time.Millisecond) // Ensure all replayed packets are sent
 
 	for i := 0; i < 4; i++ {
-		assert.NoError(t, conn[i].Close())
+		if err := conn[i].Close(); err != nil {
+			t.Error(err)
+		}
 	}
-	assert.NoError(t, ca.Close())
-	assert.NoError(t, cb.Close())
+	if err := ca.Close(); err != nil {
+		t.Error(err)
+	}
+	if err := cb.Close(); err != nil {
+		t.Error(err)
+	}
 	wgRoutines.Wait()
 
 	for _, r := range received {
-		assert.Equal(t, sent, r)
+		if !reflect.DeepEqual(sent, r) {
+			t.Errorf("Received data differs, expected: %v, got: %v", sent, r)
+		}
 	}
 }

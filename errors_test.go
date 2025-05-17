@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"net"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 var errExample = errors.New("an example error")
@@ -45,7 +43,10 @@ func TestErrorUnwrap(t *testing.T) {
 		t.Run(fmt.Sprintf("%T", c.err), func(t *testing.T) {
 			err := c.err
 			for _, unwrapped := range c.errUnwrapped {
-				assert.ErrorIs(t, errors.Unwrap(err), unwrapped)
+				e := errors.Unwrap(err)
+				if !errors.Is(e, unwrapped) {
+					t.Errorf("Unwrapped error is expected to be '%v', got '%v'", unwrapped, e)
+				}
 			}
 		})
 	}
@@ -68,10 +69,18 @@ func TestErrorNetError(t *testing.T) {
 		testCase := testCase
 		t.Run(fmt.Sprintf("%T", testCase.err), func(t *testing.T) {
 			var ne net.Error
-			assert.ErrorAs(t, testCase.err, &ne)
-			assert.Equal(t, testCase.timeout, ne.Timeout())
-			assert.Equal(t, testCase.temporary, ne.Temporary()) //nolint:staticcheck
-			assert.Equal(t, testCase.str, ne.Error())
+			if !errors.As(testCase.err, &ne) {
+				t.Fatalf("%T doesn't implement net.Error", testCase.err)
+			}
+			if ne.Timeout() != testCase.timeout {
+				t.Errorf("%T.Timeout() should be %v", testCase.err, testCase.timeout)
+			}
+			if ne.Temporary() != testCase.temporary { //nolint:staticcheck
+				t.Errorf("%T.Temporary() should be %v", testCase.err, testCase.temporary)
+			}
+			if ne.Error() != testCase.str {
+				t.Errorf("%T.Error() should be %v", testCase.err, testCase.str)
+			}
 		})
 	}
 }

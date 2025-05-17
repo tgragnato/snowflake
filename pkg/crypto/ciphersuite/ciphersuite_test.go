@@ -5,11 +5,11 @@
 package ciphersuite
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/protocol"
 	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateAEADAdditionalDataCID(t *testing.T) {
@@ -53,7 +53,9 @@ func TestGenerateAEADAdditionalDataCID(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			data := generateAEADAdditionalDataCID(tc.header, tc.payloadLen)
-			assert.Equal(t, tc.expected, data)
+			if !bytes.Equal(data, tc.expected) {
+				t.Errorf("%s\nUnexpected additional data\nwant: %v\ngot: %v", tc.reason, tc.expected, data)
+			}
 		})
 	}
 }

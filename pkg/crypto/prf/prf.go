@@ -121,7 +121,7 @@ func PreMasterSecret(publicKey, privateKey []byte, curve elliptic.Curve) ([]byte
 }
 
 func ellipticCurvePreMasterSecret(publicKey, privateKey []byte, c1, c2 ellipticStdlib.Curve) ([]byte, error) {
-	x, y := ellipticStdlib.Unmarshal(c1, publicKey) //nolint:staticcheck
+	x, y := ellipticStdlib.Unmarshal(c1, publicKey)
 	if x == nil || y == nil {
 		return nil, errInvalidNamedCurve
 	}

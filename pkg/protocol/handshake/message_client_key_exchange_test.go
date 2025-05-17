@@ -4,10 +4,10 @@
 package handshake
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandshakeMessageClientKeyExchange(t *testing.T) {
@@ -24,10 +24,16 @@ func TestHandshakeMessageClientKeyExchange(t *testing.T) {
 	c := &MessageClientKeyExchange{
 		KeyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
 	}
-	assert.NoError(t, c.Unmarshal(rawClientKeyExchange))
-	assert.Equal(t, parsedClientKeyExchange, c)
+	if err := c.Unmarshal(rawClientKeyExchange); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(c, parsedClientKeyExchange) {
+		t.Errorf("handshakeMessageClientKeyExchange unmarshal: got %#v, want %#v", c, parsedClientKeyExchange)
+	}
 
 	raw, err := c.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawClientKeyExchange, raw)
+	if err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(raw, rawClientKeyExchange) {
+		t.Errorf("handshakeMessageClientKeyExchange marshal: got %#v, want %#v", raw, rawClientKeyExchange)
+	}
 }
