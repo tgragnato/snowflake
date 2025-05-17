@@ -52,11 +52,16 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 		maxBigInt = new(big.Int) // Max random value, a 130-bits integer, i.e 2^130 - 1
 	)
 
-	switch k := key.(type) {
-	case ed25519.PrivateKey:
-		pubKey = k.Public()
-	case *ecdsa.PrivateKey:
-		pubKey = k.Public()
+	signer, ok := key.(crypto.Signer)
+	if !ok {
+		return tls.Certificate{}, errInvalidPrivateKey
+	}
+
+	switch k := signer.Public().(type) {
+	case ed25519.PublicKey:
+		pubKey = k
+	case *ecdsa.PublicKey:
+		pubKey = k
 	default:
 		return tls.Certificate{}, errInvalidPrivateKey
 	}
@@ -92,7 +97,7 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 		},
 	}
 
-	raw, err := x509.CreateCertificate(rand.Reader, &template, &template, pubKey, key)
+	raw, err := x509.CreateCertificate(rand.Reader, &template, &template, pubKey, signer)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -104,7 +109,7 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 
 	return tls.Certificate{
 		Certificate: [][]byte{raw},
-		PrivateKey:  key,
+		PrivateKey:  signer,
 		Leaf:        leaf,
 	}, nil
 }

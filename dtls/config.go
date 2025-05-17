@@ -5,6 +5,7 @@ package dtls
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/tls"
@@ -283,9 +284,13 @@ func validateConfig(config *Config) error {
 			return errInvalidCertificate
 		}
 		if cert.PrivateKey != nil {
-			switch cert.PrivateKey.(type) {
-			case ed25519.PrivateKey:
-			case *ecdsa.PrivateKey:
+			signer, ok := cert.PrivateKey.(crypto.Signer)
+			if !ok {
+				return errInvalidPrivateKey
+			}
+			switch signer.Public().(type) {
+			case ed25519.PublicKey:
+			case *ecdsa.PublicKey:
 			default:
 				return errInvalidPrivateKey
 			}

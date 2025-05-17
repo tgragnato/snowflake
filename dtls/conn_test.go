@@ -3074,7 +3074,7 @@ func (ms *memSessStore) Del(key []byte) error {
 	return nil
 }
 
-// Test that we return the proper certificate if we are serving multiple ServerNames on a single Server
+// Test that we return the proper certificate if we are serving multiple ServerNames on a single Server.
 func TestMultipleServerCertificates(t *testing.T) {
 	fooCert, err := selfsign.GenerateSelfSignedWithDNS("foo")
 	if err != nil {
