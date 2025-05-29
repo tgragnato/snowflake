@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -671,7 +672,7 @@ func TestMetrics(t *testing.T) {
 			w := httptest.NewRecorder()
 			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			r.RemoteAddr = "129.97.208.23" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -684,7 +685,7 @@ func TestMetrics(t *testing.T) {
 			w = httptest.NewRecorder()
 			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"standalone","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			r.RemoteAddr = "129.97.208.24" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -697,7 +698,7 @@ func TestMetrics(t *testing.T) {
 			w = httptest.NewRecorder()
 			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"badge","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			r.RemoteAddr = "129.97.208.25" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -710,7 +711,7 @@ func TestMetrics(t *testing.T) {
 			w = httptest.NewRecorder()
 			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"webext","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			r.RemoteAddr = "129.97.208.26" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -744,7 +745,7 @@ client-sqs-count 0
 client-sqs-ips 
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
-snowflake-ips-nat-unknown 1
+snowflake-ips-nat-unknown 4
 `)
 		})
 
@@ -774,7 +775,6 @@ client-sqs-ips `)
 
 			// Test reset
 			buf.Reset()
-			ctx.metrics.zeroMetrics()
 			ctx.metrics.printMetrics()
 			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips \n")
 			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-standalone 0\n")
@@ -881,9 +881,6 @@ snowflake-ips-nat-unknown 0
 			So(err, ShouldBeNil)
 			clientOffers(i, w, r)
 
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\n")
-
 			w = httptest.NewRecorder()
 			data, err = createClientOffer(sdp, NATRestricted, "")
 			So(err, ShouldBeNil)
@@ -945,9 +942,6 @@ snowflake-ips-nat-unknown 0
 			p.offerChannel <- nil
 			<-done
 
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 0\nsnowflake-ips-nat-unknown 0")
-
 			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"unrestricted","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
 			if err != nil {
@@ -979,7 +973,6 @@ snowflake-ips-nat-unknown 0
 			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
 
 			buf.Reset()
-			ctx.metrics.zeroMetrics()
 
 			data, err = createClientOffer(sdp, NATUnrestricted, "")
 			So(err, ShouldBeNil)
@@ -992,7 +985,6 @@ snowflake-ips-nat-unknown 0
 			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-snowflake-match-count 0")
 
 			buf.Reset()
-			ctx.metrics.zeroMetrics()
 
 			data, err = createClientOffer(sdp, NATUnknown, "")
 			So(err, ShouldBeNil)
@@ -1005,8 +997,8 @@ snowflake-ips-nat-unknown 0
 			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
 		})
 		Convey("for country stats order", func() {
-
-			stats := map[string]int{
+			stats := new(sync.Map)
+			for cc, count := range map[string]uint64{
 				"IT": 50,
 				"FR": 200,
 				"TZ": 100,
@@ -1015,9 +1007,13 @@ snowflake-ips-nat-unknown 0
 				"CA": 1,
 				"BE": 1,
 				"PH": 1,
+			} {
+				stats.LoadOrStore(cc, new(uint64))
+				val, _ := stats.Load(cc)
+				ptr := val.(*uint64)
+				atomic.AddUint64(ptr, count)
 			}
-			ctx.metrics.countryStats.counts = stats
-			So(ctx.metrics.countryStats.Display(), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
+			So(displayCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
 		})
 	})
 }

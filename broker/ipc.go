@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"time"
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/constants"
@@ -74,22 +73,16 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	}
 
 	if !relayPatternSupported {
-		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.proxyPollWithoutRelayURLExtension++
+		i.ctx.metrics.IncrementCounter("proxy-poll-without-relay-url")
 		i.ctx.metrics.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
-		i.ctx.metrics.lock.Unlock()
 	} else {
-		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.proxyPollWithRelayURLExtension++
+		i.ctx.metrics.IncrementCounter("proxy-poll-with-relay-url")
 		i.ctx.metrics.promMetrics.ProxyPollWithRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
-		i.ctx.metrics.lock.Unlock()
 	}
 
 	if !i.ctx.CheckProxyRelayPattern(relayPattern, !relayPatternSupported) {
-		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.proxyPollRejectedWithRelayURLExtension++
+		i.ctx.metrics.IncrementCounter("proxy-poll-rejected-relay-url")
 		i.ctx.metrics.promMetrics.ProxyPollRejectedForRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
-		i.ctx.metrics.lock.Unlock()
 
 		b, err := messages.EncodePollResponseWithRelayURL("", false, "", "", "incorrect relay pattern")
 		*response = b
@@ -104,9 +97,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	if err != nil {
 		log.Println("Warning: cannot process proxy IP: ", err.Error())
 	} else {
-		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateCountryStats(remoteIP, proxyType, natType)
-		i.ctx.metrics.lock.Unlock()
 	}
 
 	var b []byte
@@ -115,10 +106,8 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	offer := i.ctx.RequestOffer(sid, proxyType, natType, clients)
 
 	if offer == nil {
-		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.proxyIdleCount++
+		i.ctx.metrics.IncrementCounter("proxy-idle")
 		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "idle"}).Inc()
-		i.ctx.metrics.lock.Unlock()
 
 		b, err = messages.EncodePollResponse("", false, "")
 		if err != nil {
@@ -162,8 +151,6 @@ func sendClientResponse(resp *messages.ClientPollResponse, response *[]byte) err
 
 func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 
-	startTime := time.Now()
-
 	req, err := messages.DecodeClientPollRequest(arg.Body)
 	if err != nil {
 		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
@@ -197,9 +184,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if snowflake != nil {
 		snowflake.offerChannel <- offer
 	} else {
-		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
-		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
 	}
@@ -207,19 +192,11 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	// Wait for the answer to be returned on the channel or timeout.
 	select {
 	case answer := <-snowflake.answerChannel:
-		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
-		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
-		// Initial tracking of elapsed time.
-		i.ctx.metrics.lock.Lock()
-		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
-		i.ctx.metrics.lock.Unlock()
 	case <-arg.Context.Done():
-		i.ctx.metrics.lock.Lock()
 		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
-		i.ctx.metrics.lock.Unlock()
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
 		err = sendClientResponse(resp, response)
 	}
