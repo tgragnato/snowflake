@@ -97,7 +97,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	if err != nil {
 		log.Println("Warning: cannot process proxy IP: ", err.Error())
 	} else {
-		i.ctx.metrics.UpdateCountryStats(remoteIP, proxyType, natType)
+		i.ctx.metrics.UpdateProxyStats(remoteIP, proxyType, natType)
 	}
 
 	var b []byte
@@ -184,7 +184,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if snowflake != nil {
 		snowflake.offerChannel <- offer
 	} else {
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
+		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
 	}
@@ -192,11 +192,11 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	// Wait for the answer to be returned on the channel or timeout.
 	select {
 	case answer := <-snowflake.answerChannel:
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
+		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
 	case <-arg.Context.Done():
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
+		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
 		err = sendClientResponse(resp, response)
 	}

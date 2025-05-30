@@ -88,7 +88,7 @@ func (m *Metrics) IncrementCounter(key string) {
 	incrementMapCounter(m.counters, key)
 }
 
-func (m *Metrics) UpdateCountryStats(addr string, proxyType string, natType string) {
+func (m *Metrics) UpdateProxyStats(addr string, proxyType string, natType string) {
 
 	// perform geolocation of IP address
 	ip := net.ParseIP(addr)
@@ -140,7 +140,7 @@ func (m *Metrics) UpdateCountryStats(addr string, proxyType string, natType stri
 	}).Inc()
 }
 
-func (m *Metrics) UpdateRendezvousStats(addr string, rendezvousMethod messages.RendezvousMethod, natType, status string) {
+func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.RendezvousMethod, natType, status string) {
 	ip := net.ParseIP(addr)
 	country := "??"
 	if m.geoipdb != nil {

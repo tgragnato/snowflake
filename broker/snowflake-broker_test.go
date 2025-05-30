@@ -651,7 +651,7 @@ func TestInvalidGeoipFile(t *testing.T) {
 		if err := ctx.metrics.LoadGeoipDatabases("invalid_filename", "invalid_filename6"); err != nil {
 			log.Printf("loading geo ip databases returned error: %v", err)
 		}
-		ctx.metrics.UpdateCountryStats("127.0.0.1", "", NATUnrestricted)
+		ctx.metrics.UpdateProxyStats("127.0.0.1", "", NATUnrestricted)
 		So(ctx.metrics.geoipdb, ShouldBeNil)
 
 	})
