@@ -23,7 +23,7 @@ func ampClientOffers(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	// The encoded client poll message immediately follows the /amp/client/
 	// path prefix, so this function unfortunately needs to be aware of and
-	// remote its own routing prefix.
+	// remove its own routing prefix.
 	path := strings.TrimPrefix(r.URL.Path, "/amp/client/")
 	if path == r.URL.Path {
 		// The path didn't start with the expected prefix. This probably
