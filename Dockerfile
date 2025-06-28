@@ -1,14 +1,5 @@
 FROM docker.io/library/golang:1.23-bookworm AS build
 
-# Set some labels
-# io.containers.autoupdate label will instruct podman to reach out to the corres
-# corresponding registry to check if the image has been updated. If an image
-# must be updated, Podman pulls it down and restarts the systemd unit executing
-# the container. See podman-auto-update(1) for more details, or
-# https://docs.podman.io/en/latest/markdown/podman-auto-update.1.html
-LABEL io.containers.autoupdate=registry
-LABEL org.opencontainers.image.authors="anti-censorship-team@lists.torproject.org"
-
 RUN apt-get update && apt-get install -y tor-geoipdb
 
 ADD . /app
@@ -25,3 +16,12 @@ COPY --from=build /usr/share/tor/geoip* /usr/share/tor/
 COPY --from=build /app/proxy/proxy /bin/proxy
 
 ENTRYPOINT [ "/bin/proxy" ]
+
+# Set some labels
+# io.containers.autoupdate label will instruct podman to reach out to the
+# corresponding registry to check if the image has been updated. If an image
+# must be updated, Podman pulls it down and restarts the systemd unit executing
+# the container. See podman-auto-update(1) for more details, or
+# https://docs.podman.io/en/latest/markdown/podman-auto-update.1.html
+LABEL io.containers.autoupdate=registry
+LABEL org.opencontainers.image.authors="anti-censorship-team@lists.torproject.org"
