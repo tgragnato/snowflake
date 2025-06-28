@@ -82,6 +82,13 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
         A count of the number of times a client successfully received a
         proxy from the broker, rounded up to the nearest multiple of 8.
 
+    "client-snowflake-timeout-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client was matched with a proxy
+        but timed out before receiving the proxy's WebRTC answer,
+        rounded up to the nearest multiple of 8.
+
     "client-http-count" NUM NL
         [At most once.]
 

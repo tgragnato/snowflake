@@ -12,6 +12,7 @@ import (
 	"net"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,52 +26,9 @@ const (
 	metricsResolution   = 60 * 60 * 24 * time.Second //86400 seconds
 )
 
-var rendezvoudMethodList = [...]messages.RendezvousMethod{
-	messages.RendezvousHttp,
-	messages.RendezvousAmpCache,
-	messages.RendezvousSqs,
-}
-
-type CountryStats struct {
-	// map[proxyType][address]bool
-	proxies map[string]map[string]bool
-	unknown map[string]bool
-
-	natRestricted   map[string]bool
-	natUnrestricted map[string]bool
-	natUnknown      map[string]bool
-
-	counts map[string]int
-}
-
-// Implements Observable
-type Metrics struct {
-	sync.Mutex
-
-	logger  *log.Logger
-	geoipdb *geoip.Geoip
-
-	countryStats                  CountryStats
-	clientRoundtripEstimate       time.Duration
-	proxyIdleCount                uint
-	clientDeniedCount             map[messages.RendezvousMethod]uint
-	clientRestrictedDeniedCount   map[messages.RendezvousMethod]uint
-	clientUnrestrictedDeniedCount map[messages.RendezvousMethod]uint
-	clientProxyMatchCount         map[messages.RendezvousMethod]uint
-	clientProxyTimeoutCount       map[messages.RendezvousMethod]uint
-
-	rendezvousCountryStats map[messages.RendezvousMethod]map[string]int
-
-	proxyPollWithRelayURLExtension         uint
-	proxyPollWithoutRelayURLExtension      uint
-	proxyPollRejectedWithRelayURLExtension uint
-
-	promMetrics *PromMetrics
-}
-
 type record struct {
 	cc    string
-	count int
+	count uint64
 }
 type records []record
 
@@ -83,77 +41,106 @@ func (r records) Less(i, j int) bool {
 	return r[i].count < r[j].count
 }
 
-func (s CountryStats) Display() string {
-	output := ""
+type Metrics struct {
+	logger  *log.Logger
+	geoipdb *geoip.Geoip
 
-	// Use the records struct to sort our counts map by value.
-	rs := records{}
-	for cc, count := range s.counts {
-		rs = append(rs, record{cc: cc, count: count})
-	}
-	sort.Sort(sort.Reverse(rs))
-	for _, r := range rs {
-		output += fmt.Sprintf("%s=%d,", r.cc, r.count)
-	}
+	ips      *sync.Map // proxy IP addresses we've seen before
+	counters *sync.Map // counters for ip-based metrics
 
-	// cut off trailing ","
-	if len(output) > 0 {
-		return output[:len(output)-1]
-	}
+	// counters for country-based metrics
+	proxies         *sync.Map // ip-based counts of proxy country codes
+	clientHTTPPolls *sync.Map // poll-based counts of client HTTP rendezvous
+	clientAMPPolls  *sync.Map // poll-based counts of client AMP cache rendezvous
+	clientSQSPolls  *sync.Map // poll-based counts of client SQS rendezvous
 
-	return output
+	promMetrics *PromMetrics
 }
 
-func (m *Metrics) UpdateCountryStats(addr string, proxyType string, natType string) {
-	m.Lock()
-	defer m.Unlock()
+func NewMetrics(metricsLogger *log.Logger) (*Metrics, error) {
+	m := new(Metrics)
 
-	var country string
-	var ok bool
+	m.logger = metricsLogger
+	m.promMetrics = initPrometheus()
+	m.ips = new(sync.Map)
+	m.counters = new(sync.Map)
+	m.proxies = new(sync.Map)
+	m.clientHTTPPolls = new(sync.Map)
+	m.clientAMPPolls = new(sync.Map)
+	m.clientSQSPolls = new(sync.Map)
 
-	addresses, ok := m.countryStats.proxies[proxyType]
-	if !ok {
-		if m.countryStats.unknown[addr] {
-			return
-		}
-		m.countryStats.unknown[addr] = true
-	} else {
-		if addresses[addr] {
-			return
-		}
-		addresses[addr] = true
+	// Write to log file every day with updated metrics
+	go m.logMetrics()
+
+	return m, nil
+}
+
+func incrementMapCounter(counters *sync.Map, key string) {
+	start := uint64(1)
+	val, loaded := counters.LoadOrStore(key, &start)
+	if loaded {
+		ptr := val.(*uint64)
+		atomic.AddUint64(ptr, 1)
 	}
+}
 
+func (m *Metrics) IncrementCounter(key string) {
+	incrementMapCounter(m.counters, key)
+}
+
+func (m *Metrics) UpdateProxyStats(addr string, proxyType string, natType string) {
+
+	// perform geolocation of IP address
 	ip := net.ParseIP(addr)
 	if m.geoipdb == nil {
 		return
 	}
-	country, ok = m.geoipdb.GetCountryByAddr(ip)
+	country, ok := m.geoipdb.GetCountryByAddr(ip)
 	if !ok {
 		country = "??"
 	}
-	m.countryStats.counts[country]++
+
+	// check whether we've seen this proxy ip before
+	if _, loaded := m.ips.LoadOrStore(addr, true); !loaded {
+		m.IncrementCounter("proxy-total")
+		incrementMapCounter(m.proxies, country)
+	}
+
+	// update unique IP proxy NAT metrics
+	key := fmt.Sprintf("%s-%s", addr, natType)
+	if _, loaded := m.ips.LoadOrStore(key, true); !loaded {
+		switch natType {
+		case NATRestricted:
+			m.IncrementCounter("proxy-nat-restricted")
+		case NATUnrestricted:
+			m.IncrementCounter("proxy-nat-unrestricted")
+		default:
+			m.IncrementCounter("proxy-nat-unknown")
+		}
+	}
+	// update unique IP proxy type metrics
+	key = fmt.Sprintf("%s-%s", addr, proxyType)
+	if _, loaded := m.ips.LoadOrStore(key, true); !loaded {
+		switch proxyType {
+		case "standalone":
+			m.IncrementCounter("proxy-standalone")
+		case "badge":
+			m.IncrementCounter("proxy-badge")
+		case "iptproxy":
+			m.IncrementCounter("proxy-iptproxy")
+		case "webext":
+			m.IncrementCounter("proxy-webext")
+		}
+	}
 
 	m.promMetrics.ProxyTotal.With(prometheus.Labels{
 		"nat":  natType,
 		"type": proxyType,
 		"cc":   country,
 	}).Inc()
-
-	switch natType {
-	case NATRestricted:
-		m.countryStats.natRestricted[addr] = true
-	case NATUnrestricted:
-		m.countryStats.natUnrestricted[addr] = true
-	default:
-		m.countryStats.natUnknown[addr] = true
-	}
 }
 
-func (m *Metrics) UpdateRendezvousStats(addr string, rendezvousMethod messages.RendezvousMethod, natType, status string) {
-	m.Lock()
-	defer m.Unlock()
-
+func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.RendezvousMethod, natType, status string) {
 	ip := net.ParseIP(addr)
 	country := "??"
 	if m.geoipdb != nil {
@@ -165,20 +152,31 @@ func (m *Metrics) UpdateRendezvousStats(addr string, rendezvousMethod messages.R
 
 	switch status {
 	case "denied":
-		m.clientDeniedCount[rendezvousMethod]++
+		m.IncrementCounter("client-denied")
 		if natType == NATUnrestricted {
-			m.clientUnrestrictedDeniedCount[rendezvousMethod]++
+			m.IncrementCounter("client-unrestricted-denied")
 		} else {
-			m.clientRestrictedDeniedCount[rendezvousMethod]++
+			m.IncrementCounter("client-restricted-denied")
 		}
 	case "matched":
-		m.clientProxyMatchCount[rendezvousMethod]++
+		m.IncrementCounter("client-match")
 	case "timeout":
-		m.clientProxyTimeoutCount[rendezvousMethod]++
+		m.IncrementCounter("client-timeout")
 	default:
 		log.Printf("Unknown rendezvous status: %s", status)
 	}
-	m.rendezvousCountryStats[rendezvousMethod][country]++
+
+	switch rendezvousMethod {
+	case messages.RendezvousHttp:
+		m.IncrementCounter("client-http")
+		incrementMapCounter(m.clientHTTPPolls, country)
+	case messages.RendezvousAmpCache:
+		m.IncrementCounter("client-amp")
+		incrementMapCounter(m.clientAMPPolls, country)
+	case messages.RendezvousSqs:
+		m.IncrementCounter("client-sqs")
+		incrementMapCounter(m.clientSQSPolls, country)
+	}
 	m.promMetrics.ClientPollTotal.With(prometheus.Labels{
 		"nat":               natType,
 		"status":            status,
@@ -187,35 +185,27 @@ func (m *Metrics) UpdateRendezvousStats(addr string, rendezvousMethod messages.R
 	}).Inc()
 }
 
-func (m *Metrics) UpdateProxyPollStats(pollType string, natType string, proxyType string) {
-	m.Lock()
-	defer m.Unlock()
-
-	switch pollType {
-	case "without_relay_url_extension":
-		m.proxyPollWithoutRelayURLExtension++
-	case "with_relay_url_extension":
-		m.proxyPollWithRelayURLExtension++
-	case "rejected_relay_url_extension":
-		m.proxyPollRejectedWithRelayURLExtension++
-	case "idle":
-		m.proxyIdleCount++
-	}
-
-	m.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
-}
-
-func (m *Metrics) DisplayRendezvousStatsByCountry(rendezvoudMethod messages.RendezvousMethod) string {
+func displayCountryStats(m *sync.Map, binned bool) string {
 	output := ""
 
 	// Use the records struct to sort our counts map by value.
 	rs := records{}
-	for cc, count := range m.rendezvousCountryStats[rendezvoudMethod] {
-		rs = append(rs, record{cc: cc, count: count})
-	}
+
+	m.Range(func(cc any, _ any) bool {
+		count, loaded := m.LoadAndDelete(cc)
+		ptr := count.(*uint64)
+		if loaded {
+			rs = append(rs, record{cc: cc.(string), count: *ptr})
+		}
+		return true
+	})
 	sort.Sort(sort.Reverse(rs))
 	for _, r := range rs {
-		output += fmt.Sprintf("%s=%d,", r.cc, binCount(uint(r.count)))
+		count := uint64(r.count)
+		if binned {
+			count = binCount(count)
+		}
+		output += fmt.Sprintf("%s=%d,", r.cc, count)
 	}
 
 	// cut off trailing ","
@@ -233,126 +223,61 @@ func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) (err error
 	return err
 }
 
-func NewMetrics(metricsLogger *log.Logger) (*Metrics, error) {
-	m := new(Metrics)
-
-	m.clientDeniedCount = make(map[messages.RendezvousMethod]uint)
-	m.clientRestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
-	m.clientUnrestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
-	m.clientProxyMatchCount = make(map[messages.RendezvousMethod]uint)
-	m.clientProxyTimeoutCount = make(map[messages.RendezvousMethod]uint)
-
-	m.rendezvousCountryStats = make(map[messages.RendezvousMethod]map[string]int)
-	for _, rendezvousMethod := range rendezvoudMethodList {
-		m.rendezvousCountryStats[rendezvousMethod] = make(map[string]int)
-	}
-
-	m.countryStats = CountryStats{
-		counts:          make(map[string]int),
-		proxies:         make(map[string]map[string]bool),
-		unknown:         make(map[string]bool),
-		natRestricted:   make(map[string]bool),
-		natUnrestricted: make(map[string]bool),
-		natUnknown:      make(map[string]bool),
-	}
-	for pType := range messages.KnownProxyTypes {
-		m.countryStats.proxies[pType] = make(map[string]bool)
-	}
-
-	m.logger = metricsLogger
-	m.promMetrics = initPrometheus()
-
-	// Write to log file every day with updated metrics
-	go m.logMetrics()
-
-	return m, nil
-}
-
 // Logs metrics in intervals specified by metricsResolution
 func (m *Metrics) logMetrics() {
 	heartbeat := time.Tick(metricsResolution)
 	for range heartbeat {
 		m.printMetrics()
-		m.zeroMetrics()
 	}
 }
 
+func (m *Metrics) loadAndZero(key string) uint64 {
+	count, loaded := m.counters.LoadAndDelete(key)
+	if !loaded {
+		count = new(uint64)
+	}
+	ptr := count.(*uint64)
+	return *ptr
+}
+
 func (m *Metrics) printMetrics() {
-	m.Lock()
 	m.logger.Println(
 		"snowflake-stats-end",
 		time.Now().UTC().Format("2006-01-02 15:04:05"),
 		fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())),
 	)
-	m.logger.Println("snowflake-ips", m.countryStats.Display())
-	total := len(m.countryStats.unknown)
-	for pType, addresses := range m.countryStats.proxies {
-		m.logger.Printf("snowflake-ips-%s %d\n", pType, len(addresses))
-		total += len(addresses)
-	}
-	m.logger.Println("snowflake-ips-total", total)
-	m.logger.Println("snowflake-idle-count", binCount(m.proxyIdleCount))
-	m.logger.Println("snowflake-proxy-poll-with-relay-url-count", binCount(m.proxyPollWithRelayURLExtension))
-	m.logger.Println("snowflake-proxy-poll-without-relay-url-count", binCount(m.proxyPollWithoutRelayURLExtension))
-	m.logger.Println("snowflake-proxy-rejected-for-relay-url-count", binCount(m.proxyPollRejectedWithRelayURLExtension))
+	m.logger.Println("snowflake-ips", displayCountryStats(m.proxies, false))
+	m.logger.Printf("snowflake-ips-iptproxy %d\n", m.loadAndZero("proxy-iptproxy"))
+	m.logger.Printf("snowflake-ips-standalone %d\n", m.loadAndZero("proxy-standalone"))
+	m.logger.Printf("snowflake-ips-webext %d\n", m.loadAndZero("proxy-webext"))
+	m.logger.Printf("snowflake-ips-badge %d\n", m.loadAndZero("proxy-badge"))
+	m.logger.Println("snowflake-ips-total", m.loadAndZero("proxy-total"))
+	m.logger.Println("snowflake-idle-count", binCount(m.loadAndZero("proxy-idle")))
+	m.logger.Println("snowflake-proxy-poll-with-relay-url-count", binCount(m.loadAndZero("proxy-poll-with-relay-url")))
+	m.logger.Println("snowflake-proxy-poll-without-relay-url-count", binCount(m.loadAndZero("proxy-poll-without-relay-url")))
+	m.logger.Println("snowflake-proxy-rejected-for-relay-url-count", binCount(m.loadAndZero("proxy-poll-rejected-relay-url")))
 
-	m.logger.Println("client-denied-count", binCount(sumMapValues(&m.clientDeniedCount)))
-	m.logger.Println("client-restricted-denied-count", binCount(sumMapValues(&m.clientRestrictedDeniedCount)))
-	m.logger.Println("client-unrestricted-denied-count", binCount(sumMapValues(&m.clientUnrestrictedDeniedCount)))
-	m.logger.Println("client-snowflake-match-count", binCount(sumMapValues(&m.clientProxyMatchCount)))
-	m.logger.Println("client-snowflake-timeout-count", binCount(sumMapValues(&m.clientProxyTimeoutCount)))
+	m.logger.Println("client-denied-count", binCount(m.loadAndZero("client-denied")))
+	m.logger.Println("client-restricted-denied-count", binCount(m.loadAndZero("client-restricted-denied")))
+	m.logger.Println("client-unrestricted-denied-count", binCount(m.loadAndZero("client-unrestricted-denied")))
+	m.logger.Println("client-snowflake-match-count", binCount(m.loadAndZero("client-match")))
+	m.logger.Println("client-snowflake-timeout-count", binCount(m.loadAndZero("client-timeout")))
 
-	for _, rendezvousMethod := range rendezvoudMethodList {
-		m.logger.Printf("client-%s-count %d\n", rendezvousMethod, binCount(
-			m.clientDeniedCount[rendezvousMethod]+m.clientProxyMatchCount[rendezvousMethod],
-		))
-		m.logger.Printf("client-%s-ips %s\n", rendezvousMethod, m.DisplayRendezvousStatsByCountry(rendezvousMethod))
-	}
+	m.logger.Printf("client-http-count %d\n", binCount(m.loadAndZero("client-http")))
+	m.logger.Printf("client-http-ips %s\n", displayCountryStats(m.clientHTTPPolls, true))
+	m.logger.Printf("client-ampcache-count %d\n", binCount(m.loadAndZero("client-amp")))
+	m.logger.Printf("client-ampcache-ips %s\n", displayCountryStats(m.clientAMPPolls, true))
+	m.logger.Printf("client-sqs-count %d\n", binCount(m.loadAndZero("client-sqs")))
+	m.logger.Printf("client-sqs-ips %s\n", displayCountryStats(m.clientSQSPolls, true))
 
-	m.logger.Println("snowflake-ips-nat-restricted", len(m.countryStats.natRestricted))
-	m.logger.Println("snowflake-ips-nat-unrestricted", len(m.countryStats.natUnrestricted))
-	m.logger.Println("snowflake-ips-nat-unknown", len(m.countryStats.natUnknown))
-	m.Unlock()
-}
-
-// Restores all metrics to original values
-func (m *Metrics) zeroMetrics() {
-	m.proxyIdleCount = 0
-	m.clientDeniedCount = make(map[messages.RendezvousMethod]uint)
-	m.clientRestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
-	m.clientUnrestrictedDeniedCount = make(map[messages.RendezvousMethod]uint)
-	m.proxyPollRejectedWithRelayURLExtension = 0
-	m.proxyPollWithRelayURLExtension = 0
-	m.proxyPollWithoutRelayURLExtension = 0
-	m.clientProxyMatchCount = make(map[messages.RendezvousMethod]uint)
-	m.clientProxyTimeoutCount = make(map[messages.RendezvousMethod]uint)
-
-	m.rendezvousCountryStats = make(map[messages.RendezvousMethod]map[string]int)
-	for _, rendezvousMethod := range rendezvoudMethodList {
-		m.rendezvousCountryStats[rendezvousMethod] = make(map[string]int)
-	}
-
-	m.countryStats.counts = make(map[string]int)
-	for pType := range m.countryStats.proxies {
-		m.countryStats.proxies[pType] = make(map[string]bool)
-	}
-	m.countryStats.unknown = make(map[string]bool)
-	m.countryStats.natRestricted = make(map[string]bool)
-	m.countryStats.natUnrestricted = make(map[string]bool)
-	m.countryStats.natUnknown = make(map[string]bool)
+	m.logger.Println("snowflake-ips-nat-restricted", m.loadAndZero("proxy-nat-restricted"))
+	m.logger.Println("snowflake-ips-nat-unrestricted", m.loadAndZero("proxy-nat-unrestricted"))
+	m.logger.Println("snowflake-ips-nat-unknown", m.loadAndZero("proxy-nat-unknown"))
 }
 
 // Rounds up a count to the nearest multiple of 8.
-func binCount(count uint) uint {
-	return uint((math.Ceil(float64(count) / 8)) * 8)
-}
-
-func sumMapValues(m *map[messages.RendezvousMethod]uint) uint {
-	var s uint = 0
-	for _, v := range *m {
-		s += v
-	}
-	return s
+func binCount(count uint64) uint64 {
+	return uint64((math.Ceil(float64(count) / 8)) * 8)
 }
 
 type PromMetrics struct {

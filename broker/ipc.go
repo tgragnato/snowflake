@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"tgragnato.it/snowflake/common/bridgefingerprint"
@@ -73,13 +72,16 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	}
 
 	if !relayPatternSupported {
-		i.ctx.metrics.UpdateProxyPollStats("without_relay_url_extension", natType, proxyType)
+		i.ctx.metrics.IncrementCounter("proxy-poll-without-relay-url")
+		i.ctx.metrics.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
 	} else {
-		i.ctx.metrics.UpdateProxyPollStats("with_relay_url_extension", natType, proxyType)
+		i.ctx.metrics.IncrementCounter("proxy-poll-with-relay-url")
+		i.ctx.metrics.promMetrics.ProxyPollWithRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
 	}
 
 	if !i.ctx.CheckProxyRelayPattern(relayPattern, !relayPatternSupported) {
-		i.ctx.metrics.UpdateProxyPollStats("rejected_relay_url_extension", natType, proxyType)
+		i.ctx.metrics.IncrementCounter("proxy-poll-rejected-relay-url")
+		i.ctx.metrics.promMetrics.ProxyPollRejectedForRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
 
 		b, err := messages.EncodePollResponseWithRelayURL("", false, "", "", "incorrect relay pattern")
 		*response = b
@@ -89,7 +91,13 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		return nil
 	}
 
-	i.ctx.metrics.UpdateCountryStats(arg.RemoteAddr, proxyType, natType)
+	// Log geoip stats
+	remoteIP := arg.RemoteAddr
+	if err != nil {
+		log.Println("Warning: cannot process proxy IP: ", err.Error())
+	} else {
+		i.ctx.metrics.UpdateProxyStats(remoteIP, proxyType, natType)
+	}
 
 	var b []byte
 
@@ -97,7 +105,8 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	offer := i.ctx.RequestOffer(sid, proxyType, natType, clients)
 
 	if offer == nil {
-		i.ctx.metrics.UpdateProxyPollStats("idle", natType, "idle")
+		i.ctx.metrics.IncrementCounter("proxy-idle")
+		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "idle"}).Inc()
 
 		b, err = messages.EncodePollResponse("", false, "")
 		if err != nil {
@@ -141,8 +150,6 @@ func sendClientResponse(resp *messages.ClientPollResponse, response *[]byte) err
 
 func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 
-	startTime := time.Now()
-
 	req, err := messages.DecodeClientPollRequest(arg.Body)
 	if err != nil {
 		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
@@ -176,7 +183,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if snowflake != nil {
 		snowflake.offerChannel <- offer
 	} else {
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
+		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
 	}
@@ -184,13 +191,11 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	// Wait for the answer to be returned on the channel or timeout.
 	select {
 	case answer := <-snowflake.answerChannel:
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
+		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
-		// Initial tracking of elapsed time.
-		i.ctx.metrics.clientRoundtripEstimate = time.Since(startTime) / time.Millisecond
 	case <-arg.Context.Done():
-		i.ctx.metrics.UpdateRendezvousStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
+		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
 		err = sendClientResponse(resp, response)
 	}
