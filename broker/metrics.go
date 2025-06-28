@@ -217,8 +217,6 @@ func displayCountryStats(m *sync.Map, binned bool) string {
 }
 
 func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) (err error) {
-	m.Lock()
-	defer m.Unlock()
 	m.geoipdb, err = geoip.New(geoipDB, geoip6DB)
 	return err
 }
