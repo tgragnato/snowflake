@@ -730,7 +730,7 @@ func (c *Conn) fragmentHandshake(dtlsHandshake *handshake.Handshake) ([][]byte, 
 	return fragmentedHandshakes, nil
 }
 
-var poolReadBuffer = sync.Pool{ //nolint:gochecknoglobals
+var poolReadBuffer = sync.Pool{
 	New: func() any {
 		b := make([]byte, inboundBufferSize)
 
