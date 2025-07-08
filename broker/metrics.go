@@ -104,6 +104,11 @@ func (m *Metrics) UpdateProxyStats(addr string, proxyType string, natType string
 	if _, loaded := m.ips.LoadOrStore(addr, true); !loaded {
 		m.IncrementCounter("proxy-total")
 		incrementMapCounter(m.proxies, country)
+		m.promMetrics.ProxyTotal.With(prometheus.Labels{
+			"nat":  natType,
+			"type": proxyType,
+			"cc":   country,
+		}).Inc()
 	}
 
 	// update unique IP proxy NAT metrics
@@ -132,12 +137,6 @@ func (m *Metrics) UpdateProxyStats(addr string, proxyType string, natType string
 			m.IncrementCounter("proxy-webext")
 		}
 	}
-
-	m.promMetrics.ProxyTotal.With(prometheus.Labels{
-		"nat":  natType,
-		"type": proxyType,
-		"cc":   country,
-	}).Inc()
 }
 
 func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.RendezvousMethod, natType, status string) {
