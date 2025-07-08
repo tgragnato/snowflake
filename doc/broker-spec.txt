@@ -104,6 +104,9 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
         rounded up to the nearest multiple of 8.  Each country code only appears 
         once.
 
+        Note that this descriptor field name is misleading. We use IP addresses
+        to partition by country, but this metric counts polls, not unique IPs.
+
     "client-ampcache-count" NUM NL
         [At most once.]
 
@@ -119,6 +122,9 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
         method, rounded up to the nearest multiple of 8.  Each country code only 
         appears once.
 
+        Note that this descriptor field name is misleading. We use IP addresses
+        to partition by country, but this metric counts polls, not unique IPs.
+
     "client-sqs-count" NUM NL
         [At most once.]
 
@@ -133,6 +139,9 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
         times a client has requested a proxy using the sqs rendezvous method, 
         rounded up to the nearest multiple of 8.  Each country code only appears 
         once.
+
+        Note that this descriptor field name is misleading. We use IP addresses
+        to partition by country, but this metric counts polls, not unique IPs.
 
     "snowflake-ips-nat-restricted" NUM NL
         [At most once.]
