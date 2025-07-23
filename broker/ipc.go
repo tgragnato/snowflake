@@ -8,6 +8,7 @@ import (
 
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/constants"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/util"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
@@ -156,6 +157,19 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 		return sendClientResponse(&messages.ClientPollResponse{Error: err.Error()}, response)
 	}
 
+	// If we couldn't extract the remote IP from the rendezvous method
+	// pull it from the offer SDP
+	remoteAddr := arg.RemoteAddr
+	if remoteAddr == "" {
+		sdp, err := util.DeserializeSessionDescription(req.Offer)
+		if err == nil {
+			candidateAddrs := util.GetCandidateAddrs(sdp.SDP)
+			if len(candidateAddrs) > 0 {
+				remoteAddr = candidateAddrs[0].String()
+			}
+		}
+	}
+
 	offer := &ClientOffer{
 		natType: req.NAT,
 		sdp:     []byte(req.Offer),
@@ -184,7 +198,7 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	if snowflake != nil {
 		snowflake.offerChannel <- offer
 	} else {
-		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "denied")
+		i.ctx.metrics.UpdateClientStats(remoteAddr, arg.RendezvousMethod, offer.natType, "denied")
 		resp := &messages.ClientPollResponse{Error: messages.StrNoProxies}
 		return sendClientResponse(resp, response)
 	}
@@ -192,11 +206,11 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	// Wait for the answer to be returned on the channel or timeout.
 	select {
 	case answer := <-snowflake.answerChannel:
-		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "matched")
+		i.ctx.metrics.UpdateClientStats(remoteAddr, arg.RendezvousMethod, offer.natType, "matched")
 		resp := &messages.ClientPollResponse{Answer: answer}
 		err = sendClientResponse(resp, response)
 	case <-arg.Context.Done():
-		i.ctx.metrics.UpdateClientStats(arg.RemoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
+		i.ctx.metrics.UpdateClientStats(remoteAddr, arg.RendezvousMethod, offer.natType, "timeout")
 		resp := &messages.ClientPollResponse{Error: messages.StrTimedOut}
 		err = sendClientResponse(resp, response)
 	}
