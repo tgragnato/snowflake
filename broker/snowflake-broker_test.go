@@ -47,7 +47,8 @@ var (
 		"a=candidate:1000 1 udp 2000 8.8.8.8 3000 typ host\r\n" +
 		"a=end-of-candidates\r\n"
 
-	sid = "ymbcCMto7KHNGYlp"
+	rawOffer = `{"type":"offer","sdp":"v=0\r\no=- 4358805017720277108 2 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\na=group:BUNDLE data\r\na=msid-semantic: WMS\r\nm=application 56688 DTLS/SCTP 5000\r\nc=IN IP4 0.0.0.0\r\na=candidate:3769337065 1 udp 2122260223 129.97.208.23 56688 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:2921887769 1 tcp 1518280447 129.97.208.23 35441 typ host tcptype passive generation 0 network-id 1 network-cost 50\r\na=ice-ufrag:aMAZ\r\na=ice-pwd:jcHb08Jjgrazp2dzjdrvPPvV\r\na=ice-options:trickle\r\na=fingerprint:sha-256 C8:88:EE:B9:E7:02:2E:21:37:ED:7A:D1:EB:2B:A3:15:A2:3B:5B:1C:3D:D4:D5:1F:06:CF:52:40:03:F8:DD:66\r\na=setup:actpass\r\na=mid:data\r\na=sctpmap:5000 webrtc-datachannel 1024\r\n"}`
+	sid      = "ymbcCMto7KHNGYlp"
 )
 
 func createClientOffer(sdp, nat, fingerprint string) (*bytes.Reader, error) {
@@ -401,6 +402,39 @@ client-sqs-ips
 				body, err := decodeAMPArmorToString(w.Body)
 				So(err, ShouldBeNil)
 				So(body, ShouldEqual, `{"error":"timed out waiting for answer!"}`)
+			})
+
+			Convey("and correctly geolocates remote addr.", func() {
+				err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
+				So(err, ShouldBeNil)
+				clientRequest := &messages.ClientPollRequest{
+					Offer:       rawOffer,
+					NAT:         NATUnknown,
+					Fingerprint: "",
+				}
+				encOffer, err := clientRequest.EncodeClientPollRequest()
+				So(err, ShouldBeNil)
+				r, err = http.NewRequest("GET", "/amp/client/"+amp.EncodePath(encOffer), nil)
+				So(err, ShouldBeNil)
+				ampClientOffers(i, w, r)
+				So(w.Code, ShouldEqual, http.StatusOK)
+				body, err := decodeAMPArmorToString(w.Body)
+				So(err, ShouldBeNil)
+				So(body, ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
+
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-snowflake-timeout-count 0
+client-http-count 0
+client-http-ips 
+client-ampcache-count 8
+client-ampcache-ips CA=8
+client-sqs-count 0
+client-sqs-ips 
+`)
 			})
 
 		})
