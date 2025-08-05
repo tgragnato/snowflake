@@ -311,7 +311,6 @@ build-container:
     matrix:
       - ARCH: amd64
       - ARCH: arm64
-      - ARCH: s390x
   tags:
     - $ARCH
   image:
@@ -345,7 +344,7 @@ merge-manifests:
       --username="${CI_REGISTRY_USER}"
       --password="${CI_REGISTRY_PASSWORD}"
       push from-args
-      --platforms linux/amd64,linux/arm64,linux/s390x
+      --platforms linux/amd64,linux/arm64
       --template "${CI_REGISTRY_IMAGE}:${TAG}_ARCH"
       --target "${CI_REGISTRY_IMAGE}:${TAG}"
   rules:
