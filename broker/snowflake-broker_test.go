@@ -1029,5 +1029,43 @@ snowflake-ips-nat-unknown 0
 			ctx.metrics.printMetrics()
 			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
 		})
+		Convey("that seen IPs map is cleared after each print", func() {
+			w := httptest.NewRecorder()
+			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
+			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
+			r.RemoteAddr = "129.97.208.23" //CA geoip
+			So(err, ShouldBeNil)
+			go func(i *IPC) {
+				proxyPolls(i, w, r)
+				done <- true
+			}(i)
+			p := <-ctx.proxyPolls //manually unblock poll
+			p.offerChannel <- nil
+			<-done
+
+			ctx.metrics.printMetrics()
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips CA=1")
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
+			buf.Reset()
+
+			w = httptest.NewRecorder()
+			data = bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
+			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
+			r.RemoteAddr = "129.97.208.23" //CA geoip
+			So(err, ShouldBeNil)
+			go func(i *IPC) {
+				proxyPolls(i, w, r)
+				done <- true
+			}(i)
+			p = <-ctx.proxyPolls //manually unblock poll
+			p.offerChannel <- nil
+			<-done
+
+			ctx.metrics.printMetrics()
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips CA=1")
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
+			buf.Reset()
+
+		})
 	})
 }
