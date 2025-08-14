@@ -275,6 +275,8 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("snowflake-ips-nat-restricted", m.loadAndZero("proxy-nat-restricted"))
 	m.logger.Println("snowflake-ips-nat-unrestricted", m.loadAndZero("proxy-nat-unrestricted"))
 	m.logger.Println("snowflake-ips-nat-unknown", m.loadAndZero("proxy-nat-unknown"))
+
+	m.ips.Clear()
 }
 
 // binCount rounds count up to the next multiple of 8. Returns 0 on integer
