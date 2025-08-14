@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"container/heap"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1066,6 +1069,68 @@ snowflake-ips-nat-unknown 0
 			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
 			buf.Reset()
 
+		})
+	})
+}
+
+func TestConcurrency(t *testing.T) {
+	Convey("Test concurency with", t, func() {
+		ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
+		i := &IPC{ctx}
+		Convey("multiple simultaneous polls", func(c C) {
+			go ctx.Broker()
+
+			var proxies sync.WaitGroup
+			var wg sync.WaitGroup
+
+			proxies.Add(1000)
+			// Multiple proxy polls
+			for x := 0; x < 1000; x++ {
+				wp := httptest.NewRecorder()
+				buf := make([]byte, 16)
+				_, err := rand.Read(buf)
+				id := strings.TrimRight(base64.StdEncoding.EncodeToString(buf), "=")
+
+				datap := bytes.NewReader([]byte(fmt.Sprintf("{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id)))
+				rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+				So(err, ShouldBeNil)
+
+				go func() {
+					proxies.Done()
+					proxyPolls(i, wp, rp)
+					c.So(wp.Code, ShouldEqual, http.StatusOK)
+
+					// Proxy answers
+					wp = httptest.NewRecorder()
+					datap, err = createProxyAnswer(sdp, id)
+					c.So(err, ShouldBeNil)
+					rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
+					c.So(err, ShouldBeNil)
+					go func() {
+						proxyAnswers(i, wp, rp)
+					}()
+				}()
+			}
+			// Wait for all proxies to poll before sending client offers
+			proxies.Wait()
+
+			// Multiple client offers
+			for x := 0; x < 500; x++ {
+				wg.Add(1)
+				wc := httptest.NewRecorder()
+				datac, err := createClientOffer(sdp, NATUnrestricted, "")
+				So(err, ShouldBeNil)
+				rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
+				So(err, ShouldBeNil)
+
+				go func() {
+					clientOffers(i, wc, rc)
+					c.So(wc.Code, ShouldEqual, http.StatusOK)
+					c.So(wc.Body.String(), ShouldContainSubstring, "8.8.8.8")
+					wg.Done()
+				}()
+			}
+			wg.Wait()
 		})
 	})
 }
