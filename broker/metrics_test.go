@@ -30,6 +30,10 @@ func TestFormatAndClearCountryStats(t *testing.T) {
 			So(formatAndClearCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
 		})
 
+		Convey("the order should be correct with binned=true", func() {
+			So(formatAndClearCountryStats(stats, true), ShouldEqual, "CN=256,FR=200,RU=152,TZ=104,IT=56,BE=8,CA=8,PH=8")
+		})
+
 		// The map should be cleared on return.
 		stats.Range(func(_, _ any) bool { panic("map was not cleared") })
 	})
