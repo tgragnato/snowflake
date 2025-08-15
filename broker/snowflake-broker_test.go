@@ -1048,6 +1048,8 @@ snowflake-ips-nat-unknown 0
 				atomic.AddUint64(ptr, count)
 			}
 			So(formatAndClearCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
+			// The map should be cleared on return.
+			stats.Range(func(_, _ any) bool { panic("map was not cleared") })
 		})
 	})
 }
