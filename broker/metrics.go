@@ -8,7 +8,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"sort"
 	"sync"
@@ -276,9 +275,10 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("snowflake-ips-nat-unknown", m.loadAndZero("proxy-nat-unknown"))
 }
 
-// Rounds up a count to the nearest multiple of 8.
+// binCount rounds count up to the next multiple of 8. Returns 0 on integer
+// overflow.
 func binCount(count uint64) uint64 {
-	return uint64((math.Ceil(float64(count) / 8)) * 8)
+	return (count + 7) / 8 * 8
 }
 
 type PromMetrics struct {
