@@ -22,16 +22,23 @@ func TestFormatAndClearCountryStats(t *testing.T) {
 			{"CA", 1},
 			{"BE", 1},
 			{"PH", 1},
+			// The next 3 bin to the same value, 112. When not
+			// binned, they should go in the order MY,ZA,AT (ordered
+			// by count). When binned, they should go in the order
+			// AT,MY,ZA (ordered by country code).
+			{"AT", 105},
+			{"MY", 112},
+			{"ZA", 108},
 		} {
 			stats.Store(record.cc, &record.count)
 		}
 
 		Convey("the order should be correct with binned=false", func() {
-			So(formatAndClearCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
+			So(formatAndClearCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,MY=112,ZA=108,AT=105,TZ=100,IT=50,BE=1,CA=1,PH=1")
 		})
 
 		Convey("the order should be correct with binned=true", func() {
-			So(formatAndClearCountryStats(stats, true), ShouldEqual, "CN=256,FR=200,RU=152,TZ=104,IT=56,BE=8,CA=8,PH=8")
+			So(formatAndClearCountryStats(stats, true), ShouldEqual, "CN=256,FR=200,RU=152,AT=112,MY=112,ZA=112,TZ=104,IT=56,BE=8,CA=8,PH=8")
 		})
 
 		// The map should be cleared on return.
