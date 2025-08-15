@@ -34,10 +34,7 @@ type records []record
 func (r records) Len() int      { return len(r) }
 func (r records) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r records) Less(i, j int) bool {
-	if r[i].count == r[j].count {
-		return r[i].cc < r[j].cc
-	}
-	return r[i].count > r[j].count
+	return r[i].count > r[j].count || (r[i].count == r[j].count && r[i].cc < r[j].cc)
 }
 
 type Metrics struct {
