@@ -1047,7 +1047,7 @@ snowflake-ips-nat-unknown 0
 				ptr := val.(*uint64)
 				atomic.AddUint64(ptr, count)
 			}
-			So(displayCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
+			So(formatAndClearCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
 		})
 	})
 }

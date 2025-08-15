@@ -169,7 +169,7 @@ func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.Rende
 	}).Inc()
 }
 
-// Types to facilitate sorting in displayCountryStats.
+// Types to facilitate sorting in formatAndClearCountryStats.
 type record struct {
 	cc    string
 	count uint64
@@ -184,13 +184,13 @@ func (r records) Less(i, j int) bool {
 	return r[i].count > r[j].count || (r[i].count == r[j].count && r[i].cc < r[j].cc)
 }
 
-// displayCountryStats takes a map from country codes to counts, and returns a
-// formatted string of comma-separated CC=COUNT. Entries are sorted by count
-// from largest to smallest. When counts are equal, entries are sorted by
+// formatAndClearCountryStats takes a map from country codes to counts, and
+// returns a formatted string of comma-separated CC=COUNT. Entries are sorted by
+// count from largest to smallest. When counts are equal, entries are sorted by
 // country code in ascending order.
 //
-// displayCountryStats has the side effect of deleting all entries in m.
-func displayCountryStats(m *sync.Map, binned bool) string {
+// formatAndClearCountryStats has the side effect of deleting all entries in m.
+func formatAndClearCountryStats(m *sync.Map, binned bool) string {
 	// Extract entries from the map into a slice of records.
 	rs := records{}
 	m.Range(func(cc, countPtr any) bool {
@@ -248,7 +248,7 @@ func (m *Metrics) printMetrics() {
 		time.Now().UTC().Format("2006-01-02 15:04:05"),
 		fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())),
 	)
-	m.logger.Println("snowflake-ips", displayCountryStats(m.proxies, false))
+	m.logger.Println("snowflake-ips", formatAndClearCountryStats(m.proxies, false))
 	m.logger.Printf("snowflake-ips-iptproxy %d\n", m.loadAndZero("proxy-iptproxy"))
 	m.logger.Printf("snowflake-ips-standalone %d\n", m.loadAndZero("proxy-standalone"))
 	m.logger.Printf("snowflake-ips-webext %d\n", m.loadAndZero("proxy-webext"))
@@ -266,11 +266,11 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("client-snowflake-timeout-count", binCount(m.loadAndZero("client-timeout")))
 
 	m.logger.Printf("client-http-count %d\n", binCount(m.loadAndZero("client-http")))
-	m.logger.Printf("client-http-ips %s\n", displayCountryStats(m.clientHTTPPolls, true))
+	m.logger.Printf("client-http-ips %s\n", formatAndClearCountryStats(m.clientHTTPPolls, true))
 	m.logger.Printf("client-ampcache-count %d\n", binCount(m.loadAndZero("client-amp")))
-	m.logger.Printf("client-ampcache-ips %s\n", displayCountryStats(m.clientAMPPolls, true))
+	m.logger.Printf("client-ampcache-ips %s\n", formatAndClearCountryStats(m.clientAMPPolls, true))
 	m.logger.Printf("client-sqs-count %d\n", binCount(m.loadAndZero("client-sqs")))
-	m.logger.Printf("client-sqs-ips %s\n", displayCountryStats(m.clientSQSPolls, true))
+	m.logger.Printf("client-sqs-ips %s\n", formatAndClearCountryStats(m.clientSQSPolls, true))
 
 	m.logger.Println("snowflake-ips-nat-restricted", m.loadAndZero("proxy-nat-restricted"))
 	m.logger.Println("snowflake-ips-nat-unrestricted", m.loadAndZero("proxy-nat-unrestricted"))
