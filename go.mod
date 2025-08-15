@@ -1,6 +1,6 @@
 module gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.37.1
