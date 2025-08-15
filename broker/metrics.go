@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,18 +25,6 @@ const (
 	prometheusNamespace = "snowflake"
 	metricsResolution   = 60 * 60 * 24 * time.Second //86400 seconds
 )
-
-type record struct {
-	cc    string
-	count uint64
-}
-type records []record
-
-func (r records) Len() int      { return len(r) }
-func (r records) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r records) Less(i, j int) bool {
-	return r[i].count > r[j].count || (r[i].count == r[j].count && r[i].cc < r[j].cc)
-}
 
 type Metrics struct {
 	logger  *log.Logger
@@ -180,35 +169,51 @@ func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.Rende
 	}).Inc()
 }
 
+// Types to facilitate sorting in displayCountryStats.
+type record struct {
+	cc    string
+	count uint64
+}
+type records []record
+
+// Implementation of sort.Interface for records. The ordering is lexicographic:
+// first by count (descending), then by cc (ascending).
+func (r records) Len() int      { return len(r) }
+func (r records) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r records) Less(i, j int) bool {
+	return r[i].count > r[j].count || (r[i].count == r[j].count && r[i].cc < r[j].cc)
+}
+
+// displayCountryStats takes a map from country codes to counts, and returns a
+// formatted string of comma-separated CC=COUNT. Entries are sorted by count
+// from largest to smallest. When counts are equal, entries are sorted by
+// country code in ascending order.
+//
+// displayCountryStats has the side effect of deleting all entries in m.
 func displayCountryStats(m *sync.Map, binned bool) string {
-	output := ""
-
-	// Use the records struct to sort our counts map by value.
+	// Extract entries from the map into a slice of records.
 	rs := records{}
-
-	m.Range(func(cc any, _ any) bool {
-		count, loaded := m.LoadAndDelete(cc)
-		ptr := count.(*uint64)
-		if loaded {
-			rs = append(rs, record{cc: cc.(string), count: *ptr})
-		}
+	m.Range(func(cc, countPtr any) bool {
+		count := *countPtr.(*uint64)
+		rs = append(rs, record{cc: cc.(string), count: count})
+		m.Delete(cc)
 		return true
 	})
+	// Sort the records.
 	sort.Sort(rs)
-	for _, r := range rs {
-		count := uint64(r.count)
+	// Format and concatenate.
+	var output strings.Builder
+	for i, r := range rs {
+		count := r.count
 		if binned {
 			count = binCount(count)
 		}
-		output += fmt.Sprintf("%s=%d,", r.cc, count)
+		if i != 0 {
+			output.WriteString(",")
+		}
+		fmt.Fprintf(&output, "%s=%d", r.cc, count)
 	}
-
-	// cut off trailing ","
-	if len(output) > 0 {
-		return output[:len(output)-1]
-	}
-
-	return output
+	return output.String()
 }
 
 func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) error {
