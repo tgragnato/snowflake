@@ -192,7 +192,7 @@ func (r records) Less(i, j int) bool {
 // formatAndClearCountryStats has the side effect of deleting all entries in m.
 func formatAndClearCountryStats(m *sync.Map, binned bool) string {
 	// Extract entries from the map into a slice of records, binning counts
-	// if asked to..
+	// if asked to.
 	rs := records{}
 	m.Range(func(cc, countPtr any) bool {
 		count := *countPtr.(*uint64)
