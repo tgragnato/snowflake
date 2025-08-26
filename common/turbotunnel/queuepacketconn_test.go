@@ -150,6 +150,13 @@ func (c *TranscriptPacketConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 	return c.PacketConn.WriteTo(p, addr)
 }
 
+func (c *TranscriptPacketConn) Length() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	return len(c.Transcript)
+}
+
 // Tests that QueuePacketConn.WriteTo is compatible with the way kcp-go uses
 // PacketConn, allocating source buffers in a sync.Pool.
 //
@@ -216,7 +223,7 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 		// A sleep after the Write makes buffer reuse more likely.
 		time.Sleep(100 * time.Millisecond)
 
-		if len(transcript.Transcript) == 0 {
+		if transcript.Length() == 0 {
 			panic("empty transcript")
 		}
 
