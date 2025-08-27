@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"container/heap"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -10,8 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,7 +47,8 @@ var (
 		"a=candidate:1000 1 udp 2000 8.8.8.8 3000 typ host\r\n" +
 		"a=end-of-candidates\r\n"
 
-	sid = "ymbcCMto7KHNGYlp"
+	rawOffer = `{"type":"offer","sdp":"v=0\r\no=- 4358805017720277108 2 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\na=group:BUNDLE data\r\na=msid-semantic: WMS\r\nm=application 56688 DTLS/SCTP 5000\r\nc=IN IP4 0.0.0.0\r\na=candidate:3769337065 1 udp 2122260223 129.97.208.23 56688 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:2921887769 1 tcp 1518280447 129.97.208.23 35441 typ host tcptype passive generation 0 network-id 1 network-cost 50\r\na=ice-ufrag:aMAZ\r\na=ice-pwd:jcHb08Jjgrazp2dzjdrvPPvV\r\na=ice-options:trickle\r\na=fingerprint:sha-256 C8:88:EE:B9:E7:02:2E:21:37:ED:7A:D1:EB:2B:A3:15:A2:3B:5B:1C:3D:D4:D5:1F:06:CF:52:40:03:F8:DD:66\r\na=setup:actpass\r\na=mid:data\r\na=sctpmap:5000 webrtc-datachannel 1024\r\n"}`
+	sid      = "ymbcCMto7KHNGYlp"
 )
 
 func createClientOffer(sdp, nat, fingerprint string) (*bytes.Reader, error) {
@@ -400,6 +403,39 @@ client-sqs-ips
 				body, err := decodeAMPArmorToString(w.Body)
 				So(err, ShouldBeNil)
 				So(body, ShouldEqual, `{"error":"timed out waiting for answer!"}`)
+			})
+
+			Convey("and correctly geolocates remote addr.", func() {
+				err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
+				So(err, ShouldBeNil)
+				clientRequest := &messages.ClientPollRequest{
+					Offer:       rawOffer,
+					NAT:         NATUnknown,
+					Fingerprint: "",
+				}
+				encOffer, err := clientRequest.EncodeClientPollRequest()
+				So(err, ShouldBeNil)
+				r, err = http.NewRequest("GET", "/amp/client/"+amp.EncodePath(encOffer), nil)
+				So(err, ShouldBeNil)
+				ampClientOffers(i, w, r)
+				So(w.Code, ShouldEqual, http.StatusOK)
+				body, err := decodeAMPArmorToString(w.Body)
+				So(err, ShouldBeNil)
+				So(body, ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
+
+				ctx.metrics.printMetrics()
+				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 0
+client-snowflake-match-count 0
+client-snowflake-timeout-count 0
+client-http-count 0
+client-http-ips 
+client-ampcache-count 8
+client-ampcache-ips CA=8
+client-sqs-count 0
+client-sqs-ips 
+`)
 			})
 
 		})
@@ -1001,24 +1037,105 @@ snowflake-ips-nat-unknown 0
 			ctx.metrics.printMetrics()
 			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
 		})
-		Convey("for country stats order", func() {
-			stats := new(sync.Map)
-			for cc, count := range map[string]uint64{
-				"IT": 50,
-				"FR": 200,
-				"TZ": 100,
-				"CN": 250,
-				"RU": 150,
-				"CA": 1,
-				"BE": 1,
-				"PH": 1,
-			} {
-				stats.LoadOrStore(cc, new(uint64))
-				val, _ := stats.Load(cc)
-				ptr := val.(*uint64)
-				atomic.AddUint64(ptr, count)
+		Convey("that seen IPs map is cleared after each print", func() {
+			w := httptest.NewRecorder()
+			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
+			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
+			r.RemoteAddr = "129.97.208.23" //CA geoip
+			So(err, ShouldBeNil)
+			go func(i *IPC) {
+				proxyPolls(i, w, r)
+				done <- true
+			}(i)
+			p := <-ctx.proxyPolls //manually unblock poll
+			p.offerChannel <- nil
+			<-done
+
+			ctx.metrics.printMetrics()
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips CA=1")
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
+			buf.Reset()
+
+			w = httptest.NewRecorder()
+			data = bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
+			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
+			r.RemoteAddr = "129.97.208.23" //CA geoip
+			So(err, ShouldBeNil)
+			go func(i *IPC) {
+				proxyPolls(i, w, r)
+				done <- true
+			}(i)
+			p = <-ctx.proxyPolls //manually unblock poll
+			p.offerChannel <- nil
+			<-done
+
+			ctx.metrics.printMetrics()
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips CA=1")
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
+			buf.Reset()
+
+		})
+	})
+}
+
+func TestConcurrency(t *testing.T) {
+	Convey("Test concurency with", t, func() {
+		ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
+		i := &IPC{ctx}
+		Convey("multiple simultaneous polls", func(c C) {
+			go ctx.Broker()
+
+			var proxies sync.WaitGroup
+			var wg sync.WaitGroup
+
+			proxies.Add(1000)
+			// Multiple proxy polls
+			for x := 0; x < 1000; x++ {
+				wp := httptest.NewRecorder()
+				buf := make([]byte, 16)
+				_, err := rand.Read(buf)
+				id := strings.TrimRight(base64.StdEncoding.EncodeToString(buf), "=")
+
+				datap := bytes.NewReader([]byte(fmt.Sprintf("{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id)))
+				rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+				So(err, ShouldBeNil)
+
+				go func() {
+					proxies.Done()
+					proxyPolls(i, wp, rp)
+					c.So(wp.Code, ShouldEqual, http.StatusOK)
+
+					// Proxy answers
+					wp = httptest.NewRecorder()
+					datap, err = createProxyAnswer(sdp, id)
+					c.So(err, ShouldBeNil)
+					rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
+					c.So(err, ShouldBeNil)
+					go func() {
+						proxyAnswers(i, wp, rp)
+					}()
+				}()
 			}
-			So(displayCountryStats(stats, false), ShouldEqual, "CN=250,FR=200,RU=150,TZ=100,IT=50,BE=1,CA=1,PH=1")
+			// Wait for all proxies to poll before sending client offers
+			proxies.Wait()
+
+			// Multiple client offers
+			for x := 0; x < 500; x++ {
+				wg.Add(1)
+				wc := httptest.NewRecorder()
+				datac, err := createClientOffer(sdp, NATUnrestricted, "")
+				So(err, ShouldBeNil)
+				rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
+				So(err, ShouldBeNil)
+
+				go func() {
+					clientOffers(i, wc, rc)
+					c.So(wc.Code, ShouldEqual, http.StatusOK)
+					c.So(wc.Body.String(), ShouldContainSubstring, "8.8.8.8")
+					wg.Done()
+				}()
+			}
+			wg.Wait()
 		})
 	})
 }

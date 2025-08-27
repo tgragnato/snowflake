@@ -24,6 +24,13 @@ but you should use TLS in production.
 To build the probe server, run
 ```go build```
 
+Or alternatively:
+
+```
+cd .. # switch to the repo root directory or $(git rev-parse --show-toplevel)
+docker build -t snowflake-probetest -f probetest/Dockerfile .
+```
+
 To deploy the probe server, first set the necessary env variables with
 ```
 export HOSTNAMES=${YOUR HOSTNAMES}

@@ -8,9 +8,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,21 +25,6 @@ const (
 	prometheusNamespace = "snowflake"
 	metricsResolution   = 60 * 60 * 24 * time.Second //86400 seconds
 )
-
-type record struct {
-	cc    string
-	count uint64
-}
-type records []record
-
-func (r records) Len() int      { return len(r) }
-func (r records) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r records) Less(i, j int) bool {
-	if r[i].count == r[j].count {
-		return r[i].cc > r[j].cc
-	}
-	return r[i].count < r[j].count
-}
 
 type Metrics struct {
 	logger  *log.Logger
@@ -184,35 +169,51 @@ func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.Rende
 	}).Inc()
 }
 
-func displayCountryStats(m *sync.Map, binned bool) string {
-	output := ""
+// Types to facilitate sorting in formatAndClearCountryStats.
+type record struct {
+	cc    string
+	count uint64
+}
+type records []record
 
-	// Use the records struct to sort our counts map by value.
+// Implementation of sort.Interface for records. The ordering is lexicographic:
+// first by count (descending), then by cc (ascending).
+func (r records) Len() int      { return len(r) }
+func (r records) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r records) Less(i, j int) bool {
+	return r[i].count > r[j].count || (r[i].count == r[j].count && r[i].cc < r[j].cc)
+}
+
+// formatAndClearCountryStats takes a map from country codes to counts, and
+// returns a formatted string of comma-separated CC=COUNT. Entries are sorted by
+// count from largest to smallest. When counts are equal, entries are sorted by
+// country code in ascending order.
+//
+// formatAndClearCountryStats has the side effect of deleting all entries in m.
+func formatAndClearCountryStats(m *sync.Map, binned bool) string {
+	// Extract entries from the map into a slice of records, binning counts
+	// if asked to.
 	rs := records{}
-
-	m.Range(func(cc any, _ any) bool {
-		count, loaded := m.LoadAndDelete(cc)
-		ptr := count.(*uint64)
-		if loaded {
-			rs = append(rs, record{cc: cc.(string), count: *ptr})
-		}
-		return true
-	})
-	sort.Sort(sort.Reverse(rs))
-	for _, r := range rs {
-		count := uint64(r.count)
+	m.Range(func(cc, countPtr any) bool {
+		count := *countPtr.(*uint64)
 		if binned {
 			count = binCount(count)
 		}
-		output += fmt.Sprintf("%s=%d,", r.cc, count)
+		rs = append(rs, record{cc: cc.(string), count: count})
+		m.Delete(cc)
+		return true
+	})
+	// Sort the records.
+	sort.Sort(rs)
+	// Format and concatenate.
+	var output strings.Builder
+	for i, r := range rs {
+		if i != 0 {
+			output.WriteString(",")
+		}
+		fmt.Fprintf(&output, "%s=%d", r.cc, r.count)
 	}
-
-	// cut off trailing ","
-	if len(output) > 0 {
-		return output[:len(output)-1]
-	}
-
-	return output
+	return output.String()
 }
 
 func (m *Metrics) LoadGeoipDatabases(geoipDB string, geoip6DB string) (err error) {
@@ -243,7 +244,7 @@ func (m *Metrics) printMetrics() {
 		time.Now().UTC().Format("2006-01-02 15:04:05"),
 		fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())),
 	)
-	m.logger.Println("snowflake-ips", displayCountryStats(m.proxies, false))
+	m.logger.Println("snowflake-ips", formatAndClearCountryStats(m.proxies, false))
 	m.logger.Printf("snowflake-ips-iptproxy %d\n", m.loadAndZero("proxy-iptproxy"))
 	m.logger.Printf("snowflake-ips-standalone %d\n", m.loadAndZero("proxy-standalone"))
 	m.logger.Printf("snowflake-ips-webext %d\n", m.loadAndZero("proxy-webext"))
@@ -261,20 +262,23 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("client-snowflake-timeout-count", binCount(m.loadAndZero("client-timeout")))
 
 	m.logger.Printf("client-http-count %d\n", binCount(m.loadAndZero("client-http")))
-	m.logger.Printf("client-http-ips %s\n", displayCountryStats(m.clientHTTPPolls, true))
+	m.logger.Printf("client-http-ips %s\n", formatAndClearCountryStats(m.clientHTTPPolls, true))
 	m.logger.Printf("client-ampcache-count %d\n", binCount(m.loadAndZero("client-amp")))
-	m.logger.Printf("client-ampcache-ips %s\n", displayCountryStats(m.clientAMPPolls, true))
+	m.logger.Printf("client-ampcache-ips %s\n", formatAndClearCountryStats(m.clientAMPPolls, true))
 	m.logger.Printf("client-sqs-count %d\n", binCount(m.loadAndZero("client-sqs")))
-	m.logger.Printf("client-sqs-ips %s\n", displayCountryStats(m.clientSQSPolls, true))
+	m.logger.Printf("client-sqs-ips %s\n", formatAndClearCountryStats(m.clientSQSPolls, true))
 
 	m.logger.Println("snowflake-ips-nat-restricted", m.loadAndZero("proxy-nat-restricted"))
 	m.logger.Println("snowflake-ips-nat-unrestricted", m.loadAndZero("proxy-nat-unrestricted"))
 	m.logger.Println("snowflake-ips-nat-unknown", m.loadAndZero("proxy-nat-unknown"))
+
+	m.ips.Clear()
 }
 
-// Rounds up a count to the nearest multiple of 8.
+// binCount rounds count up to the next multiple of 8. Returns 0 on integer
+// overflow.
 func binCount(count uint64) uint64 {
-	return uint64((math.Ceil(float64(count) / 8)) * 8)
+	return (count + 7) / 8 * 8
 }
 
 type PromMetrics struct {
