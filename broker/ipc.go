@@ -92,12 +92,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	}
 
 	// Log geoip stats
-	remoteIP := arg.RemoteAddr
-	if err != nil {
-		log.Println("Warning: cannot process proxy IP: ", err.Error())
-	} else {
-		i.ctx.metrics.UpdateProxyStats(remoteIP, proxyType, natType)
-	}
+	i.ctx.metrics.UpdateProxyStats(arg.RemoteAddr, proxyType, natType)
 
 	var b []byte
 
