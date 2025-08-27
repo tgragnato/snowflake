@@ -84,3 +84,5 @@ require (
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/refraction-networking/utls v1.6.7 => gitlab.torproject.org/shelikhoo/utls-temporary v0.0.0-20250428152032-7f32539913c8
