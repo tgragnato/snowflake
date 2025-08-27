@@ -15,7 +15,7 @@ It is based on the [goptlib](https://gitweb.torproject.org/pluggable-transports/
 
 ### Dependencies
 
-- Go 1.24+
+- Go 1.25+
 - We use the [pion/webrtc](https://github.com/pion/webrtc) library for WebRTC communication with Snowflake proxies. Note: running `go get` will fetch this dependency automatically during the build process.
 
 ### Building the Snowflake client

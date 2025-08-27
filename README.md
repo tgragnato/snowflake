@@ -11,7 +11,7 @@ Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by 
 
 ![Schematic](/schematic.png)
 
-- golang 1.24+ & bumped dependencies
+- golang 1.25+ & bumped dependencies
 - custom transport for broker negotiation (TLS 1.3 with selected ciphersuites & groups, MultiPath TCP)
 - custom DTLS fingerprint, different from any popular WebRTC implementation
 - use the Setting Engine to reduce MulticastDNS noise
