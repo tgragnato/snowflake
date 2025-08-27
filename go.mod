@@ -86,6 +86,6 @@ require (
 )
 
 replace (
-	github.com/pion/dtls/v3 v3.0.6 => ./dtls
+	github.com/pion/dtls/v3 v3.0.7 => ./dtls
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.10.1 => .
 )
