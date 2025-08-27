@@ -432,7 +432,7 @@ client-snowflake-timeout-count 0
 client-http-count 0
 client-http-ips 
 client-ampcache-count 8
-client-ampcache-ips CA=8
+client-ampcache-ips ??=8
 client-sqs-count 0
 client-sqs-ips 
 `)
