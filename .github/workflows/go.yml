@@ -99,6 +99,21 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:latest
           push: true
 
+  cleanup:
+
+    name: Cleanup
+    needs: ["build", "docker"]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+      security-events: read
+
+    steps:
+
       - name: Delete untagged images
         uses: dataaxiom/ghcr-cleanup-action@v1
         with:
