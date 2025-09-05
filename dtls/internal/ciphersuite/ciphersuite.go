@@ -13,7 +13,9 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol"
 )
 
-var errCipherSuiteNotInit = &protocol.TemporaryError{Err: errors.New("CipherSuite has not been initialized")}
+var errCipherSuiteNotInit = &protocol.TemporaryError{
+	Err: errors.New("CipherSuite has not been initialized"),
+}
 
 // ID is an ID for our supported CipherSuites.
 type ID uint16
