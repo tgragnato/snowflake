@@ -591,7 +591,10 @@ func TestPSK(t *testing.T) {
 				conf := &Config{
 					PSK: func(hint []byte) ([]byte, error) {
 						if !bytes.Equal(test.ServerIdentity, hint) {
-							return nil, fmt.Errorf("TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)", test.ServerIdentity, hint)
+							return nil, fmt.Errorf( //nolint:err113
+								"TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)",
+								test.ServerIdentity, hint,
+							)
 						}
 
 						return []byte{0xAB, 0xC1, 0x23}, nil
@@ -2388,9 +2391,9 @@ func TestMultipleHelloVerifyRequest(t *testing.T) {
 	cancel()
 }
 
-// Assert that a DTLS Server always responds with RenegotiationInfo if
-// a ClientHello contained that extension or not.
-func TestRenegotationInfo(t *testing.T) {
+// Assert that a DTLS Server only responds with RenegotiationInfo if a ClientHello contained that
+// extension according to RFC5746 section 3.6, RFC5246 section 7.4.1.4 and RFC5746 section 4.2.
+func TestRenegotationInfo(t *testing.T) { //nolint:cyclop
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(10 * time.Second)
 	defer lim.Stop()
@@ -2402,8 +2405,8 @@ func TestRenegotationInfo(t *testing.T) {
 	resp := make([]byte, 1024)
 
 	for _, testCase := range []struct {
-		Name                  string
-		SendRenegotiationInfo bool
+		Name                    string
+		ExpectRenegotiationInfo bool
 	}{
 		{
 			"Include RenegotiationInfo",
@@ -2441,7 +2444,7 @@ func TestRenegotationInfo(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 
 			extensions := []extension.Extension{}
-			if test.SendRenegotiationInfo {
+			if test.ExpectRenegotiationInfo {
 				extensions = append(extensions, &extension.RenegotiationInfo{
 					RenegotiatedConnection: 0,
 				})
@@ -2486,15 +2489,17 @@ func TestRenegotationInfo(t *testing.T) {
 				t.Fatal("Failed to cast MessageServerHello")
 			}
 
-			gotNegotationInfo := false
+			actualNegotationInfo := false
 			for _, v := range serverHello.Extensions {
 				if _, ok := v.(*extension.RenegotiationInfo); ok {
-					gotNegotationInfo = true
+					actualNegotationInfo = true
 				}
 			}
 
-			if !gotNegotationInfo {
-				t.Fatalf("Received ServerHello without RenegotiationInfo")
+			if test.ExpectRenegotiationInfo != actualNegotationInfo {
+				t.Fatal(fmt.Sprintf(
+					"NegotationInfo state in ServerHello is incorrect: expected(%t) actual(%t)",
+					test.ExpectRenegotiationInfo, actualNegotationInfo))
 			}
 		})
 	}

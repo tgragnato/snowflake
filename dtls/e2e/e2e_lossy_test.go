@@ -202,11 +202,7 @@ func TestPionE2ELossy(t *testing.T) {
 				}
 			}()
 
-			for {
-				if serverConn != nil && clientConn != nil {
-					break
-				}
-
+			for serverConn == nil || clientConn == nil {
 				br.Tick()
 				select {
 				case serverResult := <-serverDone:

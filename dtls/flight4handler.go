@@ -260,9 +260,8 @@ func flight4Generate(
 	_ *handshakeCache,
 	cfg *handshakeConfig,
 ) ([]*packet, *alert.Alert, error) {
-	extensions := []extension.Extension{&extension.RenegotiationInfo{
-		RenegotiatedConnection: 0,
-	}}
+	extensions := []extension.Extension{}
+
 	if (cfg.extendedMasterSecret == RequestExtendedMasterSecret ||
 		cfg.extendedMasterSecret == RequireExtendedMasterSecret) && state.extendedMasterSecret {
 		extensions = append(extensions, &extension.UseExtendedMasterSecret{
@@ -273,6 +272,11 @@ func flight4Generate(
 		extensions = append(extensions, &extension.UseSRTP{
 			ProtectionProfiles:  []SRTPProtectionProfile{state.getSRTPProtectionProfile()},
 			MasterKeyIdentifier: cfg.localSRTPMasterKeyIdentifier,
+		})
+	}
+	if state.remoteSupportsRenegotiation {
+		extensions = append(extensions, &extension.RenegotiationInfo{
+			RenegotiatedConnection: 0,
 		})
 	}
 	if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeCertificate {
