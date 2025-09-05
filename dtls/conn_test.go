@@ -591,7 +591,7 @@ func TestPSK(t *testing.T) {
 				conf := &Config{
 					PSK: func(hint []byte) ([]byte, error) {
 						if !bytes.Equal(test.ServerIdentity, hint) {
-							return nil, fmt.Errorf( //nolint:err113
+							return nil, fmt.Errorf(
 								"TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)",
 								test.ServerIdentity, hint,
 							)
@@ -2393,7 +2393,7 @@ func TestMultipleHelloVerifyRequest(t *testing.T) {
 
 // Assert that a DTLS Server only responds with RenegotiationInfo if a ClientHello contained that
 // extension according to RFC5746 section 3.6, RFC5246 section 7.4.1.4 and RFC5746 section 4.2.
-func TestRenegotationInfo(t *testing.T) { //nolint:cyclop
+func TestRenegotationInfo(t *testing.T) {
 	// Limit runtime in case of deadlocks
 	lim := test.TimeOut(10 * time.Second)
 	defer lim.Stop()
