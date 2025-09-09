@@ -108,7 +108,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 
 	if offer == nil {
 		i.ctx.metrics.IncrementCounter("proxy-idle")
-		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "idle"}).Inc()
+		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "type": proxyType, "status": "idle"}).Inc()
 
 		b, err = messages.EncodePollResponse("", false, "")
 		if err != nil {
@@ -119,7 +119,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		return nil
 	}
 
-	i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "status": "matched"}).Inc()
+	i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "type": proxyType, "status": "matched"}).Inc()
 	var relayURL string
 	bridgeFingerprint, err := bridgefingerprint.FingerprintFromBytes(offer.fingerprint)
 	if err != nil {

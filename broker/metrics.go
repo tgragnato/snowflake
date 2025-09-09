@@ -329,7 +329,7 @@ func initPrometheus() *PromMetrics {
 			Name:      "rounded_proxy_poll_total",
 			Help:      "The number of snowflake proxy polls, rounded up to a multiple of 8",
 		},
-		[]string{"nat", "status"},
+		[]string{"nat", "type", "status"},
 	)
 
 	promMetrics.ProxyAnswerTotal = safeprom.NewCounterVec(
