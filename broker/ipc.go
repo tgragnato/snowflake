@@ -253,6 +253,7 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 		// The snowflake took too long to respond with an answer, so its client
 		// disappeared / the snowflake is no longer recognized by the Broker.
 		success = false
+		i.ctx.metrics.promMetrics.ProxyAnswerTotal.With(prometheus.Labels{"type": "", "status": "timeout"}).Inc()
 	}
 
 	b, err := messages.EncodeAnswerResponse(success)
@@ -263,6 +264,7 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 	*response = b
 
 	if success {
+		i.ctx.metrics.promMetrics.ProxyAnswerTotal.With(prometheus.Labels{"type": snowflake.proxyType, "status": "success"}).Inc()
 		snowflake.answerChannel <- answer
 	}
 
