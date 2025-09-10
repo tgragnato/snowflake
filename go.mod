@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.65
 	github.com/pion/ice/v4 v4.0.10
-	github.com/pion/sdp/v3 v3.0.15
+	github.com/pion/sdp/v3 v3.0.16
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pion/transport/v3 v3.0.7
 	github.com/pion/webrtc/v4 v4.1.4
@@ -19,7 +19,7 @@ require (
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.6.7
 	github.com/smartystreets/goconvey v1.8.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
 	github.com/xtaci/kcp-go/v5 v5.6.24
 	github.com/xtaci/smux v1.5.35
@@ -72,8 +72,6 @@ require (
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/smarty/assertions v1.15.0 // indirect
-	github.com/templexxx/cpu v0.1.1 // indirect
-	github.com/templexxx/xorsimd v0.4.3 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20210608031112-152c7c4432bf // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
