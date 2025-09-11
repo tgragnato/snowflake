@@ -77,7 +77,7 @@ require (
 	github.com/txthinking/runnergroup v0.0.0-20241229123329-7b873ad00768 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.10.1 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
+	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
