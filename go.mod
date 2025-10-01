@@ -13,7 +13,7 @@ require (
 	github.com/pion/ice/v4 v4.0.10
 	github.com/pion/sdp/v3 v3.0.16
 	github.com/pion/stun/v3 v3.0.0
-	github.com/pion/transport/v3 v3.0.7
+	github.com/pion/transport/v3 v3.0.8
 	github.com/pion/webrtc/v4 v4.1.4
 	github.com/prometheus/client_golang v1.23.2
 	github.com/realclientip/realclientip-go v1.0.0
@@ -39,7 +39,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.29.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.29.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.5 // indirect
 	github.com/aws/smithy-go v1.23.0 // indirect
