@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPreMasterSecret(t *testing.T) {
@@ -243,14 +242,30 @@ func TestEncryptionKeys_String(t *testing.T) {
 	}
 	s := ek.String()
 
-	assert.True(t, strings.HasPrefix(s, "encryptionKeys:\n"))
-	assert.Contains(t, s, fmt.Sprintf("- masterSecret: %#v", ek.MasterSecret))
-	assert.Contains(t, s, fmt.Sprintf("- clientMACKey: %#v", ek.ClientMACKey))
-	assert.Contains(t, s, fmt.Sprintf("- serverMACKey: %#v", ek.ServerMACKey))
-	assert.Contains(t, s, fmt.Sprintf("- clientWriteKey: %#v", ek.ClientWriteKey))
-	assert.Contains(t, s, fmt.Sprintf("- serverWriteKey: %#v", ek.ServerWriteKey))
-	assert.Contains(t, s, fmt.Sprintf("- clientWriteIV: %#v", ek.ClientWriteIV))
-	assert.Contains(t, s, fmt.Sprintf("- serverWriteIV: %#v", ek.ServerWriteIV))
+	if !strings.HasPrefix(s, "encryptionKeys:\n") {
+		t.Errorf("expected prefix 'encryptionKeys:\\n', got %q", s)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- masterSecret: %#v", ek.MasterSecret)) {
+		t.Errorf("missing masterSecret: %#v", ek.MasterSecret)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- clientMACKey: %#v", ek.ClientMACKey)) {
+		t.Errorf("missing clientMACKey: %#v", ek.ClientMACKey)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- serverMACKey: %#v", ek.ServerMACKey)) {
+		t.Errorf("missing serverMACKey: %#v", ek.ServerMACKey)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- clientWriteKey: %#v", ek.ClientWriteKey)) {
+		t.Errorf("missing clientWriteKey: %#v", ek.ClientWriteKey)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- serverWriteKey: %#v", ek.ServerWriteKey)) {
+		t.Errorf("missing serverWriteKey: %#v", ek.ServerWriteKey)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- clientWriteIV: %#v", ek.ClientWriteIV)) {
+		t.Errorf("missing clientWriteIV: %#v", ek.ClientWriteIV)
+	}
+	if !strings.Contains(s, fmt.Sprintf("- serverWriteIV: %#v", ek.ServerWriteIV)) {
+		t.Errorf("missing serverWriteIV: %#v", ek.ServerWriteIV)
+	}
 }
 
 func TestEcdhePSKPreMasterSecret_InvalidCurve(t *testing.T) {
@@ -260,54 +275,78 @@ func TestEcdhePSKPreMasterSecret_InvalidCurve(t *testing.T) {
 	invalid := elliptic.Curve(0xFFFF)
 
 	_, err := EcdhePSKPreMasterSecret(psk, pub, priv, invalid)
-	assert.ErrorIs(t, err, errInvalidNamedCurve)
+	if err != errInvalidNamedCurve {
+		t.Errorf("expected errInvalidNamedCurve, got %v", err)
+	}
 }
 
 func TestPreMasterSecret_InvalidCurve(t *testing.T) {
 	invalid := elliptic.Curve(0) // not supported
 	_, err := PreMasterSecret(nil, nil, invalid)
-	assert.ErrorIs(t, err, errInvalidNamedCurve)
+	if err != errInvalidNamedCurve {
+		t.Errorf("expected errInvalidNamedCurve, got %v", err)
+	}
 }
 
 func TestPreMasterSecret_NewPrivateKeyError(t *testing.T) {
-	// P-256 with invalid private key length -> ec.NewPrivateKey error.
-	curve := elliptic.P256
-	priv := []byte{}    // invalid size for P-256 (needs 32 bytes)
+	// P-384 with invalid private key length -> ec.NewPrivateKey error.
+	curve := elliptic.P384
+	priv := []byte{}    // invalid size for P-384 (needs 48 bytes)
 	pub := []byte{0x04} // won't be reached, set something anyways
 
 	_, err := PreMasterSecret(pub, priv, curve)
-	assert.Error(t, err) // error from ec.NewPrivateKey
+	if err == nil {
+		t.Errorf("expected error from ec.NewPrivateKey, got nil")
+	}
 }
 
 func TestPreMasterSecret_NewPublicKeyError(t *testing.T) {
-	// valid P-256 private key with invalid public key encoding -> ec.NewPublicKey error.
-	ec := ecdh.P256()
+	// valid P-384 private key with invalid public key encoding -> ec.NewPublicKey error.
+	ec := ecdh.P384()
 	sk, err := ec.GenerateKey(rand.Reader)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
 
 	priv := sk.Bytes()
 	invalidPub := []byte{0x04, 0x01, 0x02} // invalid but wrong length
 
-	_, err = PreMasterSecret(invalidPub, priv, elliptic.P256)
-	assert.Error(t, err) // error from ec.NewPublicKey
+	_, err = PreMasterSecret(invalidPub, priv, elliptic.P384)
+	if err == nil {
+		t.Errorf("expected error from ec.NewPublicKey, got nil")
+	}
 }
 
-func TestPreMasterSecret_P256_Success_CaseHit(t *testing.T) {
-	// P-256 case branch and confirm success (non-empty shared secret).
-	ec := ecdh.P256()
+func TestPreMasterSecret_P384_Success_CaseHit(t *testing.T) {
+	// P-384 case branch and confirm success (non-empty shared secret).
+	ec := ecdh.P384()
 	aliceSK, err := ec.GenerateKey(rand.Reader)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("failed to generate alice key: %v", err)
+	}
 
 	bobSK, err := ec.GenerateKey(rand.Reader)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("failed to generate bob key: %v", err)
+	}
 
 	// Expected shared secret using ecdh directly.
 	exp, err := aliceSK.ECDH(bobSK.PublicKey())
-	assert.NoError(t, err)
-	assert.NotEmpty(t, exp)
+	if err != nil {
+		t.Fatalf("failed to compute ECDH: %v", err)
+	}
+	if len(exp) == 0 {
+		t.Errorf("expected non-empty shared secret, got empty")
+	}
 
-	secret, err := PreMasterSecret(bobSK.PublicKey().Bytes(), aliceSK.Bytes(), elliptic.P256)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, secret)
-	assert.Equal(t, exp, secret) // exact match
+	secret, err := PreMasterSecret(bobSK.PublicKey().Bytes(), aliceSK.Bytes(), elliptic.P384)
+	if err != nil {
+		t.Fatalf("PreMasterSecret failed: %v", err)
+	}
+	if len(secret) == 0 {
+		t.Errorf("expected non-empty secret, got empty")
+	}
+	if !bytes.Equal(exp, secret) {
+		t.Errorf("expected shared secret %x, got %x", exp, secret)
+	}
 }

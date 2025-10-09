@@ -4,10 +4,9 @@
 package elliptic
 
 import (
+	"crypto/rand"
 	"errors"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestString(t *testing.T) {
@@ -33,7 +32,9 @@ func TestString(t *testing.T) {
 func TestGenerateKeypair_InvalidCurve(t *testing.T) {
 	var invalid Curve = 0 // not a supported curve
 	_, err := GenerateKeypair(invalid)
-	assert.ErrorIs(t, err, errInvalidNamedCurve)
+	if !errors.Is(err, errInvalidNamedCurve) {
+		t.Fatalf("expected error %v, got %v", errInvalidNamedCurve, err)
+	}
 }
 
 // create a fake reader that is guaranteed to fail to trigger a failure in generate keypair.
@@ -45,16 +46,20 @@ func (failingReader) Read(p []byte) (int, error) {
 
 func TestGenerateKeypair_RandFailure(t *testing.T) {
 	// replace crypto/rand.Reader to force ecdh.GenerateKey to fail.
-	orig := crand.Reader
-	crand.Reader = failingReader{}
-	defer func() { crand.Reader = orig }()
+	orig := rand.Reader
+	rand.Reader = failingReader{}
+	defer func() { rand.Reader = orig }()
 
-	_, err := GenerateKeypair(P256)
-	assert.Error(t, err)
+	_, err := GenerateKeypair(P384)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
 }
 
 func TestToECDH_InvalidCurve(t *testing.T) {
 	var invalid Curve = 0xFFFF
 	_, err := invalid.toECDH()
-	assert.ErrorIs(t, err, errInvalidNamedCurve)
+	if !errors.Is(err, errInvalidNamedCurve) {
+		t.Fatalf("expected error %v, got %v", errInvalidNamedCurve, err)
+	}
 }

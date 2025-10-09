@@ -4,10 +4,10 @@
 package extension
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/pkg/protocol"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSupportedVersions_ClientHello_RoundTrip(t *testing.T) {
@@ -31,12 +31,20 @@ func TestSupportedVersions_ClientHello_RoundTrip(t *testing.T) {
 	}
 
 	raw, err := ext.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawExpected, raw)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if !reflect.DeepEqual(rawExpected, raw) {
+		t.Errorf("Marshal output mismatch.\nExpected: %v\nGot:      %v", rawExpected, raw)
+	}
 
 	var rt SupportedVersions
-	assert.NoError(t, rt.Unmarshal(raw))
-	assert.Equal(t, ext.Versions, rt.Versions)
+	if err := rt.Unmarshal(raw); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if !reflect.DeepEqual(ext.Versions, rt.Versions) {
+		t.Errorf("Versions mismatch after roundtrip.\nExpected: %v\nGot:      %v", ext.Versions, rt.Versions)
+	}
 }
 
 func TestSupportedVersions_ServerHello_RoundTrip(t *testing.T) {
@@ -53,12 +61,21 @@ func TestSupportedVersions_ServerHello_RoundTrip(t *testing.T) {
 	}
 
 	raw, err := ext.Marshal()
-	assert.NoError(t, err)
-	assert.Equal(t, rawExpected, raw)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if !reflect.DeepEqual(rawExpected, raw) {
+		t.Errorf("Marshal output mismatch.\nExpected: %v\nGot:      %v", rawExpected, raw)
+	}
 
 	var rt SupportedVersions
-	assert.NoError(t, rt.Unmarshal(raw))
-	assert.Equal(t, []protocol.Version{protocol.Version1_3}, rt.Versions)
+	if err := rt.Unmarshal(raw); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	expectedVersions := []protocol.Version{protocol.Version1_3}
+	if !reflect.DeepEqual(expectedVersions, rt.Versions) {
+		t.Errorf("Versions mismatch after roundtrip.\nExpected: %v\nGot:      %v", expectedVersions, rt.Versions)
+	}
 }
 
 func TestSupportedVersions_ClientHello_Marshal_Invalid(t *testing.T) {
@@ -74,7 +91,9 @@ func TestSupportedVersions_ClientHello_Marshal_Invalid(t *testing.T) {
 
 	// in this case we want it to error to protect against malformed messages/DOS attacks.
 	_, err := ext.Marshal()
-	assert.ErrorIs(t, err, errInvalidDTLSVersion)
+	if err != errInvalidDTLSVersion {
+		t.Errorf("expected error %v, got %v", errInvalidDTLSVersion, err)
+	}
 }
 
 func TestSupportedVersions_ClientHello_Unmarshal_Invalid(t *testing.T) {
@@ -100,8 +119,12 @@ func TestSupportedVersions_ClientHello_Unmarshal_Invalid(t *testing.T) {
 
 	// in this case we don't want it to error because valid versions can still be parsed.
 	var rt SupportedVersions
-	assert.NoError(t, rt.Unmarshal(raw))
-	assert.Equal(t, ext.Versions, rt.Versions)
+	if err := rt.Unmarshal(raw); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if !reflect.DeepEqual(ext.Versions, rt.Versions) {
+		t.Errorf("Versions mismatch.\nExpected: %v\nGot:      %v", ext.Versions, rt.Versions)
+	}
 }
 
 func TestSupportedVersions_Marshal_LengthBounds(t *testing.T) {
@@ -114,7 +137,9 @@ func TestSupportedVersions_Marshal_LengthBounds(t *testing.T) {
 
 	ext := &SupportedVersions{Versions: tooMany}
 	_, err := ext.Marshal()
-	assert.ErrorIs(t, err, errInvalidSupportedVersionsFormat)
+	if err != errInvalidSupportedVersionsFormat {
+		t.Errorf("expected error %v, got %v", errInvalidSupportedVersionsFormat, err)
+	}
 }
 
 func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
@@ -177,7 +202,9 @@ func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var sv SupportedVersions
 			err := sv.Unmarshal(tc.raw)
-			assert.ErrorIs(t, err, tc.err)
+			if err != tc.err {
+				t.Errorf("expected error %v, got %v", tc.err, err)
+			}
 		})
 	}
 }
@@ -193,11 +220,16 @@ func TestExtensionsUnmarshal_SupportedVersions_ClientHello(t *testing.T) {
 	var sv SupportedVersions
 
 	ex := sv.Unmarshal(supportedVersionsExt)
-	assert.NoError(t, ex)
-	assert.Equal(t, []protocol.Version{
+	if ex != nil {
+		t.Fatalf("Unmarshal failed: %v", ex)
+	}
+	expected := []protocol.Version{
 		protocol.Version1_3,
 		protocol.Version1_2,
-	}, sv.Versions)
+	}
+	if !reflect.DeepEqual(expected, sv.Versions) {
+		t.Errorf("Versions mismatch.\nExpected: %v\nGot:      %v", expected, sv.Versions)
+	}
 }
 
 func TestExtensionsUnmarshal_SupportedVersions_ServerHello(t *testing.T) {
@@ -211,7 +243,11 @@ func TestExtensionsUnmarshal_SupportedVersions_ServerHello(t *testing.T) {
 	var sv SupportedVersions
 
 	ex := sv.Unmarshal(supportedVersionsExt)
-	assert.NoError(t, ex)
-	// Server/HRR form yields a single entry in Versions.
-	assert.Equal(t, []protocol.Version{protocol.Version1_3}, sv.Versions)
+	if ex != nil {
+		t.Fatalf("Unmarshal failed: %v", ex)
+	}
+	expected := []protocol.Version{protocol.Version1_3}
+	if !reflect.DeepEqual(expected, sv.Versions) {
+		t.Errorf("Versions mismatch.\nExpected: %v\nGot:      %v", expected, sv.Versions)
+	}
 }

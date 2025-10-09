@@ -6,8 +6,6 @@ package protocol
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestVersionEqual(t *testing.T) {
@@ -28,7 +26,9 @@ func TestVersionEqual(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.a.Equal(tc.b)
-			assert.Equal(t, tc.want, got, "Equal(%v,%v)", tc.a, tc.b)
+			if got != tc.want {
+				t.Errorf("Equal(%v,%v): expected %v, got %v", tc.a, tc.b, tc.want, got)
+			}
 		})
 	}
 }
@@ -47,7 +47,9 @@ func TestIsSupportedBytes(t *testing.T) {
 
 	for _, c := range cases {
 		got := IsSupportedBytes(c.maj, c.min)
-		assert.Equalf(t, c.want, got, "IsSupportedBytes(%#02x,%#02x)", c.maj, c.min)
+		if got != c.want {
+			t.Errorf("IsSupportedBytes(%#02x,%#02x): expected %v, got %v", c.maj, c.min, c.want, got)
+		}
 	}
 }
 
@@ -64,7 +66,9 @@ func TestIsSupportedVersion(t *testing.T) {
 
 	for _, c := range cases {
 		got := IsSupportedVersion(c.v)
-		assert.Equal(t, c.want, got, "IsSupportedVersion(%v)", c.v)
+		if got != c.want {
+			t.Errorf("IsSupportedVersion(%v): expected %v, got %v", c.v, c.want, got)
+		}
 	}
 }
 
@@ -83,7 +87,9 @@ func TestIsValidBytes(t *testing.T) {
 
 	for _, c := range cases {
 		got := IsValidBytes(c.maj, c.min)
-		assert.Equalf(t, c.want, got, "IsValidBytes(%#02x,%#02x)", c.maj, c.min)
+		if got != c.want {
+			t.Errorf("IsValidBytes(%#02x,%#02x): expected %v, got %v", c.maj, c.min, c.want, got)
+		}
 	}
 }
 
@@ -101,6 +107,8 @@ func TestIsValidVersion(t *testing.T) {
 
 	for _, c := range cases {
 		got := IsValidVersion(c.v)
-		assert.Equal(t, c.want, got, "IsValidVersion(%v)", c.v)
+		if got != c.want {
+			t.Errorf("IsValidVersion(%v): expected %v, got %v", c.v, c.want, got)
+		}
 	}
 }
