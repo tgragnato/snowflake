@@ -286,6 +286,7 @@ type PromMetrics struct {
 	ProxyTotal       *prometheus.CounterVec
 	ProxyPollTotal   *safeprom.CounterVec
 	ClientPollTotal  *safeprom.CounterVec
+	ProxyAnswerTotal *safeprom.CounterVec
 	AvailableProxies *prometheus.GaugeVec
 
 	ProxyPollWithRelayURLExtensionTotal    *safeprom.CounterVec
@@ -324,7 +325,16 @@ func initPrometheus() *PromMetrics {
 			Name:      "rounded_proxy_poll_total",
 			Help:      "The number of snowflake proxy polls, rounded up to a multiple of 8",
 		},
-		[]string{"nat", "status"},
+		[]string{"nat", "type", "status"},
+	)
+
+	promMetrics.ProxyAnswerTotal = safeprom.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: prometheusNamespace,
+			Name:      "rounded_proxy_answer_total",
+			Help:      "The number of snowflake proxy answers, rounded up to a multiple of 8",
+		},
+		[]string{"type", "status"},
 	)
 
 	promMetrics.ProxyPollWithRelayURLExtensionTotal = safeprom.NewCounterVec(
@@ -366,7 +376,7 @@ func initPrometheus() *PromMetrics {
 	// We need to register our metrics so they can be exported.
 	promMetrics.registry.MustRegister(
 		promMetrics.ClientPollTotal, promMetrics.ProxyPollTotal,
-		promMetrics.ProxyTotal, promMetrics.AvailableProxies,
+		promMetrics.ProxyTotal, promMetrics.ProxyAnswerTotal, promMetrics.AvailableProxies,
 		promMetrics.ProxyPollWithRelayURLExtensionTotal,
 		promMetrics.ProxyPollWithoutRelayURLExtensionTotal,
 		promMetrics.ProxyPollRejectedForRelayURLExtensionTotal,
