@@ -13,6 +13,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestErrorsTemporary(t *testing.T) {
@@ -41,6 +42,8 @@ func TestErrorsTemporary(t *testing.T) {
 	}
 
 	_, _ = conn.Write([]byte{0x00}) // trigger
+	// Avoid indefinite blocking on platforms that don't surface ICMP errors reliably - Windows :)
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	_, err = conn.Read(make([]byte, 10))
 	_ = conn.Close()
 
