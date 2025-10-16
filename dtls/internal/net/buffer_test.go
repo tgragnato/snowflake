@@ -493,12 +493,20 @@ func FuzzPacketBuffer_WriteReadRoundTrip(f *testing.F) {
 		addr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 5684}
 
 		n, err := buf.WriteTo(p1, addr)
-		assert.NoError(t, err)
-		assert.Equal(t, len(p1), n)
+		if err != nil {
+			t.Fatalf("WriteTo: %v", err)
+		}
+		if n != len(p1) {
+			t.Fatalf("Expected %d bytes written, got %d", len(p1), n)
+		}
 
 		n, err = buf.WriteTo(p2, addr)
-		assert.NoError(t, err)
-		assert.Equal(t, len(p2), n)
+		if err != nil {
+			t.Fatalf("WriteTo: %v", err)
+		}
+		if n != len(p2) {
+			t.Fatalf("Expected %d bytes written, got %d", len(p2), n)
+		}
 
 		readOnce := func(expect []byte) {
 			rb := make([]byte, int(readCap))
@@ -506,13 +514,25 @@ func FuzzPacketBuffer_WriteReadRoundTrip(f *testing.F) {
 
 			if len(expect) == 0 {
 				if len(rb) == 0 {
-					assert.NoError(t, errRead)
-					assert.Equal(t, 0, n)
-					assert.NotNil(t, raddr)
-					assert.Equal(t, addr.String(), raddr.String())
+					if errRead != nil {
+						t.Fatalf("ReadFrom returned error: %v", errRead)
+					}
+					if n != 0 {
+						t.Fatalf("Expected 0 bytes read, got %d", n)
+					}
+					if raddr == nil {
+						t.Fatalf("Expected non-nil remote addr")
+					}
+					if raddr.String() != addr.String() {
+						t.Fatalf("Expected addr %v got %v", addr.String(), raddr.String())
+					}
 				} else {
-					assert.ErrorIs(t, errRead, io.EOF)
-					assert.Equal(t, 0, n)
+					if !errors.Is(errRead, io.EOF) {
+						t.Fatalf("Unexpected err %v wanted io.EOF", errRead)
+					}
+					if n != 0 {
+						t.Fatalf("Expected 0 bytes read, got %d", n)
+					}
 				}
 
 				return
@@ -523,23 +543,39 @@ func FuzzPacketBuffer_WriteReadRoundTrip(f *testing.F) {
 				n, raddr, errRead = buf.ReadFrom(rb)
 			}
 
-			assert.NoError(t, errRead)
-			assert.Equal(t, len(expect), n)
-			assert.Equal(t, expect, rb[:n])
-			assert.NotNil(t, raddr)
-			assert.Equal(t, addr.String(), raddr.String())
+			if errRead != nil {
+				t.Fatalf("ReadFrom returned error: %v", errRead)
+			}
+			if n != len(expect) {
+				t.Fatalf("Expected %d bytes read, got %d", len(expect), n)
+			}
+			if !bytes.Equal(expect, rb[:n]) {
+				t.Fatalf("Expected %v got %v", expect, rb[:n])
+			}
+			if raddr == nil {
+				t.Fatalf("Expected non-nil remote addr")
+			}
+			if raddr.String() != addr.String() {
+				t.Fatalf("Expected addr %v got %v", addr.String(), raddr.String())
+			}
 		}
 
 		readOnce(p1)
 		readOnce(p2)
 
-		assert.NoError(t, buf.Close())
+		if err := buf.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
 		_, err = buf.WriteTo([]byte{1}, addr)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatalf("Expected error from WriteTo after Close")
+		}
 
 		rb := make([]byte, int(readCap))
 		_, _, err = buf.ReadFrom(rb)
-		assert.ErrorIs(t, err, io.EOF)
+		if !errors.Is(err, io.EOF) {
+			t.Fatalf("Unexpected err %v wanted io.EOF", err)
+		}
 	})
 }
 
@@ -553,19 +589,33 @@ func FuzzPacketBuffer_DeadlineAndShortBuffer(f *testing.F) {
 		buf := NewPacketBuffer()
 		defer func() { _ = buf.Close() }()
 
-		assert.NoError(t, buf.SetReadDeadline(time.Unix(0, 1)))
+		if err := buf.SetReadDeadline(time.Unix(0, 1)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
 		rb := make([]byte, int(readCap))
 		n, addr, err := buf.ReadFrom(rb)
-		assert.ErrorIs(t, err, ErrTimeout)
-		assert.Equal(t, 0, n)
-		assert.Nil(t, addr)
+		if !errors.Is(err, ErrTimeout) {
+			t.Fatalf("Unexpected err %v wanted ErrTimeout", err)
+		}
+		if n != 0 {
+			t.Fatalf("Expected 0 got %d", n)
+		}
+		if addr != nil {
+			t.Fatalf("Expected nil addr got %v", addr)
+		}
 
-		assert.NoError(t, buf.SetReadDeadline(time.Time{}))
+		if err := buf.SetReadDeadline(time.Time{}); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
 
 		ua := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 9999}
 		n, err = buf.WriteTo(payload, ua)
-		assert.NoError(t, err)
-		assert.Equal(t, len(payload), n)
+		if err != nil {
+			t.Fatalf("WriteTo: %v", err)
+		}
+		if n != len(payload) {
+			t.Fatalf("Expected %d bytes written, got %d", len(payload), n)
+		}
 
 		n, addr, err = buf.ReadFrom(rb)
 		if errors.Is(err, io.ErrShortBuffer) {
@@ -573,14 +623,21 @@ func FuzzPacketBuffer_DeadlineAndShortBuffer(f *testing.F) {
 			n, addr, err = buf.ReadFrom(rb)
 		}
 
-		assert.NoError(t, err)
-		assert.Equal(t, len(payload), n)
-		assert.Equal(t, payload, rb[:n])
+		if err != nil {
+			t.Fatalf("ReadFrom: %v", err)
+		}
+		if n != len(payload) {
+			t.Fatalf("Expected %d bytes read, got %d", len(payload), n)
+		}
+		if !bytes.Equal(payload, rb[:n]) {
+			t.Fatalf("Expected %v got %v", payload, rb[:n])
+		}
 
-		if addr != nil {
-			assert.Equal(t, ua.String(), addr.String())
-		} else {
-			assert.NotNil(t, addr)
+		if addr == nil {
+			t.Fatalf("Expected non-nil remote addr")
+		}
+		if addr.String() != ua.String() {
+			t.Fatalf("Expected addr %v got %v", ua.String(), addr.String())
 		}
 	})
 }
@@ -594,29 +651,43 @@ func FuzzPacketBuffer_CloseSemantics(f *testing.F) {
 		buf := NewPacketBuffer()
 		addr := &net.UDPAddr{IP: net.IPv4(10, 0, 0, 1), Port: 4242}
 
-		_, err := buf.WriteTo(first, addr)
-		assert.NoError(t, err)
-		_, err = buf.WriteTo(second, addr)
-		assert.NoError(t, err)
+		if _, err := buf.WriteTo(first, addr); err != nil {
+			t.Fatalf("WriteTo(first): %v", err)
+		}
+		if _, err := buf.WriteTo(second, addr); err != nil {
+			t.Fatalf("WriteTo(second): %v", err)
+		}
 
-		assert.NoError(t, buf.Close())
+		if err := buf.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
 
 		readAll := func(expect []byte) {
 			rb := make([]byte, len(expect))
 			n, raddr, errRead := buf.ReadFrom(rb)
-			assert.NoError(t, errRead)
-			assert.Equal(t, len(expect), n)
-			assert.Equal(t, expect, rb[:n])
-			assert.NotNil(t, raddr)
+			if errRead != nil {
+				t.Fatalf("ReadFrom: %v", errRead)
+			}
+			if n != len(expect) {
+				t.Fatalf("Expected %d bytes read, got %d", len(expect), n)
+			}
+			if !bytes.Equal(expect, rb[:n]) {
+				t.Fatalf("Expected %v got %v", expect, rb[:n])
+			}
+			if raddr == nil {
+				t.Fatalf("Expected non-nil remote addr")
+			}
 		}
 
 		readAll(first)
 		readAll(second)
 
-		_, _, err = buf.ReadFrom(make([]byte, 1))
-		assert.ErrorIs(t, err, io.EOF)
+		if _, _, err := buf.ReadFrom(make([]byte, 1)); !errors.Is(err, io.EOF) {
+			t.Fatalf("Unexpected err %v wanted io.EOF", err)
+		}
 
-		_, err = buf.WriteTo([]byte{1}, addr)
-		assert.Error(t, err)
+		if _, err := buf.WriteTo([]byte{1}, addr); err == nil {
+			t.Fatalf("Expected error from WriteTo after Close")
+		}
 	})
 }
