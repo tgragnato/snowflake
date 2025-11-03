@@ -62,7 +62,7 @@ require (
 	github.com/pion/rtp v1.8.25 // indirect
 	github.com/pion/sctp v1.8.40 // indirect
 	github.com/pion/srtp/v3 v3.0.8 // indirect
-	github.com/pion/turn/v4 v4.1.1 // indirect
+	github.com/pion/turn/v4 v4.1.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.2 // indirect
