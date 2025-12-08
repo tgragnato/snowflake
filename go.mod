@@ -10,7 +10,7 @@ require (
 	github.com/coder/websocket v1.8.14
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.68
-	github.com/pion/ice/v4 v4.0.10
+	github.com/pion/ice/v4 v4.0.13
 	github.com/pion/sdp/v3 v3.0.16
 	github.com/pion/stun/v3 v3.0.1
 	github.com/pion/transport/v3 v3.1.1
@@ -54,7 +54,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
-	github.com/pion/dtls/v3 v3.0.7 // indirect
+	github.com/pion/dtls/v3 v3.0.8 // indirect
 	github.com/pion/interceptor v0.1.42 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/mdns/v2 v2.1.0 // indirect
