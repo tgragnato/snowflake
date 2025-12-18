@@ -12,7 +12,7 @@ require (
 	github.com/miekg/dns v1.1.68
 	github.com/pion/ice/v4 v4.0.13
 	github.com/pion/sdp/v3 v3.0.16
-	github.com/pion/stun/v3 v3.0.1
+	github.com/pion/stun/v3 v3.0.2
 	github.com/pion/transport/v3 v3.1.1
 	github.com/pion/webrtc/v4 v4.1.6
 	github.com/prometheus/client_golang v1.23.2
