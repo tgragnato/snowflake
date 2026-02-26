@@ -6,5 +6,5 @@ require (
 	github.com/pion/logging v0.2.4
 	github.com/pion/transport/v3 v3.1.1
 	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 )
