@@ -1,0 +1,4 @@
+# snowflake-proxy configuration options
+
+# Extra options to pass to snowflake-proxy, see snowflake-proxy(1)
+ARGS=""

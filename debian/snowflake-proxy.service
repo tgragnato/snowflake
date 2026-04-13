@@ -1,0 +1,24 @@
+[Unit]
+Description=snowflake-proxy
+Documentation=man:snowflake-proxy
+Documentation=https://snowflake.torproject.org/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=-/etc/defaults/snowflake-proxy
+ExecStart=/usr/bin/snowflake-proxy $ARGS
+DynamicUser=yes
+PrivateUsers=true
+PrivateMounts=true
+ProtectSystem=strict
+PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+NoNewPrivileges=true
+ProtectHome=tmpfs
+ProtectKernelModules=true
+ProtectKernelLogs=true
+
+[Install]
+WantedBy=multi-user.target

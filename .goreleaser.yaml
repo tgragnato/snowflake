@@ -1,0 +1,132 @@
+# The lines below are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/need to use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+
+builds:
+  - id: proxy
+    main: ./proxy
+    binary: snowflake-proxy
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -X main.date={{.CommitDate}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  - id: client
+    main: ./client
+    binary: snowflake-client
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -X main.date={{.CommitDate}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+nfpms:
+  - id: proxy
+    package_name: snowflake-proxy
+    ids:
+      - proxy
+    maintainer: Tor Anti-censorship Team <anti-censorship-team@lists.torproject.org>
+    homepage: https://snowflake.torproject.org/
+    license: BSD-3-Clause
+    description: |
+      WebRTC pluggable transport for Tor (proxy)
+      
+      Snowflake helps users circumvent censorship by making a WebRTC
+
+      connection to volunteer proxies. These proxies relay Tor traffic to a
+
+      Snowflake bridge and then to through the Tor network.
+
+      
+      This package provides the proxy.
+    section: net
+    contents:
+      # TODO: this would be nice to be compressed
+      - src: doc/snowflake-proxy.1
+        dst: /usr/share/man/man1/
+        file_info:
+          mode: 644
+
+      - src: debian/snowflake-proxy.defaults
+        dst: /etc/defaults/snowflake-proxy
+        type: config
+        file_info:
+          mode: 644
+
+      - src: debian/snowflake-proxy.service
+        dst: /usr/lib/systemd/system/
+        file_info:
+          mode: 644
+    scripts:
+      postinstall: "debian/snowflake-proxy.postinst"
+      preremove: "debian/snowflake-proxy.prerm"
+    formats:
+      - deb
+    file_name_template: '{{ .PackageName }}_{{ .Version }}-1~torproject_{{ .Arch }}'
+    release: 1~torproject
+    mtime: "{{ .CommitDate }}"
+
+  - id: client
+    package_name: snowflake-client
+    ids:
+      - client
+    maintainer: Tor Anti-censorship Team <anti-censorship-team@lists.torproject.org>
+    homepage: https://snowflake.torproject.org/
+    license: BSD-3-Clause
+    description: |
+      WebRTC pluggable transport for Tor (client)
+      
+      Snowflake helps users circumvent censorship by making a WebRTC
+
+      connection to volunteer proxies. These proxies relay Tor traffic to a
+
+      Snowflake bridge and then to through the Tor network.
+
+      
+      This package provides the client.
+    section: network
+    contents:
+      # TODO: this would be nice to be compressed
+      - src: doc/snowflake-client.1
+        dst: /usr/share/man/man1/
+        file_info:
+          mode: 644
+    formats:
+      - deb
+    file_name_template: '{{ .PackageName }}_{{ .Version }}-1~torproject_{{ .Arch }}'
+    release: 1~torproject
+    mtime: "{{ .CommitDate }}"
+    
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
