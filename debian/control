@@ -1,0 +1,25 @@
+Source: snowflake
+Maintainer: Tor Anti-censorship Team <anti-censorship-team@lists.torproject.org>
+
+Package: snowflake-client
+Section: net
+Priority: optional
+Architecture: any
+Homepage: https://snowflake.torproject.org/
+Description: WebRTC pluggable transport for Tor (client)
+ Snowflake helps users circumvent censorship by making a WebRTC
+ connection to volunteer proxies. These proxies relay Tor traffic to a
+ Snowflake bridge and then to through the Tor network.
+ .
+ This package provides the proxy.
+
+Package: snowflake-proxy
+Section: net
+Priority: optional
+Homepage: https://snowflake.torproject.org/
+Description: WebRTC pluggable transport for Tor (proxy)
+ Snowflake helps users circumvent censorship by making a WebRTC
+ connection to volunteer proxies. These proxies relay Tor traffic to a
+ Snowflake bridge and then to through the Tor network.
+ .
+ This package provides the proxy.

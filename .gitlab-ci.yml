@@ -1,3 +1,7 @@
+---
+include:
+  - project: tpo/tpa/ci-templates
+    file: debtpo.yml
 variables:
   DOCKER_REGISTRY_URL: docker.io
 
@@ -8,7 +12,6 @@ stages:
   - container-mirror
   - binary_build
   - release
-  - release_upload_binary
 
 variables:
   DEBIAN_FRONTEND: noninteractive
@@ -414,52 +417,47 @@ mirror-image-to-dockerhub:
 
 binary_build_step:
   stage: binary_build
-  image: ${DOCKER_REGISTRY_URL}/golang:1.26-$DEBIAN_STABLE
+  image:
+    name: ${DOCKER_REGISTRY_URL}/goreleaser/goreleaser
+    entrypoint: [""]
+  variables:
+    # Disable shallow cloning so that goreleaser can diff between tags to
+    # generate a changelog.
+    GIT_DEPTH: 0
   script:
-    - mkdir dist/
-    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/client_linux_amd64 ./client
-    - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/client_linux_arm64 ./client
-    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/proxy_linux_amd64 ./proxy
-    - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/proxy_linux_arm64 ./proxy
+    - |
+      if [ -z $CI_COMMIT_TAG ]
+      then
+        goreleaser release --snapshot --clean
+      else
+        goreleaser release --clean --skip publish
+      fi
   artifacts:
     name: "${CI_PROJECT_PATH}_${CI_JOB_STAGE}_${CI_JOB_ID}_${CI_COMMIT_REF_NAME}_${CI_COMMIT_SHA}"
     paths:
       - dist/
     expire_in: 1 week
 
-release_job:
+upload:
+  extends: .debtpo
   stage: release
-  image: registry.gitlab.com/gitlab-org/cli:latest
-  allow_failure: true
+  before_script:
+    # generate .changes files for each .deb package
+    - apt install -Uy devscripts dpkg-dev
+    - mkdir dupload
+    - |
+      for d in dist/*.deb; do
+        DEB_VERSION=$(dpkg-deb --field "$d" Version)
+        DEB_PACKAGE=$(dpkg-deb --field "$d" Package)
+        DEB_SECTION=$(dpkg-deb --field "$d" Section)
+        DEB_PRIORITY=$(dpkg-deb --field "$d" Priority)
+        DEB=$(basename "$d")
+        DEB_CHANGES="$(echo "$d" | sed 's,\.deb,.changes,')"
+        rm -f debian/changelog
+        dch --create --package "${DEB_PACKAGE}" -v"${DEB_VERSION}" --controlmaint -Dunstable "Package built with GoReleaser."
+        echo "${DEB} ${DEB_SECTION} ${DEB_PRIORITY}" > debian/files
+        dpkg-genchanges -b -udist > "${DEB_CHANGES}"
+      done
+    - mv dist/*.{changes,deb} dupload
   rules:
-    - if: "$CI_COMMIT_TAG"
-    - when: never
-  artifacts:
-    name: "${CI_PROJECT_PATH}_${CI_JOB_STAGE}_${CI_JOB_ID}_${CI_COMMIT_REF_NAME}_${CI_COMMIT_SHA}"
-    paths:
-      - dist/
-    expire_in: 1 week
-  script:
-    - echo "Generating a release"
-  release:
-    tag_name: '$CI_COMMIT_TAG'
-    description: '$CI_COMMIT_TAG'
-
-release_upload_binary_job:
-  stage: release_upload_binary
-  image: registry.gitlab.com/gitlab-org/cli:latest
-  rules:
-    - if: "$CI_COMMIT_TAG"
-    - when: never
-  artifacts:
-    name: "${CI_PROJECT_PATH}_${CI_JOB_STAGE}_${CI_JOB_ID}_${CI_COMMIT_REF_NAME}_${CI_COMMIT_SHA}"
-    paths:
-      - dist/
-    expire_in: 1 week
-  script:
-    - echo "Uploading everything"
-    - glab auth login --hostname "$CI_SERVER_HOST" --job-token "$CI_JOB_TOKEN"
-    - glab release upload --use-package-registry "$CI_COMMIT_TAG" dist/client_linux_amd64
-    - glab release upload --use-package-registry "$CI_COMMIT_TAG" dist/client_linux_arm64
-    - glab release upload --use-package-registry "$CI_COMMIT_TAG" dist/proxy_linux_amd64
-    - glab release upload --use-package-registry "$CI_COMMIT_TAG" dist/proxy_linux_arm64
+    - if: $TORDEB_SSH_PRIVATE_KEY && $CI_COMMIT_TAG
