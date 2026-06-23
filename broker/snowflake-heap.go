@@ -72,6 +72,7 @@ type SnowflakePool struct {
 	h            *SnowflakeHeap
 	lock         sync.Mutex
 	pollInterval time.Duration
+	rateLimitMap *RateLimitMap
 }
 
 func NewSnowflakePool() *SnowflakePool {
@@ -80,6 +81,7 @@ func NewSnowflakePool() *SnowflakePool {
 	return &SnowflakePool{
 		h:            h,
 		pollInterval: 20 * time.Second,
+		rateLimitMap: NewRateLimitMap(),
 	}
 }
 
