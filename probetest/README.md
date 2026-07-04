@@ -7,13 +7,17 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-This is code for a remote probe test component of Snowflake.
+This is code for a server-side component of Snowflake's interactive connectivity type testing system.
 
 ### Overview
 
-This is a probe test server to allow proxies to test their compatability
-with Snowflake. Right now the only type of test implemented is a
-compatability check for clients with symmetric NATs.
+This is a test server that allows a Snowflake proxy to probe the server and attempt
+WebRTC sessions to determine its _interactive connectivity type_ and what kind of
+Snowflake clients it can connect to. It works by adjusting the interactive connection
+candidates sent in the WebRTC offer and answer, as well as relaying the connection through
+a specialized proxy that limits the interactive connectivity of the probe's connection.
+By design, this probe system can classify the client's interactive connectivity type as
+"strict"(restricted), "moderate", "open"(unrestricted).
 
 ### Running your own
 
@@ -31,30 +35,5 @@ cd .. # switch to the repo root directory or $(git rev-parse --show-toplevel)
 docker build -t snowflake-probetest -f probetest/Dockerfile .
 ```
 
-To deploy the probe server, first set the necessary env variables with
-```
-export HOSTNAMES=${YOUR HOSTNAMES}
-export EMAIL=${YOUR EMAIL}
-```
-then run ```docker-compose up```
-
-Setting up a symmetric NAT configuration requires a few extra steps. After
-upping the docker container, run
-```docker inspect snowflake-probetest```
-to find the subnet used by the probetest container. Then run
-```sudo iptables -L -t nat``` to find the POSTROUTING rules for the subnet.
-It should look something like this:
-```
-Chain POSTROUTING (policy ACCEPT)
-target     prot opt source               destination
-MASQUERADE  all  --  172.19.0.0/16        anywhere
-```
-to modify this rule, execute the command
-```sudo iptables -t nat -R POSTROUTING $RULE_NUM -s 172.19.0.0/16 -j MASQUERADE --random```
-where RULE_NUM is the numbered rule corresponding to your docker container's subnet masquerade rule.
-Afterwards, you should see the rule changed to be:
-```
-Chain POSTROUTING (policy ACCEPT)
-target     prot opt source               destination
-MASQUERADE  all  --  172.19.0.0/16        anywhere      random
-```
+The deployment of this probe requires running UDP enabled socks5 proxies that can limit
+the interactivity according to need, and single stack STUN servers.

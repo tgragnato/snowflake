@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safeprom"
+	"tgragnato.it/snowflake/common/ipsetsink/sinkcluster"
 	"tgragnato.it/snowflake/common/messages"
 )
 
@@ -32,6 +33,8 @@ type Metrics struct {
 
 	ips      *sync.Map // proxy IP addresses we've seen before
 	counters *sync.Map // counters for ip-based metrics
+
+	distinctIPWriter *sinkcluster.ClusterWriter
 
 	// counters for country-based metrics
 	proxies         *sync.Map // ip-based counts of proxy country codes
@@ -111,15 +114,8 @@ func (m *Metrics) UpdateProxyStats(addr string, proxyType string, natType string
 	// update unique IP proxy type metrics
 	key = fmt.Sprintf("%s-%s", addr, proxyType)
 	if _, loaded := m.ips.LoadOrStore(key, true); !loaded {
-		switch proxyType {
-		case "standalone":
-			m.IncrementCounter("proxy-standalone")
-		case "badge":
-			m.IncrementCounter("proxy-badge")
-		case "iptproxy":
-			m.IncrementCounter("proxy-iptproxy")
-		case "webext":
-			m.IncrementCounter("proxy-webext")
+		if proxyType != messages.ProxyUnknown {
+			m.IncrementCounter(fmt.Sprintf("proxy-%s", proxyType))
 		}
 	}
 }
@@ -245,10 +241,10 @@ func (m *Metrics) printMetrics() {
 		fmt.Sprintf("(%d s)", int(metricsResolution.Seconds())),
 	)
 	m.logger.Println("snowflake-ips", formatAndClearCountryStats(m.proxies, false))
-	m.logger.Printf("snowflake-ips-iptproxy %d\n", m.loadAndZero("proxy-iptproxy"))
-	m.logger.Printf("snowflake-ips-standalone %d\n", m.loadAndZero("proxy-standalone"))
-	m.logger.Printf("snowflake-ips-webext %d\n", m.loadAndZero("proxy-webext"))
-	m.logger.Printf("snowflake-ips-badge %d\n", m.loadAndZero("proxy-badge"))
+	for proxyType := range messages.KnownProxyTypes {
+		m.logger.Printf("snowflake-ips-%s %d\n", proxyType,
+			m.loadAndZero(fmt.Sprintf("proxy-%s", proxyType)))
+	}
 	m.logger.Println("snowflake-ips-total", m.loadAndZero("proxy-total"))
 	m.logger.Println("snowflake-idle-count", binCount(m.loadAndZero("proxy-idle")))
 	m.logger.Println("snowflake-proxy-poll-with-relay-url-count", binCount(m.loadAndZero("proxy-poll-with-relay-url")))
@@ -383,4 +379,26 @@ func initPrometheus() *PromMetrics {
 	)
 
 	return promMetrics
+}
+
+func (m *Metrics) RecordIPAddress(ip string, restricted bool, proxyType string) {
+	if m.distinctIPWriter != nil {
+		if restricted {
+			m.distinctIPWriter.AddIPToSet("restricted", ip)
+		} else {
+			m.distinctIPWriter.AddIPToSet("unrestricted", ip)
+		}
+		switch proxyType {
+		case "standalone":
+			m.distinctIPWriter.AddIPToSet("standalone", ip)
+		case "badge":
+			fallthrough
+		case "webext":
+			m.distinctIPWriter.AddIPToSet("browser", ip)
+		case "iptproxy":
+			m.distinctIPWriter.AddIPToSet("mobile", ip)
+		default:
+			m.distinctIPWriter.AddIPToSet("unknown", ip)
+		}
+	}
 }

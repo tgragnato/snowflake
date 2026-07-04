@@ -53,11 +53,17 @@ Usage of ./proxy:
         Useful in conjunction with port forwarding, in order to make the proxy NAT type "unrestricted".
         If omitted, the ports will be chosen automatically from a wide range.
         When specifying the range, make sure it's at least 2x as wide as the amount of clients that you are hoping to serve concurrently (see the "capacity" flag).
+  -geoip6db string
+        path to correctly formatted geoip database mapping IPv6 address ranges to country codes (default "/usr/share/tor/geoip6")
+  -geoipdb string
+        path to correctly formatted geoip database mapping IPv4 address ranges to country codes (default "/usr/share/tor/geoip")
   -keep-local-addresses
         keep local LAN address ICE candidates.
         This is usually pointless because Snowflake clients don't usually reside on the same local network as the proxy.
   -log filename
         log filename. If not specified, logs will be output to stderr (console).
+  -log-local-time
+        Use local time for logging (default: UTC)
   -metrics
         enable the exposing mechanism for stats using metrics
   -metrics-address address
@@ -76,7 +82,7 @@ Usage of ./proxy:
   -relay URL
         The default URL of the server (relay) that this proxy will forward client connections to, in case the broker itself did not specify the said URL (default "wss://snowflake.torproject.net/")
   -stun URL
-        STUN server `URL` that this proxy will use will use to, among some other things, determine its public IP address (default "stun:stun.tgragnato.it:3478")
+        Comma-separated STUN server URLs that this proxy will use will use to, among some other things, determine its public IP address (default "stun:stun.l.google.com:19302,stun:stun.voip.blackberry.com:3478")
   -summary-interval duration
         the time interval between summary log outputs, 0s disables summaries. Valid time units are "s", "m", "h". (default 1h0m0s)
   -unsafe-logging

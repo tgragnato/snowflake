@@ -1,10 +1,10 @@
 package main
 
 import (
-	"container/heap"
 	"encoding/hex"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"tgragnato.it/snowflake/common/bridgefingerprint"
@@ -15,6 +15,8 @@ import (
 const (
 	ClientTimeout = constants.BrokerClientTimeout
 	ProxyTimeout  = 10
+
+	MaxPollInterval = time.Hour
 
 	NATUnknown      = "unknown"
 	NATRestricted   = "restricted"
@@ -66,24 +68,28 @@ func (i *IPC) Debug(_ interface{}, response *string) error {
 }
 
 func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
-	sid, proxyType, natType, clients, relayPattern, relayPatternSupported, err := messages.DecodeProxyPollRequestWithRelayPrefix(arg.Body)
+	req, err := messages.DecodeProxyPollRequest(arg.Body)
 	if err != nil {
 		return messages.ErrBadRequest
 	}
 
-	if !relayPatternSupported {
+	if req.AcceptedRelayPattern == nil {
 		i.ctx.metrics.IncrementCounter("proxy-poll-without-relay-url")
-		i.ctx.metrics.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
+		i.ctx.metrics.promMetrics.ProxyPollWithoutRelayURLExtensionTotal.With(prometheus.Labels{"nat": req.NAT, "type": req.Type}).Inc()
 	} else {
 		i.ctx.metrics.IncrementCounter("proxy-poll-with-relay-url")
-		i.ctx.metrics.promMetrics.ProxyPollWithRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
+		i.ctx.metrics.promMetrics.ProxyPollWithRelayURLExtensionTotal.With(prometheus.Labels{"nat": req.NAT, "type": req.Type}).Inc()
 	}
 
-	if !i.ctx.CheckProxyRelayPattern(relayPattern, !relayPatternSupported) {
+	if !i.ctx.CheckProxyRelayPattern(req.AcceptedRelayPattern) {
 		i.ctx.metrics.IncrementCounter("proxy-poll-rejected-relay-url")
-		i.ctx.metrics.promMetrics.ProxyPollRejectedForRelayURLExtensionTotal.With(prometheus.Labels{"nat": natType, "type": proxyType}).Inc()
+		i.ctx.metrics.promMetrics.ProxyPollRejectedForRelayURLExtensionTotal.With(prometheus.Labels{"nat": req.NAT, "type": req.Type}).Inc()
 
-		b, err := messages.EncodePollResponseWithRelayURL("", false, "", "", "incorrect relay pattern")
+		resp := messages.ProxyPollResponse{
+			Status:   "incorrect relay pattern",
+			NextPoll: MaxPollInterval.Milliseconds(),
+		}
+		b, err := resp.Encode()
 		*response = b
 		if err != nil {
 			return messages.ErrInternal
@@ -92,18 +98,34 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	}
 
 	// Log geoip stats
-	i.ctx.metrics.UpdateProxyStats(arg.RemoteAddr, proxyType, natType)
+	remoteIP := arg.RemoteAddr
+	i.ctx.metrics.UpdateProxyStats(remoteIP, req.Type, req.NAT)
+	go i.ctx.metrics.RecordIPAddress(remoteIP, req.NAT == NATUnrestricted, req.Type)
 
 	var b []byte
 
+	i.ctx.metrics.promMetrics.AvailableProxies.With(prometheus.Labels{"nat": req.NAT, "type": req.Type}).Inc()
+	defer i.ctx.metrics.promMetrics.AvailableProxies.With(prometheus.Labels{"nat": req.NAT, "type": req.Type}).Dec()
+
 	// Wait for a client to avail an offer to the snowflake, or timeout if nil.
-	offer := i.ctx.RequestOffer(sid, proxyType, natType, clients)
+	poll := &ProxyPoll{
+		id:        req.Sid,
+		proxyType: req.Type,
+		natType:   req.NAT,
+		clients:   req.Clients,
+	}
+	offer := i.ctx.RequestOffer(poll)
+	pollInterval := i.ctx.GetPool(poll).GetPollInterval().Milliseconds()
 
 	if offer == nil {
 		i.ctx.metrics.IncrementCounter("proxy-idle")
-		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "type": proxyType, "status": "idle"}).Inc()
+		i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": req.NAT, "type": req.Type, "status": "idle"}).Inc()
 
-		b, err = messages.EncodePollResponse("", false, "")
+		resp := messages.ProxyPollResponse{
+			Status:   messages.ProxyClientNoMatch,
+			NextPoll: pollInterval,
+		}
+		b, err = resp.Encode()
 		if err != nil {
 			return messages.ErrInternal
 		}
@@ -112,7 +134,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		return nil
 	}
 
-	i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": natType, "type": proxyType, "status": "matched"}).Inc()
+	i.ctx.metrics.promMetrics.ProxyPollTotal.With(prometheus.Labels{"nat": req.NAT, "type": req.Type, "status": "matched"}).Inc()
 	var relayURL string
 	bridgeFingerprint, err := bridgefingerprint.FingerprintFromBytes(offer.fingerprint)
 	if err != nil {
@@ -123,7 +145,14 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	} else {
 		relayURL = info.WebSocketAddress
 	}
-	b, err = messages.EncodePollResponseWithRelayURL(string(offer.sdp), true, offer.natType, relayURL, "")
+	resp := messages.ProxyPollResponse{
+		Offer:    string(offer.sdp),
+		Status:   messages.ProxyClientMatch,
+		NAT:      offer.natType,
+		RelayURL: relayURL,
+		NextPoll: pollInterval,
+	}
+	b, err = resp.Encode()
 	if err != nil {
 		return messages.ErrInternal
 	}
@@ -196,7 +225,6 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 	}
 
 	i.ctx.snowflakeLock.Lock()
-	i.ctx.metrics.promMetrics.AvailableProxies.With(prometheus.Labels{"nat": snowflake.natType, "type": snowflake.proxyType}).Dec()
 	delete(i.ctx.idToSnowflake, snowflake.id)
 	i.ctx.snowflakeLock.Unlock()
 
@@ -204,30 +232,27 @@ func (i *IPC) ClientOffers(arg messages.Arg, response *[]byte) error {
 }
 
 func (i *IPC) matchSnowflake(natType string) *Snowflake {
-	i.ctx.snowflakeLock.Lock()
-	defer i.ctx.snowflakeLock.Unlock()
-
 	// Proiritize known restricted snowflakes for unrestricted clients
-	if natType == NATUnrestricted && i.ctx.restrictedSnowflakes.Len() > 0 {
-		return heap.Pop(i.ctx.restrictedSnowflakes).(*Snowflake)
+	if natType == NATUnrestricted {
+		snowflake := i.ctx.restrictedPool.Pop()
+		if snowflake != nil {
+			return snowflake
+		}
 	}
 
-	if i.ctx.snowflakes.Len() > 0 {
-		return heap.Pop(i.ctx.snowflakes).(*Snowflake)
-	}
-
-	return nil
+	snowflake := i.ctx.unrestrictedPool.Pop()
+	return snowflake
 }
 
 func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
-	answer, id, err := messages.DecodeAnswerRequest(arg.Body)
-	if err != nil || answer == "" {
+	req, err := messages.DecodeProxyAnswerRequest(arg.Body)
+	if err != nil || req.Answer == "" {
 		return messages.ErrBadRequest
 	}
 
 	var success = true
 	i.ctx.snowflakeLock.Lock()
-	snowflake, ok := i.ctx.idToSnowflake[id]
+	snowflake, ok := i.ctx.idToSnowflake[req.Sid]
 	i.ctx.snowflakeLock.Unlock()
 	if !ok || snowflake == nil {
 		// The snowflake took too long to respond with an answer, so its client
@@ -245,7 +270,7 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 
 	if success {
 		i.ctx.metrics.promMetrics.ProxyAnswerTotal.With(prometheus.Labels{"type": snowflake.proxyType, "status": "success"}).Inc()
-		snowflake.answerChannel <- answer
+		snowflake.answerChannel <- req.Answer
 	}
 
 	return nil

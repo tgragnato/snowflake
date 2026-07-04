@@ -74,4 +74,10 @@ func TestUtil(t *testing.T) {
 			net.ParseIP("129.97.124.13"),
 		})
 	})
+
+	Convey("Deserialize", t, func() {
+		const serializedBadOffer = `{"type":0,"sdp":"test"}`
+		_, err := DeserializeSessionDescription(serializedBadOffer)
+		So(err, ShouldNotBeNil)
+	})
 }

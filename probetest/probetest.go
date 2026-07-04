@@ -16,15 +16,19 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/pion/sdp/v3"
+	"github.com/pion/transport/v3"
 	"github.com/pion/transport/v3/stdnet"
 	"github.com/pion/webrtc/v4"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 	"golang.org/x/crypto/acme/autocert"
 	"tgragnato.it/snowflake/common/messages"
+	"tgragnato.it/snowflake/common/proxy"
 	"tgragnato.it/snowflake/common/util"
 )
 
@@ -40,18 +44,22 @@ const (
 )
 
 type ProbeHandler struct {
-	stunURL string
-	handle  func(string, http.ResponseWriter, *http.Request)
+	stunURL                string
+	handle                 func(string, http.ResponseWriter, *http.Request, string, string)
+	strictSOCKS5ProxyURL   string
+	moderateSOCKS5ProxyURL string
 }
 
 func (h ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.handle(h.stunURL, w, r)
+	h.handle(h.stunURL, w, r,
+		h.strictSOCKS5ProxyURL, h.moderateSOCKS5ProxyURL)
 }
 
 // Create a PeerConnection from an SDP offer. Blocks until the gathering of ICE
 // candidates is complete and the answer is available in LocalDescription.
 func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
-	dataChanOpen chan struct{}, dataChanClosed chan struct{}, iceGatheringTimeout time.Duration) (*webrtc.PeerConnection, error) {
+	dataChanOpen chan struct{}, dataChanClosed chan struct{}, iceGatheringTimeout time.Duration,
+	socks5proxy *url.URL) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
 
@@ -68,7 +76,15 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to functionally revert a new change in pion by silently ignoring
 	// when net.Interfaces() fails, rather than throwing an error
-	vnet, _ := stdnet.NewNet()
+	var vnet transport.Net
+	vnet, _ = stdnet.NewNet()
+	if socks5proxy != nil {
+		if err := proxy.CheckProxyProtocolSupport(socks5proxy); err != nil {
+			return nil, err
+		}
+		socksClient := proxy.NewSocks5UDPClient(socks5proxy)
+		vnet = proxy.NewTransportWrapper(&socksClient, vnet)
+	}
 	settingsEngine.SetNet(vnet)
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
 
@@ -130,8 +146,34 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	return pc, nil
 }
 
-func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
+func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request,
+	strictSocks5ProxyURL string,
+	moderateSocks5ProxyURL string) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	var removeLocalCandidate bool
+	var socks5proxy *url.URL
+	interactiveConnectivitySimulationKind := r.URL.Query().Get("InCoSim")
+	switch interactiveConnectivitySimulationKind {
+	case "moderate":
+		var err error
+		socks5proxy, err = url.Parse(moderateSocks5ProxyURL)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println("Invalid moderate socks5 proxy URL.")
+			return
+		}
+	case "strict":
+		fallthrough
+	default:
+		removeLocalCandidate = true
+		var err error
+		socks5proxy, err = url.Parse(strictSocks5ProxyURL)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println("Invalid strict socks5 proxy URL.")
+			return
+		}
+	}
 	resp, err := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
 	if nil != err {
 		log.Println("Invalid data.")
@@ -139,18 +181,18 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	offer, _, err := messages.DecodePollResponse(resp)
+	pollResp, err := messages.DecodeProxyPollResponse(resp)
 	if err != nil {
 		log.Printf("Error reading offer: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if offer == "" {
-		log.Printf("Error processing session description: %s", err.Error())
+	if pollResp.Offer == "" {
+		log.Printf("Error processing session description: offer is empty")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	sdp, err := util.DeserializeSessionDescription(offer)
+	sdp, err := util.DeserializeSessionDescription(pollResp.Offer)
 	if err != nil {
 		log.Printf("Error processing session description: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
@@ -162,7 +204,7 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	// TODO refactor: DRY this must be below `ResponseHeaderTimeout` in proxy
 	// https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/blob/e1d9b4ace69897521cc29585b5084c5f4d1ce874/proxy/lib/snowflake.go#L207
 	iceGatheringTimeout := 10 * time.Second
-	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChanOpen, dataChanClosed, iceGatheringTimeout)
+	pc, err := makePeerConnectionFromOffer(stunURL, sdp, dataChanOpen, dataChanClosed, iceGatheringTimeout, socks5proxy)
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -179,13 +221,27 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 		// Otherwise it must be closed below, wherever `closePcOnReturn` is set to `false`.
 	}()
 
-	answer, err := util.SerializeSessionDescription(pc.LocalDescription())
+	localSDP := pc.LocalDescription()
+	if removeLocalCandidate {
+		localSDP, err = removeCandidatesFromSessionDescription(localSDP)
+		if err != nil {
+			log.Printf("Error removing candidates from session description: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	answer, err := util.SerializeSessionDescription(localSDP)
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	body, err := messages.EncodeAnswerRequest(answer, "stub-sid")
+	req := messages.ProxyAnswerRequest{
+		Answer: answer,
+		Sid:    "stub-sid",
+	}
+	body, err := req.Encode()
 	if err != nil {
 		log.Printf("Error making WebRTC connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -225,6 +281,34 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+func removeCandidatesFromSessionDescription(desc *webrtc.SessionDescription) (*webrtc.SessionDescription, error) {
+	var parsed sdp.SessionDescription
+	if err := parsed.Unmarshal([]byte(desc.SDP)); err != nil {
+		return nil, err
+	}
+
+	for _, media := range parsed.MediaDescriptions {
+		attrs := make([]sdp.Attribute, 0, len(media.Attributes))
+		for _, attr := range media.Attributes {
+			if attr.IsICECandidate() {
+				continue
+			}
+			attrs = append(attrs, attr)
+		}
+		media.Attributes = attrs
+	}
+
+	raw, err := parsed.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	return &webrtc.SessionDescription{
+		Type: desc.Type,
+		SDP:  string(raw),
+	}, nil
+}
+
 func main() {
 	var acmeEmail string
 	var acmeHostnamesCommas string
@@ -234,6 +318,8 @@ func main() {
 	var certFilename, keyFilename string
 	var unsafeLogging bool
 	var stunURL string
+	var strictInteractiveConnectivitySimulationSocks5Proxy string
+	var moderateInteractiveConnectivitySimulationSocks5Proxy string
 
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
 	flag.StringVar(&acmeHostnamesCommas, "acme-hostnames", "", "comma-separated hostnames for TLS certificate")
@@ -241,6 +327,12 @@ func main() {
 	flag.StringVar(&certFilename, "cert", "", "TLS certificate file")
 	flag.StringVar(&keyFilename, "key", "", "TLS private key file")
 	flag.StringVar(&addr, "addr", ":8443", "address to listen on")
+	flag.StringVar(&strictInteractiveConnectivitySimulationSocks5Proxy,
+		"strictInteractiveConnectivitySimulationSocks5Proxy", "socks5://127.0.0.1:1081",
+		"strict interactive connectivity simulation socks5 proxy")
+	flag.StringVar(&moderateInteractiveConnectivitySimulationSocks5Proxy,
+		"moderateInteractiveConnectivitySimulationSocks5Proxy", "socks5://127.0.0.1:1082",
+		"moderate interactive connectivity simulation socks5 proxy")
 	flag.BoolVar(&disableTLS, "disable-tls", false, "don't use HTTPS")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
 	flag.StringVar(&stunURL, "stun", defaultStunUrls, "STUN servers to use for NAT traversal (comma-separated)")
@@ -256,7 +348,9 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
-	http.Handle("/probe", ProbeHandler{stunURL, probeHandler})
+	http.Handle("/probe", ProbeHandler{stunURL, probeHandler,
+		strictInteractiveConnectivitySimulationSocks5Proxy,
+		moderateInteractiveConnectivitySimulationSocks5Proxy})
 
 	server := http.Server{
 		Addr: addr,

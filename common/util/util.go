@@ -36,8 +36,17 @@ func DeserializeSessionDescription(msg string) (*webrtc.SessionDescription, erro
 		return nil, errors.New("cannot deserialize SessionDescription without sdp field")
 	}
 
+	parsedType, ok := parsed["type"].(string)
+	if !ok {
+		return nil, errors.New("invalid SDP type")
+	}
+	parsedSDP, ok := parsed["sdp"].(string)
+	if !ok {
+		return nil, errors.New("invalid SDP")
+	}
+
 	var stype webrtc.SDPType
-	switch parsed["type"].(string) {
+	switch parsedType {
 	default:
 		return nil, errors.New("unknown SDP type")
 	case "offer":
@@ -52,7 +61,7 @@ func DeserializeSessionDescription(msg string) (*webrtc.SessionDescription, erro
 
 	return &webrtc.SessionDescription{
 		Type: stype,
-		SDP:  parsed["sdp"].(string),
+		SDP:  parsedSDP,
 	}, nil
 }
 

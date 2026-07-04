@@ -87,6 +87,9 @@ func (h *bridgeListHolder) LoadBridgeInfo(reader io.Reader) error {
 
 		bridgeInfoMap[bridgeFingerprint] = bridgeInfo
 	}
+	if err := inputScanner.Err(); err != nil {
+		return err
+	}
 	h.accessBridgeInfo.Lock()
 	defer h.accessBridgeInfo.Unlock()
 	h.bridgeInfo = bridgeInfoMap

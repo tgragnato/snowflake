@@ -17,3 +17,4 @@ ignore/
 /sdk-tools-linux-*.zip*
 /android-ndk-*
 /tools/
+dist/

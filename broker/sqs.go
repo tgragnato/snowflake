@@ -97,7 +97,6 @@ func (r *sqsHandler) cleanupClientQueues(ctx context.Context) {
 					// According to the AWS SQS docs, the deletion process for a queue can take up to 60 seconds. So the queue
 					// can be in the process of being deleted, but will still be returned by the ListQueues operation, but
 					// fail when we try to GetQueueAttributes for the queue
-					log.Printf("SQSHandler: encountered error while getting attribute of client queue %s. queue may already be deleted.\n", queueURL)
 					continue
 				}
 				lastModifiedInt64, err := strconv.ParseInt(res.Attributes[string(types.QueueAttributeNameLastModifiedTimestamp)], 10, 64)

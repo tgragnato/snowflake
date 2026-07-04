@@ -9,6 +9,7 @@ import (
 
 	"tgragnato.it/snowflake/common/bridgefingerprint"
 	"tgragnato.it/snowflake/common/nat"
+	"tgragnato.it/snowflake/common/util"
 )
 
 const ClientVersion = "1.0"
@@ -100,6 +101,9 @@ func DecodeClientPollRequest(data []byte) (*ClientPollRequest, error) {
 
 	if message.Offer == "" {
 		return nil, fmt.Errorf("no supplied offer")
+	}
+	if _, err := util.DeserializeSessionDescription(message.Offer); err != nil {
+		return nil, fmt.Errorf("malformed session description: %s", err.Error())
 	}
 
 	if message.Fingerprint == "" {

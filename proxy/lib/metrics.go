@@ -1,8 +1,8 @@
 package snowflake_proxy
 
 import (
+	"net"
 	"net/http"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -49,17 +49,14 @@ func NewMetrics() *Metrics {
 
 // Start register the metrics server and serve them on the given address
 func (m *Metrics) Start(addr string) error {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
 	go func() {
-		mux := http.NewServeMux()
-		mux.Handle("/internal/metrics", promhttp.Handler())
-		srv := &http.Server{
-			Addr:         addr,
-			Handler:      mux,
-			ReadTimeout:  time.Second,
-			WriteTimeout: time.Second,
-			IdleTimeout:  time.Second,
-		}
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		defer l.Close()
+		http.Handle("/internal/metrics", promhttp.Handler())
+		if err := http.Serve(l, nil); err != nil {
 			panic(err)
 		}
 	}()

@@ -41,6 +41,7 @@ import (
 	"github.com/pion/webrtc/v4"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
+	"tgragnato.it/snowflake/common/covertdtls"
 	"tgragnato.it/snowflake/common/encapsulation"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/nat"
@@ -120,6 +121,12 @@ type ClientConfig struct {
 	BridgeFingerprint string
 	// CommunicationProxy is the proxy address for network communication
 	CommunicationProxy *url.URL
+	// CovertDTLSConfig is the configuration for randomization or mimicking (Firefox/Chrome browser) of DTLS Client Hello messages.
+	// String can be "randomize", "mimic", "randomizemimic" or "disable".
+	CovertDTLSConfig string
+	// CovertDTLSFingerprint is the configuration for mimicking of DTLS 1.2 Client Hello messages.
+	// String should be a hexstring representation of client hello message bytes, the first byte should correspond to the DTLS version in a handshake message.
+	CovertDTLSFingerprint string
 }
 
 // NewSnowflakeClient creates a new Snowflake transport client that can spawn multiple
@@ -164,7 +171,20 @@ func NewSnowflakeClient(config ClientConfig) (*Transport, error) {
 		max = config.Max
 	}
 	eventsLogger := event.NewSnowflakeEventDispatcher()
-	transport := &Transport{dialer: NewWebRTCDialerWithNatPolicyAndEventsAndProxy(broker, natPolicy, iceServers, max, eventsLogger, config.CommunicationProxy), eventDispatcher: eventsLogger}
+
+	var covertDTLSConfig covertdtls.CovertDTLSConfig
+
+	if config.CovertDTLSConfig != "" {
+		covertDTLSConfig, err = covertdtls.ParseCovertDTLSConfigString(config.CovertDTLSConfig)
+		if err != nil {
+			log.Println("Error parsing covertdtls-config, feature has been disabled:", err)
+		}
+		if config.CovertDTLSFingerprint != "" {
+			covertDTLSConfig.Fingerprint = config.CovertDTLSFingerprint
+		}
+	}
+
+	transport := &Transport{dialer: NewCovertWebRTCDialerWithNatPolicyAndEventsAndProxy(broker, natPolicy, iceServers, max, eventsLogger, config.CommunicationProxy, &covertDTLSConfig), eventDispatcher: eventsLogger}
 
 	return transport, nil
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"tgragnato.it/snowflake/common/nat"
+	"tgragnato.it/snowflake/common/util"
 )
 
 const (
@@ -21,6 +22,7 @@ var KnownProxyTypes = map[string]bool{
 	"webext":     true,
 	"badge":      true,
 	"iptproxy":   true,
+	"bloco":      true,
 }
 
 /* Version 1.3 specification:
@@ -46,13 +48,15 @@ HTTP 200 OK
   },
   NAT: ["unknown"|"restricted"|"unrestricted"],
   RelayURL: [the WebSocket URL proxy should connect to relay Snowflake traffic]
+  NextPoll: [number of milliseconds until the proxy's next poll]
 }
 
 2) If a client is not matched:
 HTTP 200 OK
 
 {
-    Status: "no match"
+  Status: "no match"
+  NextPoll: [number of milliseconds until the proxy's next poll]
 }
 
 3) If the request is malformed:
@@ -114,37 +118,65 @@ func EncodeProxyPollRequestWithRelayPrefix(sid string, proxyType string, natType
 	})
 }
 
-func DecodeProxyPollRequest(data []byte) (sid string, proxyType string, natType string, clients uint64, err error) {
-	var relayPrefix string
-	sid, proxyType, natType, clients, relayPrefix, _, err = DecodeProxyPollRequestWithRelayPrefix(data)
-	if relayPrefix != "" {
-		return "", "", "", 0, ErrExtraInfo
-	}
-	return
+func (req *ProxyPollRequest) Encode() ([]byte, error) {
+	req.Version = version
+	return json.Marshal(req)
 }
 
 // Decodes a poll message from a snowflake proxy and returns the
 // sid, proxy type, nat type and clients of the proxy on success
 // and an error if it failed
 func DecodeProxyPollRequestWithRelayPrefix(data []byte) (
-	sid string, proxyType string, natType string, clients uint64, relayPrefix string, relayPrefixAware bool, err error) {
-	var message ProxyPollRequest
+	sid string, proxyType string, natType string, clients int, relayPrefix string, relayPrefixAware bool, err error) {
+	var message *ProxyPollRequest
 
-	err = json.Unmarshal(data, &message)
+	message, err = DecodeProxyPollRequest(data)
 	if err != nil {
 		return
+	}
+	var acceptedRelayPattern = ""
+	if message.AcceptedRelayPattern != nil {
+		acceptedRelayPattern = *message.AcceptedRelayPattern
+	}
+	return message.Sid, message.Type, message.NAT, int(message.Clients),
+		acceptedRelayPattern, message.AcceptedRelayPattern != nil, nil
+}
+
+// Decodes a poll message from a snowflake proxy and returns a
+// ProxyPollRequest
+func DecodeProxyPollRequest(data []byte) (*ProxyPollRequest, error) {
+	// Use an intermediate struct to allow negative Clients values in JSON
+	type auxProxyPollRequest struct {
+		Sid                  string  `json:"Sid"`
+		Version              string  `json:"Version"`
+		Type                 string  `json:"Type"`
+		NAT                  string  `json:"NAT"`
+		Clients              int64   `json:"Clients"`
+		AcceptedRelayPattern *string `json:"AcceptedRelayPattern"`
+	}
+
+	var aux auxProxyPollRequest
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return nil, err
+	}
+
+	message := &ProxyPollRequest{
+		Sid:                  aux.Sid,
+		Version:              aux.Version,
+		Type:                 aux.Type,
+		NAT:                  aux.NAT,
+		Clients:              uint64(max(aux.Clients, 0)),
+		AcceptedRelayPattern: aux.AcceptedRelayPattern,
 	}
 
 	majorVersion := strings.Split(message.Version, ".")[0]
 	if majorVersion != "1" {
-		err = fmt.Errorf("using unknown version")
-		return
+		return nil, fmt.Errorf("using unknown version")
 	}
 
 	// Version 1.x requires an Sid
 	if message.Sid == "" {
-		err = fmt.Errorf("no supplied session id")
-		return
+		return nil, fmt.Errorf("no supplied session id")
 	}
 
 	switch message.NAT {
@@ -154,8 +186,7 @@ func DecodeProxyPollRequestWithRelayPrefix(data []byte) (
 	case nat.NATRestricted:
 	case nat.NATUnrestricted:
 	default:
-		err = fmt.Errorf("invalid NAT type")
-		return
+		return nil, fmt.Errorf("invalid NAT type")
 	}
 
 	// we don't reject polls with an unknown proxy type because we encourage
@@ -163,18 +194,19 @@ func DecodeProxyPollRequestWithRelayPrefix(data []byte) (
 	if !KnownProxyTypes[message.Type] {
 		message.Type = ProxyUnknown
 	}
-	var acceptedRelayPattern = ""
-	if message.AcceptedRelayPattern != nil {
-		acceptedRelayPattern = *message.AcceptedRelayPattern
-	}
-	return message.Sid, message.Type, message.NAT, message.Clients,
-		acceptedRelayPattern, message.AcceptedRelayPattern != nil, nil
+	return message, nil
 }
 
+const (
+	ProxyClientMatch   = "client match"
+	ProxyClientNoMatch = "no match"
+)
+
 type ProxyPollResponse struct {
-	Status string
-	Offer  string
-	NAT    string
+	Status   string
+	Offer    string
+	NAT      string
+	NextPoll int64
 
 	RelayURL string
 }
@@ -205,6 +237,10 @@ func DecodePollResponse(data []byte) (offer string, natType string, err error) {
 	return offer, natType, err
 }
 
+func (resp *ProxyPollResponse) Encode() ([]byte, error) {
+	return json.Marshal(resp)
+}
+
 // Decodes a poll response from the broker and returns an offer and the client's NAT type
 // If there is a client match, the returned offer string will be non-empty
 func DecodePollResponseWithRelayURL(data []byte) (
@@ -213,34 +249,41 @@ func DecodePollResponseWithRelayURL(data []byte) (
 	relayURL string,
 	err_ error,
 ) {
+	message, err := DecodeProxyPollResponse(data)
+	if err != nil {
+		return "", "", "", err
+	}
+	return message.Offer, message.NAT, message.RelayURL, err
+}
+
+func DecodeProxyPollResponse(data []byte) (*ProxyPollResponse, error) {
 	var message ProxyPollResponse
 
 	err := json.Unmarshal(data, &message)
 	if err != nil {
-		return "", "", "", err
+		return nil, err
 	}
 	if message.Status == "" {
-		return "", "", "", fmt.Errorf("received invalid data")
+		return nil, fmt.Errorf("received invalid data")
 	}
 
 	err = nil
-	if message.Status == "client match" {
+	if message.Status == ProxyClientMatch {
 		if message.Offer == "" {
-			return "", "", "", fmt.Errorf("no supplied offer")
+			return nil, fmt.Errorf("no supplied offer")
 		}
 	} else {
 		message.Offer = ""
-		if message.Status != "no match" {
+		if message.Status != ProxyClientNoMatch {
 			err = errors.New(message.Status)
 		}
 	}
 
-	natType = message.NAT
-	if natType == "" {
-		natType = "unknown"
+	if message.NAT == "" {
+		message.NAT = "unknown"
 	}
 
-	return message.Offer, natType, message.RelayURL, err
+	return &message, err
 }
 
 type ProxyAnswerRequest struct {
@@ -257,25 +300,41 @@ func EncodeAnswerRequest(answer string, sid string) ([]byte, error) {
 	})
 }
 
+func (req *ProxyAnswerRequest) Encode() ([]byte, error) {
+	req.Version = version
+	return json.Marshal(req)
+}
+
 // Returns the sdp answer and proxy sid
 func DecodeAnswerRequest(data []byte) (answer string, sid string, err error) {
-	var message ProxyAnswerRequest
-
-	err = json.Unmarshal(data, &message)
+	message, err := DecodeProxyAnswerRequest(data)
 	if err != nil {
 		return "", "", err
+	}
+	return message.Answer, message.Sid, nil
+}
+
+func DecodeProxyAnswerRequest(data []byte) (*ProxyAnswerRequest, error) {
+	var message ProxyAnswerRequest
+
+	err := json.Unmarshal(data, &message)
+	if err != nil {
+		return nil, err
 	}
 
 	majorVersion := strings.Split(message.Version, ".")[0]
 	if majorVersion != "1" {
-		return "", "", fmt.Errorf("using unknown version")
+		return nil, fmt.Errorf("using unknown version")
 	}
 
 	if message.Sid == "" || message.Answer == "" {
-		return "", "", fmt.Errorf("no supplied sid or answer")
+		return nil, fmt.Errorf("no supplied sid or answer")
+	}
+	if _, err := util.DeserializeSessionDescription(message.Answer); err != nil {
+		return nil, fmt.Errorf("malformed session description: %s", err.Error())
 	}
 
-	return message.Answer, message.Sid, nil
+	return &message, nil
 }
 
 type ProxyAnswerResponse struct {
@@ -294,16 +353,19 @@ func EncodeAnswerResponse(success bool) ([]byte, error) {
 	})
 }
 
+func (resp *ProxyAnswerResponse) Encode() ([]byte, error) {
+	return json.Marshal(resp)
+}
+
 func DecodeAnswerResponse(data []byte) (bool, error) {
-	var message ProxyAnswerResponse
 	var success bool
 
-	err := json.Unmarshal(data, &message)
+	message, err := DecodeProxyAnswerResponse(data)
 	if err != nil {
-		return success, err
+		return false, err
 	}
 	if message.Status == "" {
-		return success, fmt.Errorf("received invalid data")
+		return false, fmt.Errorf("received invalid data")
 	}
 
 	if message.Status == "success" {
@@ -311,4 +373,13 @@ func DecodeAnswerResponse(data []byte) (bool, error) {
 	}
 
 	return success, nil
+}
+
+func DecodeProxyAnswerResponse(data []byte) (*ProxyAnswerResponse, error) {
+	var message ProxyAnswerResponse
+	err := json.Unmarshal(data, &message)
+	if err != nil {
+		return nil, err
+	}
+	return &message, nil
 }

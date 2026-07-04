@@ -175,7 +175,6 @@ func main() {
 	max := flag.Int("max", DefaultSnowflakeCapacity,
 		"capacity for number of multiplexed WebRTC peers")
 	versionFlag := flag.Bool("version", false, "display version info to stderr and quit")
-
 	// Deprecated
 	oldLogToStateDir := flag.Bool("logToStateDir", false, "use -log-to-state-dir instead")
 	oldKeepLocalAddresses := flag.Bool("keepLocalAddresses", false, "use -keep-local-addresses instead")

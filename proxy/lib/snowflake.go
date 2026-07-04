@@ -45,9 +45,10 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/pion/ice/v4"
-	"github.com/pion/transport/v3/stdnet"
+	"github.com/pion/transport/v4/stdnet"
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/constants"
+	"tgragnato.it/snowflake/common/covertdtls"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/namematcher"
@@ -56,9 +57,10 @@ import (
 )
 
 const (
-	DefaultPollInterval = 5 * time.Second
-	DefaultBrokerURL    = "https://snowflake-broker.torproject.net/"
-	DefaultNATProbeURL  = "https://snowflake-broker.torproject.net:8443/probe"
+	DefaultPollInterval    = 5 * time.Second
+	DefaultMinPollInterval = 1 * time.Second
+	DefaultBrokerURL       = "https://snowflake-broker.torproject.net/"
+	DefaultNATProbeURL     = "https://snowflake-broker.torproject.net:8443/probe"
 	// This is rather a "DefaultDefaultRelayURL"
 	DefaultRelayURL  = "wss://snowflake.torproject.net/"
 	DefaultSTUNURL   = "stun:stun.tgragnato.it:3478,stun:stun.l.google.com:19302"
@@ -143,7 +145,8 @@ type GeoIP interface {
 // For some more info also see CLI parameter descriptions in README.
 type SnowflakeProxy struct {
 	// How often to ask the broker for a new client
-	PollInterval time.Duration
+	PollInterval    time.Duration
+	MinPollInterval time.Duration
 	// Capacity is the maximum number of clients a Snowflake will serve.
 	// Proxies with a capacity of 0 will accept an unlimited number of clients.
 	Capacity uint
@@ -190,14 +193,21 @@ type SnowflakeProxy struct {
 	EventDispatcher event.SnowflakeEventDispatcher
 	shutdown        chan struct{}
 
-	// SummaryInterval is the time interval at which proxy stats will be logged
+	// SummaryInterval is the time interval at which proxy stats will be logged.
+	// A duration of 0 will disable periodic summary statistics.
 	SummaryInterval time.Duration
 
 	// GeoIP will be used to detect the country of the clients if provided
 	GeoIP GeoIP
 
+	// CovertDTLSConfig is used for configuration for randomization or mimicking (Firefox/Chrome browser) of DTLS Client Hello messages.
+	CovertDTLSConfig covertdtls.CovertDTLSConfig
+
 	periodicProxyStats *periodicProxyStats
 	bytesLogger        bytesLogger
+
+	relayReachable bool
+	pollTicker     *time.Ticker
 }
 
 // Checks whether an IP address is a remote address for the client
@@ -264,37 +274,33 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 
 // pollOffer communicates the proxy's capabilities with broker
 // and retrieves a compatible SDP offer and relay URL.
-func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string) (*webrtc.SessionDescription, string) {
+func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string) (*messages.ProxyPollResponse, error) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
 	numClients := (tokens / 8) * 8 // Round down to 8
 	currentNATTypeLoaded := getCurrentNATType()
-	body, err := messages.EncodeProxyPollRequestWithRelayPrefix(sid, proxyType, currentNATTypeLoaded, numClients, acceptedRelayPattern)
+	req := messages.ProxyPollRequest{
+		Sid:                  sid,
+		Type:                 proxyType,
+		NAT:                  currentNATTypeLoaded,
+		Clients:              numClients,
+		AcceptedRelayPattern: &acceptedRelayPattern,
+	}
+	body, err := req.Encode()
 	if err != nil {
-		log.Printf("Error encoding poll message: %s", err.Error())
-		return nil, ""
+		return nil, err
 	}
 
 	resp, err := s.Post(brokerPath.String(), bytes.NewBuffer(body))
 	if err != nil {
-		log.Printf("error polling broker: %s", err.Error())
+		return nil, err
 	}
 
-	offer, _, relayURL, err := messages.DecodePollResponseWithRelayURL(resp)
+	pollResponse, err := messages.DecodeProxyPollResponse(resp)
 	if err != nil {
-		log.Printf("Error reading broker response: %s", err.Error())
-		log.Printf("body: %s", resp)
-		return nil, ""
+		return nil, err
 	}
-	if offer != "" {
-		offer, err := util.DeserializeSessionDescription(offer)
-		if err != nil {
-			log.Printf("Error processing session description: %s", err.Error())
-			return nil, ""
-		}
-		return offer, relayURL
-	}
-	return nil, ""
+	return pollResponse, nil
 }
 
 // sendAnswer encodes an SDP answer, sends it to the broker
@@ -306,7 +312,11 @@ func (s *SignalingServer) sendAnswer(sid string, pc *webrtc.PeerConnection) erro
 		return err
 	}
 
-	body, err := messages.EncodeAnswerRequest(answer, sid)
+	req := messages.ProxyAnswerRequest{
+		Answer: answer,
+		Sid:    sid,
+	}
+	body, err := req.Encode()
 	if err != nil {
 		return err
 	}
@@ -465,6 +475,13 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 
 	settingsEngine.SetDTLSInsecureSkipHelloVerify(true)
 
+	if sf.CovertDTLSConfig.Mimic || sf.CovertDTLSConfig.Randomize || len(sf.CovertDTLSConfig.Fingerprint) > 0 {
+		err := covertdtls.SetCovertDTLSSettings(&sf.CovertDTLSConfig, &settingsEngine)
+		if err != nil {
+			log.Fatalf("CovertDTLS ERROR: %s", err)
+		}
+	}
+
 	return webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
 }
 
@@ -527,7 +544,13 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 
 			country := ""
 			if sf.GeoIP != nil && !reflect.ValueOf(sf.GeoIP).IsNil() && remoteIP != nil {
-				country, _ = sf.GeoIP.GetCountryByAddr(remoteIP)
+				if result, ok := sf.GeoIP.GetCountryByAddr(remoteIP); ok {
+					country = result
+				} else {
+					// GeoIP can return "??", true but it also can return "", false when it fails to find the country for an IP address.
+					// In that case we also want to log "??" as the country.
+					country = "??"
+				}
 			}
 			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{Country: country})
 
@@ -671,50 +694,76 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 }
 
 func (sf *SnowflakeProxy) runSession(sid string) {
-	offer, relayURL := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
-	if offer == nil {
+	connectedToClient := false
+	defer func() {
+		if !connectedToClient {
+			atomic.AddUint64(&tokens, ^uint64(0))
+		}
+		// Otherwise we'll `tokens.ret()` when the connection finishes.
+	}()
+
+	pollResponse, err := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
+	if err != nil {
+		log.Printf("Error polling broker: %s", err.Error())
 		return
 	}
-	log.Printf("Received Offer From Broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
-
-	if relayURL != "" {
-		if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, relayURL); err != nil {
-			log.Printf("bad offer from broker: %v", err)
+	pollInterval := time.Duration(time.Duration(pollResponse.NextPoll) * time.Millisecond)
+	if pollInterval <= 0 {
+		pollInterval = sf.PollInterval
+	}
+	sf.pollTicker.Reset(max(sf.MinPollInterval, pollInterval))
+	log.Printf("Poll interval set to %v", max(sf.MinPollInterval, pollInterval))
+	go func() {
+		if pollResponse.Offer == "" {
 			return
 		}
-	}
-
-	dataChan := make(chan struct{})
-	dataChannelAdaptor := dataChannelHandlerWithRelayURL{RelayURL: relayURL, sf: sf}
-	pc, err := sf.makePeerConnectionFromOffer(offer, config, dataChan, dataChannelAdaptor.datachannelHandler)
-	if err != nil {
-		log.Printf("error making WebRTC connection: %s", err)
-		return
-	}
-
-	err = broker.sendAnswer(sid, pc)
-	if err != nil {
-		log.Printf("error sending answer to client through broker: %s", err)
-		if inerr := pc.Close(); inerr != nil {
-			log.Printf("error calling pc.Close: %v", inerr)
+		offer, err := util.DeserializeSessionDescription(pollResponse.Offer)
+		if err != nil {
+			log.Printf("Error deserializing session description: %s", err.Error())
+			return
 		}
-		return
-	}
-	// Set a timeout on peerconnection. If the connection state has not
-	// advanced to PeerConnectionStateConnected in this time,
-	// destroy the peer connection and return the token.
-	select {
-	case <-dataChan:
-		log.Println("Connection successful")
-	case <-time.After(dataChannelTimeout):
-		log.Println("Timed out waiting for client to open data channel.")
-		sf.EventDispatcher.OnNewSnowflakeEvent(
-			event.EventOnProxyConnectionFailed{},
-		)
-		if err := pc.Close(); err != nil {
-			log.Printf("error calling pc.Close: %v", err)
+		log.Printf("Received offer from broker: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
+
+		if pollResponse.RelayURL != "" {
+			if err := checkIsRelayURLAcceptable(sf.RelayDomainNamePattern, sf.AllowProxyingToPrivateAddresses, sf.AllowNonTLSRelay, pollResponse.RelayURL); err != nil {
+				log.Printf("bad offer from broker: %v", err)
+				return
+			}
 		}
-	}
+
+		dataChan := make(chan struct{})
+		dataChannelAdaptor := dataChannelHandlerWithRelayURL{RelayURL: pollResponse.RelayURL, sf: sf}
+		pc, err := sf.makePeerConnectionFromOffer(offer, config, dataChan, dataChannelAdaptor.datachannelHandler)
+		if err != nil {
+			log.Printf("error making WebRTC connection: %s", err)
+			return
+		}
+
+		err = broker.sendAnswer(sid, pc)
+		if err != nil {
+			log.Printf("error sending answer to client through broker: %s", err)
+			if inerr := pc.Close(); inerr != nil {
+				log.Printf("error calling pc.Close: %v", inerr)
+			}
+			return
+		}
+		// Set a timeout on peerconnection. If the connection state has not
+		// advanced to PeerConnectionStateConnected in this time,
+		// destroy the peer connection and return the token.
+		select {
+		case <-dataChan:
+			log.Println("Connection successful")
+			connectedToClient = true
+		case <-time.After(dataChannelTimeout):
+			log.Println("Timed out waiting for client to open data channel.")
+			sf.EventDispatcher.OnNewSnowflakeEvent(
+				event.EventOnProxyConnectionFailed{},
+			)
+			if err := pc.Close(); err != nil {
+				log.Printf("error calling pc.Close: %v", err)
+			}
+		}
+	}()
 }
 
 // Returns nil if the relayURL is acceptable.
@@ -775,6 +824,9 @@ func (sf *SnowflakeProxy) Start() error {
 	if sf.PollInterval == 0 {
 		sf.PollInterval = DefaultPollInterval
 	}
+	if sf.MinPollInterval == 0 {
+		sf.MinPollInterval = DefaultMinPollInterval
+	}
 	if sf.BrokerURL == "" {
 		sf.BrokerURL = DefaultBrokerURL
 	}
@@ -795,8 +847,11 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 
 	sf.bytesLogger = newBytesSyncLogger()
-	sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
-	sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
+
+	if sf.SummaryInterval > 0 {
+		sf.periodicProxyStats = newPeriodicProxyStats(sf.SummaryInterval, sf.EventDispatcher, sf.bytesLogger)
+		sf.EventDispatcher.AddSnowflakeEventListener(sf.periodicProxyStats)
+	}
 
 	broker, err = newSignalingServer(sf.BrokerURL)
 	if err != nil {
@@ -852,7 +907,7 @@ func (sf *SnowflakeProxy) Start() error {
 	err = sf.checkNATType(config, sf.NATProbeURL)
 	if err != nil {
 		// non-fatal error. Log it and continue
-		log.Print(err.Error())
+		log.Printf("Error checking NAT type: %s", err.Error())
 		setCurrentNATType(NATUnknown)
 	}
 	sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
@@ -860,29 +915,53 @@ func (sf *SnowflakeProxy) Start() error {
 	NatRetestTask := task.Periodic{
 		Interval: sf.NATTypeMeasurementInterval,
 		Execute: func() error {
-			return sf.checkNATType(config, sf.NATProbeURL)
+			prevNATType := getCurrentNATType()
+			if err := sf.checkNATType(config, sf.NATProbeURL); err != nil {
+				return err
+			}
+			if prevNATType != getCurrentNATType() {
+				sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
+			}
+			return nil
 		},
 		// Not setting OnError would shut down the periodic task on error by default.
 		OnError: func(err error) {
 			log.Printf("Periodic probetest failed: %s, retaining current NAT type: %s", err.Error(), getCurrentNATType())
 		},
 	}
-
 	if sf.NATTypeMeasurementInterval != 0 {
 		NatRetestTask.WaitThenStart()
 		defer NatRetestTask.Close()
 	}
 
-	ticker := time.NewTicker(sf.PollInterval)
-	defer ticker.Stop()
+	BridgeProbeRetestTask := task.ExpBackoff{
+		MaxInterval: 24 * time.Hour,
+		MinInterval: 5 * time.Minute,
+		Execute: func() error {
+			err := sf.checkBridgeReachability()
+			sf.relayReachable = err == nil
+			return err
+		},
+		OnError: func(err error) {
+			log.Printf("Connection to bridge at %s failed: %s", sf.RelayURL, err.Error())
+		},
+	}
+	BridgeProbeRetestTask.Start()
+	defer BridgeProbeRetestTask.Close()
 
-	for ; true; <-ticker.C {
+	sf.pollTicker = time.NewTicker(sf.PollInterval)
+	defer sf.pollTicker.Stop()
+
+	for ; true; <-sf.pollTicker.C {
 		select {
 		case <-sf.shutdown:
 			return nil
 		default:
-			sessionID := genSessionID()
-			sf.runSession(sessionID)
+			if sf.relayReachable {
+				atomic.AddUint64(&tokens, 1)
+				sessionID := genSessionID()
+				sf.runSession(sessionID)
+			}
 		}
 	}
 	return nil
@@ -928,7 +1007,11 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	}
 
 	// send offer
-	body, err := messages.EncodePollResponse(sdp, true, "")
+	pollResp := messages.ProxyPollResponse{
+		Status: messages.ProxyClientMatch,
+		Offer:  sdp,
+	}
+	body, err := pollResp.Encode()
 	if err != nil {
 		return fmt.Errorf("error encoding probe message: %w", err)
 	}
@@ -938,12 +1021,12 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		return fmt.Errorf("error polling probe: %w", err)
 	}
 
-	sdp, _, err = messages.DecodeAnswerRequest(resp)
+	req, err := messages.DecodeProxyAnswerRequest(resp)
 	if err != nil {
 		return fmt.Errorf("error reading probe response: %w", err)
 	}
 
-	answer, err := util.DeserializeSessionDescription(sdp)
+	answer, err := util.DeserializeSessionDescription(req.Answer)
 	if err != nil {
 		return fmt.Errorf("error setting answer: %w", err)
 	}
@@ -977,4 +1060,15 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
 
 	return nil
+}
+
+// checkBridgeReachability makes a test connection to DefaultRelayURL to see if the proxy
+// is able to make a working connection to the bridge
+func (sf *SnowflakeProxy) checkBridgeReachability() error {
+	wsConn, err := connectToRelay(sf.RelayURL, nil)
+	if err != nil {
+		return fmt.Errorf("bridge relay is unreachable: %w", err)
+	}
+
+	return wsConn.Close()
 }
