@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/pion/sdp/v3"
-	"github.com/pion/transport/v3"
-	"github.com/pion/transport/v3/stdnet"
+	"github.com/pion/transport/v4"
+	"github.com/pion/transport/v4/stdnet"
 	"github.com/pion/webrtc/v4"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 	"golang.org/x/crypto/acme/autocert"

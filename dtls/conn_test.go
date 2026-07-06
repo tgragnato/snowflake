@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
@@ -21,6 +21,9 @@ import (
 	"time"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
+	dtlsflight "github.com/pion/dtls/v3/internal/flight"
+	dtlsstate "github.com/pion/dtls/v3/internal/state"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
@@ -33,17 +36,35 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 	"github.com/pion/logging"
-	"github.com/pion/transport/v3/dpipe"
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/dpipe"
+	"github.com/pion/transport/v4/test"
 )
 
 var (
-	errTestPSKInvalidIdentity = errors.New("TestPSK: Server got invalid identity")
-	errPSKRejected            = errors.New("PSK Rejected")
-	errNotExpectedChain       = errors.New("not expected chain")
-	errExpecedChain           = errors.New("expected chain")
-	errWrongCert              = errors.New("wrong cert")
+	errTestPSKInvalidIdentity       = errors.New("TestPSK: Server got invalid identity")
+	errTestPSKClientInvalidIdentity = errors.New("TestPSK: Client got invalid identity")
+	errPSKRejected                  = errors.New("psk Rejected")
+	errNotExpectedChain             = errors.New("not expected chain")
+	errExpecedChain                 = errors.New("expected chain")
+	errWrongCert                    = errors.New("wrong cert")
+	errConnectionAttemptFailed      = errors.New("connection attempt failed")
 )
+
+// errorsMatch compares two errors, handling both simple errors (using errors.Is)
+// and complex error types (like alertError) using string comparison as fallback.
+func errorsMatch(err, expected error) bool {
+	if err == expected {
+		return true
+	}
+	if err == nil || expected == nil {
+		return err == expected
+	}
+	if errors.Is(err, expected) {
+		return true
+	}
+	// Fallback for complex error types like &alertError{}
+	return fmt.Sprintf("%v", err) == fmt.Sprintf("%v", expected)
+}
 
 func TestStressDuplex(t *testing.T) {
 	// Limit runtime in case of deadlocks
@@ -190,12 +211,14 @@ func TestSequenceNumberOverflow(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		atomic.StoreUint64(&ca.state.localSequenceNumber[1], recordlayer.MaxSequenceNumber)
-		if _, werr := ca.Write(make([]byte, 100)); werr != nil {
-			t.Errorf("Write must send message with maximum sequence number, but errord: %v", werr)
+		atomic.StoreUint64(&ca.state.LocalSequenceNumber[1], recordlayer.MaxSequenceNumber)
+		_, werr := ca.Write(make([]byte, 100))
+		if werr != nil {
+			t.Errorf("Write must send message with maximum sequence number: %v", werr)
 		}
-		if _, werr := ca.Write(make([]byte, 100)); !errors.Is(werr, errSequenceNumberOverflow) {
-			t.Errorf("Write must abandonsend message with maximum sequence number, but errord: %v", werr)
+		_, werr = ca.Write(make([]byte, 100))
+		if !errors.Is(werr, dtlserrors.ErrSequenceNumberOverflow) {
+			t.Errorf("Write must abandonsend message with maximum sequence number: expected %v, got %v", dtlserrors.ErrSequenceNumberOverflow, werr)
 		}
 
 		if err := ca.Close(); err != nil {
@@ -214,12 +237,12 @@ func TestSequenceNumberOverflow(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
-		atomic.StoreUint64(&ca.state.localSequenceNumber[0], recordlayer.MaxSequenceNumber+1)
+		atomic.StoreUint64(&ca.state.LocalSequenceNumber[0], recordlayer.MaxSequenceNumber+1)
 
 		// Try to send handshake packet.
-		if werr := ca.writePackets(ctx, []*packet{
+		werr := ca.writePackets(ctx, []*dtlsflight.Packet{
 			{
-				record: &recordlayer.RecordLayer{
+				Record: &recordlayer.RecordLayer{
 					Header: recordlayer.Header{
 						Version: protocol.Version1_2,
 					},
@@ -233,10 +256,10 @@ func TestSequenceNumberOverflow(t *testing.T) {
 					},
 				},
 			},
-		}); !errors.Is(werr, errSequenceNumberOverflow) {
-			t.Errorf("Connection must fail on handshake packet reaches maximum sequence number")
+		})
+		if !errors.Is(werr, dtlserrors.ErrSequenceNumberOverflow) {
+			t.Errorf("Connection must fail when handshake packet reaches maximum sequence num: expected %v, got %v", dtlserrors.ErrSequenceNumberOverflow, werr)
 		}
-
 		if err := ca.Close(); err != nil {
 			t.Error(err)
 		}
@@ -259,23 +282,28 @@ func pipeConn(ca, cb net.Conn) (*Conn, *Conn, error) {
 		err error
 	}
 
-	resultCh := make(chan result)
+	resultCh := make(chan result, 1) // Buffered to prevent goroutine leak
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Setup client
 	go func() {
-		client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-			SRTPProtectionProfiles: []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
+		client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{
+			WithSRTPProtectionProfiles(SRTP_AES128_CM_HMAC_SHA1_80),
 		}, true)
 		resultCh <- result{client, err}
 	}()
 
 	// Setup server
-	server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-		SRTPProtectionProfiles: []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80},
+	server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+		WithSRTPProtectionProfiles(SRTP_AES128_CM_HMAC_SHA1_80),
 	}, true)
 	if err != nil {
+		// Read from resultCh to prevent goroutine leak
+		if res := <-resultCh; res.c != nil {
+			_ = res.c.Close()
+		}
+
 		return nil, nil, err
 	}
 
@@ -294,7 +322,7 @@ func testClient(
 	ctx context.Context,
 	pktConn net.PacketConn,
 	rAddr net.Addr,
-	cfg *Config,
+	opts []ClientOption,
 	generateCertificate bool,
 ) (*Conn, error) {
 	if generateCertificate {
@@ -302,10 +330,10 @@ func testClient(
 		if err != nil {
 			return nil, err
 		}
-		cfg.Certificates = []tls.Certificate{clientCert}
+		opts = append(opts, WithCertificates(clientCert))
 	}
-	cfg.InsecureSkipVerify = true
-	conn, err := Client(pktConn, rAddr, cfg)
+	opts = append(opts, WithInsecureSkipVerify(true))
+	conn, err := ClientWithOptions(pktConn, rAddr, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +345,7 @@ func testServer(
 	ctx context.Context,
 	c net.PacketConn,
 	rAddr net.Addr,
-	cfg *Config,
+	opts []ServerOption,
 	generateCertificate bool,
 ) (*Conn, error) {
 	if generateCertificate {
@@ -325,9 +353,9 @@ func testServer(
 		if err != nil {
 			return nil, err
 		}
-		cfg.Certificates = []tls.Certificate{serverCert}
+		opts = append(opts, WithCertificates(serverCert))
 	}
-	conn, err := Server(c, rAddr, cfg)
+	conn, err := ServerWithOptions(c, rAddr, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +363,18 @@ func testServer(
 	return conn, conn.HandshakeContext(ctx)
 }
 
-func sendClientHello(cookie []byte, ca net.Conn, sequenceNumber uint64, extensions []extension.Extension) error {
+func sendClientHello(
+	cookie []byte,
+	ca net.Conn,
+	sequenceNumber uint64,
+	extensions []extension.Extension,
+	cipherSuiteIDsOverride ...uint16,
+) error {
+	cipherSuites := cipherSuiteIDsOverride
+	if len(cipherSuites) == 0 {
+		cipherSuites = cipherSuiteIDs(defaultCipherSuites())
+	}
+
 	packet, err := (&recordlayer.RecordLayer{
 		Header: recordlayer.Header{
 			Version:        protocol.Version1_2,
@@ -348,7 +387,7 @@ func sendClientHello(cookie []byte, ca net.Conn, sequenceNumber uint64, extensio
 			Message: &handshake.MessageClientHello{
 				Version:            protocol.Version1_2,
 				Cookie:             cookie,
-				CipherSuiteIDs:     cipherSuiteIDs(defaultCipherSuites()),
+				CipherSuiteIDs:     cipherSuites,
 				CompressionMethods: defaultCompressionMethods(),
 				Extensions:         extensions,
 			},
@@ -363,6 +402,69 @@ func sendClientHello(cookie []byte, ca net.Conn, sequenceNumber uint64, extensio
 	}
 
 	return nil
+}
+
+func TestHandshakeWithAlert(t *testing.T) {
+	// Limit runtime in case of deadlocks
+	lim := test.TimeOut(time.Second * 20)
+	defer lim.Stop()
+
+	// Check for leaking routines
+	report := test.CheckRoutines(t)
+	defer report()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cases := map[string]struct {
+		serverOpts []ServerOption
+		clientOpts []ClientOption
+		errServer  error
+		errClient  error
+	}{
+		"CipherSuiteNoIntersection": {
+			serverOpts: []ServerOption{
+				WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+			},
+			clientOpts: []ClientOption{
+				WithCipherSuites(TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256),
+			},
+			errServer: dtlserrors.ErrCipherSuiteNoIntersection,
+			errClient: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+		},
+		"SignatureSchemesNoIntersection": {
+			serverOpts: []ServerOption{
+				WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+				WithSignatureSchemes(tls.ECDSAWithP256AndSHA256),
+			},
+			clientOpts: []ClientOption{
+				WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+				WithSignatureSchemes(tls.ECDSAWithP521AndSHA512),
+			},
+			errServer: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			errClient: dtlserrors.ErrNoAvailableSignatureSchemes,
+		},
+	}
+
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			clientErr := make(chan error, 1)
+
+			ca, cb := dpipe.Pipe()
+			go func() {
+				_, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), testCase.clientOpts, true)
+				clientErr <- err
+			}()
+
+			_, errServer := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), testCase.serverOpts, true)
+			if !errorsMatch(errServer, testCase.errServer) {
+				t.Errorf("server error: expected %v, got %v", testCase.errServer, errServer)
+			}
+			if clientErrVal := <-clientErr; !errorsMatch(clientErrVal, testCase.errClient) {
+				t.Errorf("client error: expected %v, got %v", testCase.errClient, clientErrVal)
+			}
+		})
+	}
 }
 
 func TestHandshakeWithInvalidRecord(t *testing.T) {
@@ -395,14 +497,18 @@ func TestHandshakeWithInvalidRecord(t *testing.T) {
 		}
 	}
 	go func() {
-		client, err := testClient(ctx, dtlsnet.PacketConnFromConn(caWithInvalidRecord), caWithInvalidRecord.RemoteAddr(), &Config{
-			CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-		}, true)
+		client, err := testClient(
+			ctx,
+			dtlsnet.PacketConnFromConn(caWithInvalidRecord),
+			caWithInvalidRecord.RemoteAddr(),
+			[]ClientOption{WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)},
+			true,
+		)
 		clientErr <- result{client, err}
 	}()
 
-	server, errServer := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-		CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+	server, errServer := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+		WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
 	}, true)
 
 	errClient := <-clientErr
@@ -442,11 +548,11 @@ func TestExportKeyingMaterial(t *testing.T) {
 	expectedClientKey := []byte{0xc7, 0xf9, 0x75, 0x03, 0x6b, 0x44, 0x10, 0x42, 0x34, 0xcf}
 
 	conn := &Conn{
-		state: State{
-			localRandom:         handshake.Random{GMTUnixTime: time.Unix(500, 0), RandomBytes: rand},
-			remoteRandom:        handshake.Random{GMTUnixTime: time.Unix(1000, 0), RandomBytes: rand},
-			localSequenceNumber: []uint64{0, 0},
-			cipherSuite:         &ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
+		state: dtlsstate.State{
+			LocalRandom:         handshake.Random{GMTUnixTime: time.Unix(500, 0), RandomBytes: rand},
+			RemoteRandom:        handshake.Random{GMTUnixTime: time.Unix(1000, 0), RandomBytes: rand},
+			LocalSequenceNumber: []uint64{0, 0},
+			CipherSuite:         &ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{},
 		},
 	}
 	conn.setLocalEpoch(0)
@@ -457,8 +563,8 @@ func TestExportKeyingMaterial(t *testing.T) {
 		t.Fatal("ConnectionState failed")
 	}
 	_, err := state.ExportKeyingMaterial(exportLabel, nil, 0)
-	if !errors.Is(err, errHandshakeInProgress) {
-		t.Errorf("ExportKeyingMaterial when epoch == 0: expected '%s' actual '%s'", errHandshakeInProgress, err)
+	if !errors.Is(err, dtlserrors.ErrHandshakeInProgress) {
+		t.Errorf("ExportKeyingMaterial when epoch == 0 error mismatch: expected %v, got %v", dtlserrors.ErrHandshakeInProgress, err)
 	}
 
 	conn.setLocalEpoch(1)
@@ -467,8 +573,8 @@ func TestExportKeyingMaterial(t *testing.T) {
 		t.Fatal("ConnectionState failed")
 	}
 	_, err = state.ExportKeyingMaterial(exportLabel, []byte{0x00}, 0)
-	if !errors.Is(err, errContextUnsupported) {
-		t.Errorf("ExportKeyingMaterial with context: expected '%s' actual '%s'", errContextUnsupported, err)
+	if !errors.Is(err, dtlserrors.ErrContextUnsupported) {
+		t.Errorf("ExportKeyingMaterial with context mismatch: expected %v, got %v", dtlserrors.ErrContextUnsupported, err)
 	}
 
 	for k := range invalidKeyingLabels() {
@@ -477,8 +583,8 @@ func TestExportKeyingMaterial(t *testing.T) {
 			t.Fatal("ConnectionState failed")
 		}
 		_, err = state.ExportKeyingMaterial(k, nil, 0)
-		if !errors.Is(err, errReservedExportKeyingMaterial) {
-			t.Errorf("ExportKeyingMaterial reserved label: expected '%s' actual '%s'", errReservedExportKeyingMaterial, err)
+		if !errors.Is(err, dtlserrors.ErrReservedExportKeyingMaterial) {
+			t.Errorf("ExportKeyingMaterial reserved label mismatch: expected %v, got %v", dtlserrors.ErrReservedExportKeyingMaterial, err)
 		}
 	}
 
@@ -493,7 +599,7 @@ func TestExportKeyingMaterial(t *testing.T) {
 		t.Errorf("ExportKeyingMaterial client export: expected (% 02x) actual (% 02x)", expectedServerKey, keyingMaterial)
 	}
 
-	conn.state.isClient = true
+	conn.state.IsClient = true
 	state, ok = conn.ConnectionState()
 	if !ok {
 		t.Fatal("ConnectionState failed")
@@ -519,7 +625,7 @@ func TestPSK(t *testing.T) {
 		Name                   string
 		ClientIdentity         []byte
 		ServerIdentity         []byte
-		CipherSuites           []CipherSuiteID
+		cipherSuites           []CipherSuiteID
 		ClientVerifyConnection func(*State) error
 		ServerVerifyConnection func(*State) error
 		WantFail               bool
@@ -530,13 +636,13 @@ func TestPSK(t *testing.T) {
 			Name:           "Server identity specified",
 			ServerIdentity: []byte("Test Identity"),
 			ClientIdentity: []byte("Client Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			cipherSuites:   []CipherSuiteID{TLS_PSK_WITH_CHACHA20_POLY1305_SHA256},
 		},
 		{
 			Name:           "Server identity specified - Server verify connection fails",
 			ServerIdentity: []byte("Test Identity"),
 			ClientIdentity: []byte("Client Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			cipherSuites:   []CipherSuiteID{TLS_PSK_WITH_CHACHA20_POLY1305_SHA256},
 			ServerVerifyConnection: func(*State) error {
 				return errExample
 			},
@@ -548,7 +654,7 @@ func TestPSK(t *testing.T) {
 			Name:           "Server identity specified - Client verify connection fails",
 			ServerIdentity: []byte("Test Identity"),
 			ClientIdentity: []byte("Client Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			cipherSuites:   []CipherSuiteID{TLS_PSK_WITH_CHACHA20_POLY1305_SHA256},
 			ClientVerifyConnection: func(*State) error {
 				return errExample
 			},
@@ -560,22 +666,15 @@ func TestPSK(t *testing.T) {
 			Name:           "Server identity nil",
 			ServerIdentity: nil,
 			ClientIdentity: []byte("Client Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
-		},
-		{
-			Name:           "TLS_PSK_WITH_AES_128_GCM_SHA256",
-			ServerIdentity: nil,
-			ClientIdentity: []byte("Client Identity"),
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			cipherSuites:   []CipherSuiteID{TLS_PSK_WITH_CHACHA20_POLY1305_SHA256},
 		},
 		{
 			Name:           "Client identity empty",
 			ServerIdentity: nil,
 			ClientIdentity: []byte{},
-			CipherSuites:   []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			cipherSuites:   []CipherSuiteID{TLS_PSK_WITH_CHACHA20_POLY1305_SHA256},
 		},
 	} {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -588,48 +687,55 @@ func TestPSK(t *testing.T) {
 
 			ca, cb := dpipe.Pipe()
 			go func() {
-				conf := &Config{
-					PSK: func(hint []byte) ([]byte, error) {
+				clientOpts := []ClientOption{
+					WithPSK(func(hint []byte) ([]byte, error) {
 						if !bytes.Equal(test.ServerIdentity, hint) {
 							return nil, fmt.Errorf(
-								"TestPSK: Client got invalid identity expected(% 02x) actual(% 02x)",
+								"%w expected(% 02x) actual(% 02x)",
+								errTestPSKClientInvalidIdentity,
 								test.ServerIdentity, hint,
 							)
 						}
 
 						return []byte{0xAB, 0xC1, 0x23}, nil
-					},
-					PSKIdentityHint:  test.ClientIdentity,
-					CipherSuites:     test.CipherSuites,
-					VerifyConnection: test.ClientVerifyConnection,
+					}),
+					WithPSKIdentityHint(test.ClientIdentity),
+					WithCipherSuites(test.cipherSuites...),
+				}
+				if test.ClientVerifyConnection != nil {
+					clientOpts = append(clientOpts, WithVerifyConnection(test.ClientVerifyConnection))
 				}
 
-				c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, false)
+				c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), clientOpts, false)
 				clientRes <- result{c, err}
 			}()
 
-			config := &Config{
-				PSK: func(hint []byte) ([]byte, error) {
-					fmt.Println(hint)
+			serverOpts := []ServerOption{
+				WithPSK(func(hint []byte) ([]byte, error) {
+			t.Log(hint)
 					if !bytes.Equal(test.ClientIdentity, hint) {
 						return nil, fmt.Errorf("%w: expected(% 02x) actual(% 02x)", errTestPSKInvalidIdentity, test.ClientIdentity, hint)
 					}
 
 					return []byte{0xAB, 0xC1, 0x23}, nil
-				},
-				PSKIdentityHint:  test.ServerIdentity,
-				CipherSuites:     test.CipherSuites,
-				VerifyConnection: test.ServerVerifyConnection,
+				}),
+				WithCipherSuites(test.cipherSuites...),
+			}
+			if test.ServerIdentity != nil {
+				serverOpts = append(serverOpts, WithPSKIdentityHint(test.ServerIdentity))
+			}
+			if test.ServerVerifyConnection != nil {
+				serverOpts = append(serverOpts, WithVerifyConnection(test.ServerVerifyConnection))
 			}
 
-			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, false)
+			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), serverOpts, false)
 			if test.WantFail {
 				res := <-clientRes
 				if err == nil || !strings.Contains(err.Error(), test.ExpectedServerErr) {
-					t.Fatalf("TestPSK: Server expected(%v) actual(%v)", test.ExpectedServerErr, err)
+			t.Fatalf("TestPSK: Server expected(%v) actual(%v)", test.ExpectedServerErr, err)
 				}
 				if res.err == nil || !strings.Contains(res.err.Error(), test.ExpectedClientErr) {
-					t.Fatalf("TestPSK: Client expected(%v) actual(%v)", test.ExpectedClientErr, res.err)
+			t.Fatalf("TestPSK: Client expected(%v) actual(%v)", test.ExpectedClientErr, res.err)
 				}
 
 				return
@@ -681,34 +787,125 @@ func TestPSKHintFail(t *testing.T) {
 
 	ca, cb := dpipe.Pipe()
 	go func() {
-		conf := &Config{
-			PSK: func([]byte) ([]byte, error) {
+		opts := []ClientOption{
+			WithPSK(func([]byte) ([]byte, error) {
 				return nil, pskRejected
-			},
-			PSKIdentityHint: []byte{},
-			CipherSuites:    []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+			}),
+			WithPSKIdentityHint([]byte{}),
+			WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
 		}
 
-		_, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, false)
+		_, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, false)
 		clientErr <- err
 	}()
 
-	config := &Config{
-		PSK: func([]byte) ([]byte, error) {
+	opts := []ServerOption{
+		WithPSK(func([]byte) ([]byte, error) {
 			return nil, pskRejected
-		},
-		PSKIdentityHint: []byte{},
-		CipherSuites:    []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+		}),
+		WithPSKIdentityHint([]byte{}),
+		WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
 	}
 
-	if _, err := testServer(
-		ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, false,
-	); !errors.Is(err, serverAlertError) {
-		t.Fatalf("TestPSK: Server error exp(%v) failed(%v)", serverAlertError, err)
+	_, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), opts, false)
+	if !errors.Is(err, serverAlertError) {
+		t.Errorf("TestPSK: Server should fail with alert error: expected %v, got %v", serverAlertError, err)
+	}
+	if clientErrVal := <-clientErr; !errors.Is(clientErrVal, pskRejected) {
+		t.Errorf("TestPSK: Client should fail with pskRejected error: expected %v, got %v", pskRejected, clientErrVal)
+	}
+}
+
+func TestPSKMismatchNoRetransmitLoop(t *testing.T) {
+	lim := test.TimeOut(time.Second * 20)
+	defer lim.Stop()
+
+	report := test.CheckRoutines(t)
+	defer report()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var serverWrites atomic.Int32
+	var clientWrites atomic.Int32
+
+	ca, cb := dpipe.Pipe()
+	defer func() {
+		_ = ca.Close()
+	}()
+	defer func() {
+		_ = cb.Close()
+	}()
+
+	caCount := &connWithCallback{Conn: ca}
+	caCount.onWrite = func([]byte) {
+		clientWrites.Add(1)
+	}
+	cbCount := &connWithCallback{Conn: cb}
+	cbCount.onWrite = func([]byte) {
+		serverWrites.Add(1)
 	}
 
-	if err := <-clientErr; !errors.Is(err, pskRejected) {
-		t.Fatalf("TestPSK: Client error exp(%v) failed(%v)", pskRejected, err)
+	clientErr := make(chan error, 1)
+	serverErr := make(chan error, 1)
+
+	go func() {
+		opts := []ClientOption{
+			WithPSK(func([]byte) ([]byte, error) {
+				return []byte("client-psk"), nil
+			}),
+			WithPSKIdentityHint([]byte("Client Identity")),
+			WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
+		}
+
+		c, err := testClient(ctx, dtlsnet.PacketConnFromConn(caCount), caCount.RemoteAddr(), opts, false)
+		if c != nil {
+			_ = c.Close()
+		}
+		clientErr <- err
+	}()
+
+	go func() {
+		opts := []ServerOption{
+			WithPSK(func([]byte) ([]byte, error) {
+				return []byte("server-psk"), nil
+			}),
+			WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
+		}
+
+		s, err := testServer(ctx, dtlsnet.PacketConnFromConn(cbCount), cbCount.RemoteAddr(), opts, false)
+		if s != nil {
+			_ = s.Close()
+		}
+		serverErr <- err
+	}()
+
+	serverErrRes := <-serverErr
+	clientErrRes := <-clientErr
+
+	if serverErrRes == nil || !strings.Contains(serverErrRes.Error(), "handshake failed") {
+		t.Errorf("server error should contain 'handshake failed': got %v", serverErrRes)
+	}
+	if clientErrRes == nil || !strings.Contains(clientErrRes.Error(), "handshake failed") {
+		t.Errorf("client error should contain 'handshake failed': got %v", clientErrRes)
+	}
+
+	serverCount := serverWrites.Load()
+	clientCount := clientWrites.Load()
+
+	time.Sleep(2 * time.Second)
+
+	if serverCount != serverWrites.Load() {
+		t.Errorf("Server should not retransmit after handshake failure")
+	}
+	if clientCount != clientWrites.Load() {
+		t.Errorf("Client should not retransmit after handshake failure")
+	}
+	if serverCount > int32(20) {
+		t.Errorf("Server retransmit count too high for backoff: %d", serverCount)
+	}
+	if clientCount > int32(20) {
+		t.Errorf("Client retransmit count too high for backoff: %d", clientCount)
 	}
 }
 
@@ -735,11 +932,12 @@ func TestPSKServerKeyExchange(t *testing.T) {
 			SetIdentity: false,
 		},
 	} {
-		test := test
-		t.Run(test.Name, func(t *testing.T) {
+		testCase := test
+		t.Run(testCase.Name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			gotServerKeyExchange := false
+			var gotServerKeyExchange atomic.Bool
+			expectedServerKeyExchange := testCase.SetIdentity
 
 			clientErr := make(chan error, 1)
 			ca, cb := dpipe.Pipe()
@@ -747,64 +945,81 @@ func TestPSKServerKeyExchange(t *testing.T) {
 			cbAnalyzer.onWrite = func(in []byte) {
 				messages, err := recordlayer.UnpackDatagram(in)
 				if err != nil {
-					t.Fatal(err)
+			t.Fatal(err)
 				}
 
 				for i := range messages {
-					h := &handshake.Handshake{}
-					_ = h.Unmarshal(messages[i][recordlayer.FixedHeaderSize:])
+					var header recordlayer.Header
+					if err := header.Unmarshal(messages[i]); err != nil {
+						continue
+					}
+					if header.ContentType != protocol.ContentTypeHandshake || header.Epoch != 0 {
+						continue
+					}
+					payload := messages[i][recordlayer.FixedHeaderSize:]
+					for len(payload) >= handshake.HeaderLength {
+						var h handshake.Header
+						if err := h.Unmarshal(payload); err != nil {
+							break
+						}
+						if h.Type == handshake.TypeServerKeyExchange {
+							gotServerKeyExchange.Store(true)
 
-					if h.Header.Type == handshake.TypeServerKeyExchange {
-						gotServerKeyExchange = true
+							break
+						}
+						fragLen := int(h.FragmentLength)
+						if fragLen <= 0 || handshake.HeaderLength+fragLen > len(payload) {
+							break
+						}
+						payload = payload[handshake.HeaderLength+fragLen:]
 					}
 				}
 			}
 
 			go func() {
-				conf := &Config{
-					PSK: func([]byte) ([]byte, error) {
+				opts := []ClientOption{
+					WithPSK(func([]byte) ([]byte, error) {
 						return []byte{0xAB, 0xC1, 0x23}, nil
-					},
-					PSKIdentityHint: []byte{0xAB, 0xC1, 0x23},
-					CipherSuites:    []CipherSuiteID{ciphersuite.TLS_PSK_WITH_AES_128_GCM_SHA256},
+					}),
+					WithPSKIdentityHint([]byte{0xAB, 0xC1, 0x23}),
+					WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
 				}
 
-				if client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, false); err != nil {
+				if client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, false); err != nil {
 					clientErr <- err
 				} else {
 					clientErr <- client.Close()
 				}
 			}()
 
-			config := &Config{
-				PSK: func([]byte) ([]byte, error) {
+			opts := []ServerOption{
+				WithPSK(func([]byte) ([]byte, error) {
 					return []byte{0xAB, 0xC1, 0x23}, nil
-				},
-				CipherSuites: []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256},
+				}),
+				WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
 			}
-			if test.SetIdentity {
-				config.PSKIdentityHint = []byte{0xAB, 0xC1, 0x23}
+			if testCase.SetIdentity {
+				opts = append(opts, WithPSKIdentityHint([]byte{0xAB, 0xC1, 0x23}))
 			}
 
-			if server, err := testServer(
-				ctx, dtlsnet.PacketConnFromConn(cbAnalyzer), cbAnalyzer.RemoteAddr(), config, false,
-			); err != nil {
-				t.Fatalf("TestPSK: Server error %v", err)
-			} else {
-				if err = server.Close(); err != nil {
-					t.Fatal(err)
+			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cbAnalyzer), cbAnalyzer.RemoteAddr(), opts, false)
+			if err != nil {
+				t.Errorf("unexpected server error: %v", err)
+			}
+
+			// Read the value immediately after handshake completes, before closing
+			receivedServerKeyExchange := gotServerKeyExchange.Load()
+
+			if err := server.Close(); err != nil {
+				t.Errorf("unexpected error closing server: %v", err)
+			}
+			if err := <-clientErr; err != nil {
+				if !errors.Is(err, &alertError{&alert.Alert{Level: alert.Warning, Description: alert.CloseNotify}}) {
+			t.Errorf("TestPSK: Client error: expected CloseNotify, got %v", err)
 				}
 			}
-
-			if err := <-clientErr; err != nil {
-				t.Fatalf("TestPSK: Client error %v", err)
-			}
-
-			if gotServerKeyExchange != test.SetIdentity {
-				t.Fatalf(
-					"Mismatch between setting Identity and getting a ServerKeyExchange exp(%t) actual(%t)",
-					test.SetIdentity, gotServerKeyExchange,
-				)
+			if expectedServerKeyExchange != receivedServerKeyExchange {
+				t.Errorf("ServerKeyExchange mismatch: expected %v, got %v", expectedServerKeyExchange, receivedServerKeyExchange)
 			}
 		})
 	}
@@ -826,9 +1041,7 @@ func TestClientTimeout(t *testing.T) {
 
 	ca, _ := dpipe.Pipe()
 	go func() {
-		conf := &Config{}
-
-		c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, true)
+		c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), nil, true)
 		if err == nil {
 			_ = c.Close()
 		}
@@ -882,7 +1095,7 @@ func TestSRTPConfiguration(t *testing.T) {
 			ServerSRTP:      nil,
 			ExpectedProfile: 0,
 			WantClientError: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
-			WantServerError: errServerNoMatchingSRTPProfile,
+			WantServerError: dtlserrors.ErrServerNoMatchingSRTPProfile,
 		},
 		{
 			Name:            "SRTP server only",
@@ -901,10 +1114,10 @@ func TestSRTPConfiguration(t *testing.T) {
 			WantServerError: nil,
 		},
 		{
-			Name:            "Multiple Suites, Client Chooses",
+			Name:            "Multiple Suites, Server Chooses",
 			ClientSRTP:      []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_80, SRTP_AES128_CM_HMAC_SHA1_32},
 			ServerSRTP:      []SRTPProtectionProfile{SRTP_AES128_CM_HMAC_SHA1_32, SRTP_AES128_CM_HMAC_SHA1_80},
-			ExpectedProfile: SRTP_AES128_CM_HMAC_SHA1_80,
+			ExpectedProfile: SRTP_AES128_CM_HMAC_SHA1_32,
 			WantClientError: nil,
 			WantServerError: nil,
 		},
@@ -920,21 +1133,23 @@ func TestSRTPConfiguration(t *testing.T) {
 		resultCh := make(chan result)
 
 		go func() {
-			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-				SRTPProtectionProfiles: test.ClientSRTP, SRTPMasterKeyIdentifier: test.ServerSRTPMasterKeyIdentifier,
-			}, true)
+			opts := []ClientOption{WithSRTPMasterKeyIdentifier(test.ServerSRTPMasterKeyIdentifier)}
+			if len(test.ClientSRTP) > 0 {
+				opts = append(opts, WithSRTPProtectionProfiles(test.ClientSRTP...))
+			}
+			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, true)
 			resultCh <- result{client, err}
 		}()
 
-		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-			SRTPProtectionProfiles: test.ServerSRTP, SRTPMasterKeyIdentifier: test.ClientSRTPMasterKeyIdentifier,
-		}, true)
-		if !errors.Is(err, test.WantServerError) {
-			t.Errorf(
-				"TestSRTPConfiguration: Server Error Mismatch '%s': expected(%v) actual(%v)",
-				test.Name, test.WantServerError, err,
-			)
+		opts := []ServerOption{WithSRTPMasterKeyIdentifier(test.ClientSRTPMasterKeyIdentifier)}
+		if len(test.ServerSRTP) > 0 {
+			opts = append(opts, WithSRTPProtectionProfiles(test.ServerSRTP...))
 		}
+		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), opts, true)
+		if !errors.Is(err, test.WantServerError) {
+			t.Errorf("TestSRTPConfiguration: Server Error Mismatch '%s': expected %v, got %v", test.Name, test.WantServerError, err)
+		}
+
 		if err == nil {
 			defer func() {
 				_ = server.Close()
@@ -1020,167 +1235,190 @@ func TestClientCertificate(t *testing.T) {
 
 	t.Run("parallel", func(t *testing.T) { // sync routines to check routine leak
 		tests := map[string]struct {
-			clientCfg *Config
-			serverCfg *Config
-			wantErr   bool
+			clientOpts         []ClientOption
+			serverOpts         []ServerOption
+			clientAuth         ClientAuthType
+			expectedClientCert [][]byte
+			expectedServerCert [][]byte
+			wantErr            bool
 		}{
 			"NoClientCert": {
-				clientCfg: &Config{RootCAs: srvCAPool},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   NoClientCert,
-					ClientCAs:    caPool,
-				},
+				clientOpts:         []ClientOption{WithRootCAs(srvCAPool)},
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(NoClientCert), WithClientCAs(caPool)},
+				clientAuth:         NoClientCert,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"NoClientCert_ServerVerifyConnectionFails": {
-				clientCfg: &Config{RootCAs: srvCAPool},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   NoClientCert,
-					ClientCAs:    caPool,
-					VerifyConnection: func(*State) error {
+				clientOpts: []ClientOption{WithRootCAs(srvCAPool)},
+				serverOpts: []ServerOption{
+					WithCertificates(srvCert),
+					WithClientAuth(NoClientCert),
+					WithClientCAs(caPool),
+					WithVerifyConnection(func(*State) error {
 						return errExample
-					},
+					}),
 				},
-				wantErr: true,
+				clientAuth:         NoClientCert,
+				expectedServerCert: srvCert.Certificate,
+				wantErr:            true,
 			},
 			"NoClientCert_ClientVerifyConnectionFails": {
-				clientCfg: &Config{RootCAs: srvCAPool, VerifyConnection: func(*State) error {
-					return errExample
-				}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   NoClientCert,
-					ClientCAs:    caPool,
+				clientOpts: []ClientOption{
+					WithRootCAs(srvCAPool),
+					WithVerifyConnection(func(*State) error {
+						return errExample
+					}),
 				},
-				wantErr: true,
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(NoClientCert), WithClientCAs(caPool)},
+				clientAuth:         NoClientCert,
+				expectedServerCert: srvCert.Certificate,
+				wantErr:            true,
 			},
 			"NoClientCert_cert": {
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   RequireAnyClientCert,
-				},
+				clientOpts:         []ClientOption{WithRootCAs(srvCAPool), WithCertificates(cert)},
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(RequireAnyClientCert)},
+				clientAuth:         RequireAnyClientCert,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"RequestClientCert_cert_sigscheme": { // specify signature algorithm
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					SignatureSchemes: []tls.SignatureScheme{tls.ECDSAWithP521AndSHA512},
-					Certificates:     []tls.Certificate{srvCert},
-					ClientAuth:       RequestClientCert,
+				clientOpts: []ClientOption{WithRootCAs(srvCAPool), WithCertificates(cert)},
+				serverOpts: []ServerOption{
+					WithSignatureSchemes(tls.ECDSAWithP521AndSHA512),
+					WithCertificates(srvCert),
+					WithClientAuth(RequestClientCert),
 				},
+				clientAuth:         RequestClientCert,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"RequestClientCert_cert": {
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   RequestClientCert,
-				},
+				clientOpts:         []ClientOption{WithRootCAs(srvCAPool), WithCertificates(cert)},
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(RequestClientCert)},
+				clientAuth:         RequestClientCert,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"RequestClientCert_no_cert": {
-				clientCfg: &Config{RootCAs: srvCAPool},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   RequestClientCert,
-					ClientCAs:    caPool,
+				clientOpts: []ClientOption{WithRootCAs(srvCAPool)},
+				serverOpts: []ServerOption{
+					WithCertificates(srvCert),
+					WithClientAuth(RequestClientCert),
+					WithClientCAs(caPool),
 				},
+				clientAuth:         RequestClientCert,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"RequireAnyClientCert": {
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   RequireAnyClientCert,
-				},
+				clientOpts:         []ClientOption{WithRootCAs(srvCAPool), WithCertificates(cert)},
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(RequireAnyClientCert)},
+				clientAuth:         RequireAnyClientCert,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"RequireAnyClientCert_error": {
-				clientCfg: &Config{RootCAs: srvCAPool},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   RequireAnyClientCert,
-				},
-				wantErr: true,
+				clientOpts:         []ClientOption{WithRootCAs(srvCAPool)},
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(RequireAnyClientCert)},
+				clientAuth:         RequireAnyClientCert,
+				expectedServerCert: srvCert.Certificate,
+				wantErr:            true,
 			},
 			"VerifyClientCertIfGiven_no_cert": {
-				clientCfg: &Config{RootCAs: srvCAPool},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   VerifyClientCertIfGiven,
-					ClientCAs:    caPool,
+				clientOpts: []ClientOption{WithRootCAs(srvCAPool)},
+				serverOpts: []ServerOption{
+					WithCertificates(srvCert),
+					WithClientAuth(VerifyClientCertIfGiven),
+					WithClientCAs(caPool),
 				},
+				clientAuth:         VerifyClientCertIfGiven,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"VerifyClientCertIfGiven_cert": {
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   VerifyClientCertIfGiven,
-					ClientCAs:    caPool,
+				clientOpts: []ClientOption{WithRootCAs(srvCAPool), WithCertificates(cert)},
+				serverOpts: []ServerOption{
+					WithCertificates(srvCert),
+					WithClientAuth(VerifyClientCertIfGiven),
+					WithClientCAs(caPool),
 				},
+				clientAuth:         VerifyClientCertIfGiven,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"VerifyClientCertIfGiven_error": {
-				clientCfg: &Config{RootCAs: srvCAPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   VerifyClientCertIfGiven,
-				},
-				wantErr: true,
+				clientOpts:         []ClientOption{WithRootCAs(srvCAPool), WithCertificates(cert)},
+				serverOpts:         []ServerOption{WithCertificates(srvCert), WithClientAuth(VerifyClientCertIfGiven)},
+				clientAuth:         VerifyClientCertIfGiven,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
+				wantErr:            true,
 			},
 			"RequireAndVerifyClientCert": {
-				clientCfg: &Config{
-					RootCAs:      srvCAPool,
-					Certificates: []tls.Certificate{cert},
-					VerifyConnection: func(s *State) error {
+				clientOpts: []ClientOption{
+					WithRootCAs(srvCAPool),
+					WithCertificates(cert),
+					WithVerifyConnection(func(s *State) error {
 						if ok := bytes.Equal(s.PeerCertificates[0], srvCertificate.Raw); !ok {
 							return errExample
 						}
 
 						return nil
-					},
+					}),
 				},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{srvCert},
-					ClientAuth:   RequireAndVerifyClientCert,
-					ClientCAs:    caPool,
-					VerifyConnection: func(s *State) error {
+				serverOpts: []ServerOption{
+					WithCertificates(srvCert),
+					WithClientAuth(RequireAndVerifyClientCert),
+					WithClientCAs(caPool),
+					WithVerifyConnection(func(s *State) error {
 						if ok := bytes.Equal(s.PeerCertificates[0], certificate.Raw); !ok {
 							return errExample
 						}
 
 						return nil
-					},
+					}),
 				},
+				clientAuth:         RequireAndVerifyClientCert,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 			"RequireAndVerifyClientCert_callbacks": {
-				clientCfg: &Config{
-					RootCAs: srvCAPool,
-					// Certificates:   []tls.Certificate{cert},
-					GetClientCertificate: func(*CertificateRequestInfo) (*tls.Certificate, error) { return &cert, nil },
+				clientOpts: []ClientOption{
+					WithRootCAs(srvCAPool),
+					WithGetClientCertificate(func(*CertificateRequestInfo) (*tls.Certificate, error) { return &cert, nil }),
 				},
-				serverCfg: &Config{
-					GetCertificate: func(*ClientHelloInfo) (*tls.Certificate, error) { return &srvCert, nil },
-					// Certificates:   []tls.Certificate{srvCert},
-					ClientAuth: RequireAndVerifyClientCert,
-					ClientCAs:  caPool,
+				serverOpts: []ServerOption{
+					WithGetCertificate(func(*ClientHelloInfo) (*tls.Certificate, error) { return &srvCert, nil }),
+					WithClientAuth(RequireAndVerifyClientCert),
+					WithClientCAs(caPool),
 				},
+				clientAuth:         RequireAndVerifyClientCert,
+				expectedClientCert: cert.Certificate,
+				expectedServerCert: srvCert.Certificate,
 			},
 		}
 		for name, tt := range tests {
-			tt := tt
 			t.Run(name, func(t *testing.T) {
 				ca, cb := dpipe.Pipe()
 				type result struct {
 					c          *Conn
 					err, hserr error
 				}
-				c := make(chan result)
+				clientCh := make(chan result)
 
 				go func() {
-					client, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientCfg)
-					c <- result{client, err, client.Handshake()}
+					client, err := ClientWithOptions(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientOpts...)
+					var hsErr error
+					if err == nil {
+						hsErr = client.Handshake()
+					}
+					clientCh <- result{client, err, hsErr}
 				}()
 
-				server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverCfg)
-				hserr := server.Handshake()
-				res := <-c
+				server, err := ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverOpts...)
+				var hserr error
+				if err == nil {
+					hserr = server.Handshake()
+				}
+				res := <-clientCh
 				defer func() {
 					if err == nil {
 						_ = server.Close()
@@ -1191,73 +1429,55 @@ func TestClientCertificate(t *testing.T) {
 				}()
 
 				if tt.wantErr {
-					if err != nil || hserr != nil {
-						// Error expected, test succeeded
-						return
+					if err == nil && hserr == nil && res.err == nil && res.hserr == nil {
+			t.Error("Error expected")
 					}
-					t.Error("Error expected")
+
+					return // Error expected, test succeeded
 				}
 				if err != nil {
-					t.Errorf("Server failed(%v)", err)
+			t.Errorf("unexpected server error: %v", err)
 				}
-
 				if res.err != nil {
-					t.Errorf("Client failed(%v)", res.err)
+			t.Errorf("unexpected client error: %v", res.err)
+				}
+				if hserr != nil {
+			t.Errorf("unexpected server handshake error: %v", hserr)
+				}
+				if res.hserr != nil {
+			t.Errorf("unexpected client handshake error: %v", res.hserr)
 				}
 
 				state, ok := server.ConnectionState()
 				if !ok {
-					t.Error("Server connection state not available")
+			t.Error("Server connection state not available")
 				}
 				actualClientCert := state.PeerCertificates
-				if tt.serverCfg.ClientAuth == RequireAnyClientCert ||
-					tt.serverCfg.ClientAuth == RequireAndVerifyClientCert {
+				if tt.expectedClientCert != nil {
 					if actualClientCert == nil {
-						t.Errorf("Client did not provide a certificate")
-					}
-
-					var cfgCert [][]byte
-					if len(tt.clientCfg.Certificates) > 0 {
-						cfgCert = tt.clientCfg.Certificates[0].Certificate
-					}
-					if tt.clientCfg.GetClientCertificate != nil {
-						crt, err := tt.clientCfg.GetClientCertificate(&CertificateRequestInfo{})
-						if err != nil {
-							t.Errorf("Server configuration did not provide a certificate")
-						}
-						cfgCert = crt.Certificate
-					}
-					if len(cfgCert) == 0 || !bytes.Equal(cfgCert[0], actualClientCert[0]) {
-						t.Errorf("Client certificate was not communicated correctly")
+			t.Error("Client did not provide a certificate")
+					} else if !bytes.Equal(actualClientCert[0], tt.expectedClientCert[0]) {
+			t.Error("Client certificate was not communicated correctly")
 					}
 				}
-				if tt.serverCfg.ClientAuth == NoClientCert {
+				if tt.clientAuth == NoClientCert {
 					if actualClientCert != nil {
-						t.Errorf("Client certificate wasn't expected")
+			t.Error("Client certificate wasn't expected")
 					}
 				}
 
 				clientState, ok := res.c.ConnectionState()
 				if !ok {
-					t.Error("Client connection state not available")
+			t.Error("Client connection state not available")
 				}
 				actualServerCert := clientState.PeerCertificates
 				if actualServerCert == nil {
-					t.Errorf("Server did not provide a certificate")
+			t.Error("server did not provide a certificate")
 				}
-				var cfgCert [][]byte
-				if len(tt.serverCfg.Certificates) > 0 {
-					cfgCert = tt.serverCfg.Certificates[0].Certificate
-				}
-				if tt.serverCfg.GetCertificate != nil {
-					crt, err := tt.serverCfg.GetCertificate(&ClientHelloInfo{})
-					if err != nil {
-						t.Errorf("Server configuration did not provide a certificate")
-					}
-					cfgCert = crt.Certificate
-				}
-				if len(cfgCert) == 0 || !bytes.Equal(cfgCert[0], actualServerCert[0]) {
-					t.Errorf("Server certificate was not communicated correctly")
+				if len(tt.expectedServerCert) == 0 {
+			t.Error("Server certificate was not communicated correctly")
+				} else if !bytes.Equal(actualServerCert[0], tt.expectedServerCert[0]) {
+			t.Error("Server certificate was not communicated correctly")
 				}
 			})
 		}
@@ -1277,58 +1497,36 @@ func TestConnectionID(t *testing.T) {
 		}
 	}
 	tests := map[string]struct {
-		clientCfg          *Config
-		serverCfg          *Config
+		clientOpts         []ClientOption
+		serverOpts         []ServerOption
 		clientConnectionID []byte
 		serverConnectionID []byte
 	}{
 		"BidirectionalConnectionIDs": {
-			clientCfg: &Config{
-				ConnectionIDGenerator: cidEcho(clientCID),
-			},
-			serverCfg: &Config{
-				ConnectionIDGenerator: cidEcho(serverCID),
-			},
+			clientOpts:         []ClientOption{WithConnectionIDGenerator(cidEcho(clientCID))},
+			serverOpts:         []ServerOption{WithConnectionIDGenerator(cidEcho(serverCID))},
 			clientConnectionID: clientCID,
 			serverConnectionID: serverCID,
 		},
 		"BothSupportOnlyClientSends": {
-			clientCfg: &Config{
-				ConnectionIDGenerator: cidEcho(nil),
-			},
-			serverCfg: &Config{
-				ConnectionIDGenerator: cidEcho(serverCID),
-			},
+			clientOpts:         []ClientOption{WithConnectionIDGenerator(cidEcho(nil))},
+			serverOpts:         []ServerOption{WithConnectionIDGenerator(cidEcho(serverCID))},
 			serverConnectionID: serverCID,
 		},
 		"BothSupportOnlyServerSends": {
-			clientCfg: &Config{
-				ConnectionIDGenerator: cidEcho(clientCID),
-			},
-			serverCfg: &Config{
-				ConnectionIDGenerator: cidEcho(nil),
-			},
+			clientOpts:         []ClientOption{WithConnectionIDGenerator(cidEcho(clientCID))},
+			serverOpts:         []ServerOption{WithConnectionIDGenerator(cidEcho(nil))},
 			clientConnectionID: clientCID,
 		},
 		"ClientDoesNotSupport": {
-			clientCfg: &Config{},
-			serverCfg: &Config{
-				ConnectionIDGenerator: cidEcho(serverCID),
-			},
+			serverOpts: []ServerOption{WithConnectionIDGenerator(cidEcho(serverCID))},
 		},
 		"ServerDoesNotSupport": {
-			clientCfg: &Config{
-				ConnectionIDGenerator: cidEcho(clientCID),
-			},
-			serverCfg: &Config{},
+			clientOpts: []ClientOption{WithConnectionIDGenerator(cidEcho(clientCID))},
 		},
-		"NeitherSupport": {
-			clientCfg: &Config{},
-			serverCfg: &Config{},
-		},
+		"NeitherSupport": {},
 	}
 	for name, tt := range tests {
-		tt := tt
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -1341,14 +1539,15 @@ func TestConnectionID(t *testing.T) {
 			c := make(chan result)
 
 			go func() {
-				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientCfg, true)
+				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientOpts, true)
 				c <- result{client, err}
 			}()
 
-			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverCfg, true)
+			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverOpts, true)
 			if err != nil {
-				t.Fatalf("Unexpected server error: %v", err)
+				t.Fatalf("unexpected server error: %v", err)
 			}
+
 			res := <-c
 			if res.err != nil {
 				t.Fatalf("Unexpected client error: %v", res.err)
@@ -1362,29 +1561,17 @@ func TestConnectionID(t *testing.T) {
 				}
 			}()
 
-			if !bytes.Equal(res.c.state.getLocalConnectionID(), tt.clientConnectionID) {
-				t.Errorf(
-					"Unexpected client local connection ID\nwant: %v\ngot:%v",
-					tt.clientConnectionID, res.c.state.localConnectionID,
-				)
+			if !bytes.Equal(tt.clientConnectionID, res.c.state.GetLocalConnectionID()) {
+				t.Error("Unexpected client local connection ID")
 			}
-			if !bytes.Equal(res.c.state.remoteConnectionID, tt.serverConnectionID) {
-				t.Errorf(
-					"Unexpected client remote connection ID\nwant: %v\ngot:%v",
-					tt.serverConnectionID, res.c.state.remoteConnectionID,
-				)
+			if !bytes.Equal(tt.serverConnectionID, res.c.state.RemoteConnectionID) {
+				t.Error("Unexpected client remote connection ID")
 			}
-			if !bytes.Equal(server.state.getLocalConnectionID(), tt.serverConnectionID) {
-				t.Errorf(
-					"Unexpected server local connection ID\nwant: %v\ngot:%v",
-					tt.serverConnectionID, server.state.localConnectionID,
-				)
+			if !bytes.Equal(tt.serverConnectionID, server.state.GetLocalConnectionID()) {
+				t.Error("Unexpected server local connection ID")
 			}
-			if !bytes.Equal(server.state.remoteConnectionID, tt.clientConnectionID) {
-				t.Errorf(
-					"Unexpected server remote connection ID\nwant: %v\ngot:%v",
-					tt.clientConnectionID, server.state.remoteConnectionID,
-				)
+			if !bytes.Equal(tt.clientConnectionID, server.state.RemoteConnectionID) {
+				t.Error("Unexpected server remote connection ID")
 			}
 		})
 	}
@@ -1396,104 +1583,67 @@ func TestExtendedMasterSecret(t *testing.T) {
 	defer report()
 
 	tests := map[string]struct {
-		clientCfg         *Config
-		serverCfg         *Config
+		clientOpts        []ClientOption
+		serverOpts        []ServerOption
 		expectedClientErr error
 		expectedServerErr error
 	}{
 		"Request_Request_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: RequestExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: RequestExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(RequestExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(RequestExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 		"Request_Require_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: RequestExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: RequireExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(RequestExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(RequireExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 		"Request_Disable_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: RequestExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: DisableExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(RequestExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(DisableExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 		"Require_Request_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: RequireExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: RequestExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(RequireExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(RequestExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 		"Require_Require_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: RequireExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: RequireExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(RequireExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(RequireExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 		"Require_Disable_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: RequireExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: DisableExtendedMasterSecret,
-			},
-			expectedClientErr: errClientRequiredButNoServerEMS,
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(RequireExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(DisableExtendedMasterSecret)},
+			expectedClientErr: dtlserrors.ErrClientRequiredButNoServerEMS,
 			expectedServerErr: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
 		},
 		"Disable_Request_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: DisableExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: RequestExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(DisableExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(RequestExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 		"Disable_Require_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: DisableExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: RequireExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(DisableExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(RequireExtendedMasterSecret)},
 			expectedClientErr: &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
-			expectedServerErr: errServerRequiredButNoClientEMS,
+			expectedServerErr: dtlserrors.ErrServerRequiredButNoClientEMS,
 		},
 		"Disable_Disable_ExtendedMasterSecret": {
-			clientCfg: &Config{
-				ExtendedMasterSecret: DisableExtendedMasterSecret,
-			},
-			serverCfg: &Config{
-				ExtendedMasterSecret: DisableExtendedMasterSecret,
-			},
+			clientOpts:        []ClientOption{WithExtendedMasterSecret(DisableExtendedMasterSecret)},
+			serverOpts:        []ServerOption{WithExtendedMasterSecret(DisableExtendedMasterSecret)},
 			expectedClientErr: nil,
 			expectedServerErr: nil,
 		},
 	}
 	for name, tt := range tests {
-		tt := tt
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -1506,11 +1656,11 @@ func TestExtendedMasterSecret(t *testing.T) {
 			c := make(chan result)
 
 			go func() {
-				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientCfg, true)
+				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientOpts, true)
 				c <- result{client, err}
 			}()
 
-			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverCfg, true)
+			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverOpts, true)
 			res := <-c
 			defer func() {
 				if err == nil {
@@ -1550,74 +1700,72 @@ func TestServerCertificate(t *testing.T) {
 
 	t.Run("parallel", func(t *testing.T) { // sync routines to check routine leak
 		tests := map[string]struct {
-			clientCfg *Config
-			serverCfg *Config
-			wantErr   bool
+			clientOpts []ClientOption
+			serverOpts []ServerOption
+			wantErr    bool
 		}{
 			"no_ca": {
-				clientCfg: &Config{},
-				serverCfg: &Config{Certificates: []tls.Certificate{cert}, ClientAuth: NoClientCert},
-				wantErr:   true,
+				serverOpts: []ServerOption{WithCertificates(cert), WithClientAuth(NoClientCert)},
+				wantErr:    true,
 			},
 			"good_ca": {
-				clientCfg: &Config{RootCAs: caPool},
-				serverCfg: &Config{Certificates: []tls.Certificate{cert}, ClientAuth: NoClientCert},
+				clientOpts: []ClientOption{WithRootCAs(caPool)},
+				serverOpts: []ServerOption{WithCertificates(cert), WithClientAuth(NoClientCert)},
 			},
 			"no_ca_skip_verify": {
-				clientCfg: &Config{InsecureSkipVerify: true},
-				serverCfg: &Config{Certificates: []tls.Certificate{cert}, ClientAuth: NoClientCert},
+				clientOpts: []ClientOption{WithInsecureSkipVerify(true)},
+				serverOpts: []ServerOption{WithCertificates(cert), WithClientAuth(NoClientCert)},
 			},
 			"good_ca_skip_verify_custom_verify_peer": {
-				clientCfg: &Config{RootCAs: caPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					Certificates: []tls.Certificate{cert},
-					ClientAuth:   RequireAnyClientCert,
-					VerifyPeerCertificate: func(_ [][]byte, chain [][]*x509.Certificate) error {
+				clientOpts: []ClientOption{WithRootCAs(caPool), WithCertificates(cert)},
+				serverOpts: []ServerOption{
+					WithCertificates(cert),
+					WithClientAuth(RequireAnyClientCert),
+					WithVerifyPeerCertificate(func(_ [][]byte, chain [][]*x509.Certificate) error {
 						if len(chain) != 0 {
 							return errNotExpectedChain
 						}
 
 						return nil
-					},
+					}),
 				},
 			},
 			"good_ca_verify_custom_verify_peer": {
-				clientCfg: &Config{RootCAs: caPool, Certificates: []tls.Certificate{cert}},
-				serverCfg: &Config{
-					ClientCAs:    caPool,
-					Certificates: []tls.Certificate{cert},
-					ClientAuth:   RequireAndVerifyClientCert,
-					VerifyPeerCertificate: func(_ [][]byte, chain [][]*x509.Certificate) error {
+				clientOpts: []ClientOption{WithRootCAs(caPool), WithCertificates(cert)},
+				serverOpts: []ServerOption{
+					WithClientCAs(caPool),
+					WithCertificates(cert),
+					WithClientAuth(RequireAndVerifyClientCert),
+					WithVerifyPeerCertificate(func(_ [][]byte, chain [][]*x509.Certificate) error {
 						if len(chain) == 0 {
 							return errExpecedChain
 						}
 
 						return nil
-					},
+					}),
 				},
 			},
 			"good_ca_custom_verify_peer": {
-				clientCfg: &Config{
-					RootCAs: caPool,
-					VerifyPeerCertificate: func([][]byte, [][]*x509.Certificate) error {
+				clientOpts: []ClientOption{
+					WithRootCAs(caPool),
+					WithVerifyPeerCertificate(func([][]byte, [][]*x509.Certificate) error {
 						return errWrongCert
-					},
+					}),
 				},
-				serverCfg: &Config{Certificates: []tls.Certificate{cert}, ClientAuth: NoClientCert},
-				wantErr:   true,
+				serverOpts: []ServerOption{WithCertificates(cert), WithClientAuth(NoClientCert)},
+				wantErr:    true,
 			},
 			"server_name": {
-				clientCfg: &Config{RootCAs: caPool, ServerName: certificate.Subject.CommonName},
-				serverCfg: &Config{Certificates: []tls.Certificate{cert}, ClientAuth: NoClientCert},
+				clientOpts: []ClientOption{WithRootCAs(caPool), WithServerName(certificate.Subject.CommonName)},
+				serverOpts: []ServerOption{WithCertificates(cert), WithClientAuth(NoClientCert)},
 			},
 			"server_name_error": {
-				clientCfg: &Config{RootCAs: caPool, ServerName: "barfoo"},
-				serverCfg: &Config{Certificates: []tls.Certificate{cert}, ClientAuth: NoClientCert},
-				wantErr:   true,
+				clientOpts: []ClientOption{WithRootCAs(caPool), WithServerName("barfoo")},
+				serverOpts: []ServerOption{WithCertificates(cert), WithClientAuth(NoClientCert)},
+				wantErr:    true,
 			},
 		}
 		for name, tt := range tests {
-			tt := tt
 			t.Run(name, func(t *testing.T) {
 				ca, cb := dpipe.Pipe()
 
@@ -1627,20 +1775,27 @@ func TestServerCertificate(t *testing.T) {
 				}
 				srvCh := make(chan result)
 				go func() {
-					s, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverCfg)
-					srvCh <- result{s, err, s.Handshake()}
+					s, err := ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), tt.serverOpts...)
+					var hsErr error
+					if err == nil {
+						hsErr = s.Handshake()
+					}
+					srvCh <- result{s, err, hsErr}
 				}()
 
-				cli, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientCfg)
-				hserr := cli.Handshake()
+				cli, err := ClientWithOptions(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), tt.clientOpts...)
+				var hserr error
+				if err == nil {
+					hserr = cli.Handshake()
+				}
 				if err == nil {
 					_ = cli.Close()
 				}
 				if !tt.wantErr && (err != nil || hserr != nil) {
-					t.Errorf("Client failed(%v, %v)", err, hserr)
+			t.Errorf("Client failed(%v, %v)", err, hserr)
 				}
 				if tt.wantErr && err == nil && hserr == nil {
-					t.Fatal("Error expected")
+			t.Fatal("Error expected")
 				}
 
 				srv := <-srvCh
@@ -1666,7 +1821,7 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 		WantSelectedCipherSuite CipherSuiteID
 	}{
 		{
-			Name:               "No CipherSuites specified",
+			Name:               "No cipherSuites specified",
 			ClientCipherSuites: nil,
 			ServerCipherSuites: nil,
 			WantClientError:    nil,
@@ -1680,7 +1835,7 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			WantServerError:    &invalidCipherSuiteError{0x00},
 		},
 		{
-			Name:                    "Valid CipherSuites specified",
+			Name:                    "Valid cipherSuites specified",
 			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
 			WantClientError:         nil,
@@ -1688,15 +1843,23 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 		},
 		{
-			Name:                    "Server supports subset of client suites",
-			ClientCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_PSK_WITH_AES_128_GCM_SHA256},
-			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			Name:               "cipherSuites mismatch",
+			ClientCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			ServerCipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256},
+			WantClientError:    &alertError{&alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}},
+			WantServerError:    dtlserrors.ErrCipherSuiteNoIntersection,
+		},
+		{
+			Name: "Server supports subset of client suites",
+			ClientCipherSuites: []CipherSuiteID{
+				TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+			},
+			ServerCipherSuites:      []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256},
 			WantClientError:         nil,
 			WantServerError:         nil,
-			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			WantSelectedCipherSuite: TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 		},
 	} {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -1709,15 +1872,19 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 			resultCh := make(chan result)
 
 			go func() {
-				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-					CipherSuites: test.ClientCipherSuites,
-				}, true)
+				var opts []ClientOption
+				if len(test.ClientCipherSuites) > 0 {
+					opts = append(opts, WithCipherSuites(test.ClientCipherSuites...))
+				}
+				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, true)
 				resultCh <- result{client, err}
 			}()
 
-			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-				CipherSuites: test.ServerCipherSuites,
-			}, true)
+			var opts []ServerOption
+			if len(test.ServerCipherSuites) > 0 {
+				opts = append(opts, WithCipherSuites(test.ServerCipherSuites...))
+			}
+			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), opts, true)
 			if err == nil {
 				defer func() {
 					_ = server.Close()
@@ -1736,16 +1903,12 @@ func TestCipherSuiteConfiguration(t *testing.T) {
 				_ = res.c.Close()
 			}
 			if !errors.Is(res.err, test.WantClientError) {
-				t.Errorf(
-					"TestSRTPConfiguration: Client Error Mismatch '%s': expected(%v) actual(%v)",
-					test.Name, test.WantClientError, res.err,
-				)
+				t.Errorf("TestCipherSuiteConfiguration: Client Error Mismatch '%s': expected %v, got %v", test.Name, test.WantClientError, res.err)
 			}
-			if test.WantSelectedCipherSuite != 0x00 && res.c.state.cipherSuite.ID() != test.WantSelectedCipherSuite {
-				t.Errorf(
-					"TestCipherSuiteConfiguration: Server Selected Bad Cipher Suite '%s': expected(%v) actual(%v)",
-					test.Name, test.WantSelectedCipherSuite, res.c.state.cipherSuite.ID(),
-				)
+			if test.WantSelectedCipherSuite != 0x00 {
+				if test.WantSelectedCipherSuite != res.c.state.CipherSuite.ID() {
+			t.Errorf("TestCipherSuiteConfiguration: Server Selected Bad Cipher Suite '%s': expected %v, got %v", test.Name, test.WantSelectedCipherSuite, res.c.state.CipherSuite.ID())
+				}
 			}
 		})
 	}
@@ -1765,11 +1928,10 @@ func TestCertificateAndPSKServer(t *testing.T) {
 			ClientPSK: false,
 		},
 		{
-			Name:      "Client uses PSK",
+			Name:      "Client uses psk",
 			ClientPSK: true,
 		},
 	} {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -1782,33 +1944,34 @@ func TestCertificateAndPSKServer(t *testing.T) {
 			resultCh := make(chan result)
 
 			go func() {
-				config := &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}}
+				opts := []ClientOption{WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)}
 				if test.ClientPSK {
-					config.PSK = func([]byte) ([]byte, error) {
-						return []byte{0x00, 0x01, 0x02}, nil
+					opts = []ClientOption{
+						WithPSK(func([]byte) ([]byte, error) {
+							return []byte{0x00, 0x01, 0x02}, nil
+						}),
+						WithPSKIdentityHint([]byte{0x00}),
+						WithCipherSuites(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
 					}
-					config.PSKIdentityHint = []byte{0x00}
-					config.CipherSuites = []CipherSuiteID{TLS_PSK_WITH_AES_128_GCM_SHA256}
 				}
 
-				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config, false)
+				client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, false)
 				resultCh <- result{client, err}
 			}()
 
-			config := &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_PSK_WITH_AES_128_GCM_SHA256},
-				PSK: func([]byte) ([]byte, error) {
+			opts := []ServerOption{
+				WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_PSK_WITH_CHACHA20_POLY1305_SHA256),
+				WithPSK(func([]byte) ([]byte, error) {
 					return []byte{0x00, 0x01, 0x02}, nil
-				},
+				}),
 			}
 
-			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, true)
-			if err == nil {
+			server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), opts, true)
+			if err != nil {
+				t.Errorf("TestCertificateAndPSKServer: Server Error Mismatch '%s': %v", test.Name, err)
 				defer func() {
 					_ = server.Close()
 				}()
-			} else {
-				t.Errorf("TestCertificateAndPSKServer: Server Error Mismatch '%s': expected(%v) actual(%v)", test.Name, nil, err)
 			}
 
 			res := <-resultCh
@@ -1842,48 +2005,48 @@ func TestPSKConfiguration(t *testing.T) {
 		WantServerError      error
 	}{
 		{
-			Name:                 "PSK and no certificate specified",
+			Name:                 "psk and no certificate specified",
 			ClientHasCertificate: false,
 			ServerHasCertificate: false,
 			ClientPSK:            func([]byte) ([]byte, error) { return []byte{0x00, 0x01, 0x02}, nil },
 			ServerPSK:            func([]byte) ([]byte, error) { return []byte{0x00, 0x01, 0x02}, nil },
 			ClientPSKIdentity:    []byte{0x00},
 			ServerPSKIdentity:    []byte{0x00},
-			WantClientError:      errNoAvailablePSKCipherSuite,
-			WantServerError:      errNoAvailablePSKCipherSuite,
+			WantClientError:      dtlserrors.ErrNoAvailablePSKCipherSuite,
+			WantServerError:      dtlserrors.ErrNoAvailablePSKCipherSuite,
 		},
 		{
-			Name:                 "PSK and certificate specified",
+			Name:                 "psk and certificate specified",
 			ClientHasCertificate: true,
 			ServerHasCertificate: true,
 			ClientPSK:            func([]byte) ([]byte, error) { return []byte{0x00, 0x01, 0x02}, nil },
 			ServerPSK:            func([]byte) ([]byte, error) { return []byte{0x00, 0x01, 0x02}, nil },
 			ClientPSKIdentity:    []byte{0x00},
 			ServerPSKIdentity:    []byte{0x00},
-			WantClientError:      errNoAvailablePSKCipherSuite,
-			WantServerError:      errNoAvailablePSKCipherSuite,
+			WantClientError:      dtlserrors.ErrNoAvailablePSKCipherSuite,
+			WantServerError:      dtlserrors.ErrNoAvailablePSKCipherSuite,
 		},
 		{
-			Name:                 "PSK and no identity specified",
+			Name:                 "psk and no identity specified",
 			ClientHasCertificate: false,
 			ServerHasCertificate: false,
 			ClientPSK:            func([]byte) ([]byte, error) { return []byte{0x00, 0x01, 0x02}, nil },
 			ServerPSK:            func([]byte) ([]byte, error) { return []byte{0x00, 0x01, 0x02}, nil },
 			ClientPSKIdentity:    nil,
 			ServerPSKIdentity:    nil,
-			WantClientError:      errPSKAndIdentityMustBeSetForClient,
-			WantServerError:      errNoAvailablePSKCipherSuite,
+			WantClientError:      dtlserrors.ErrPSKAndIdentityMustBeSetForClient,
+			WantServerError:      dtlserrors.ErrNoAvailablePSKCipherSuite,
 		},
 		{
-			Name:                 "No PSK and identity specified",
+			Name:                 "No psk and identity specified",
 			ClientHasCertificate: false,
 			ServerHasCertificate: false,
 			ClientPSK:            nil,
 			ServerPSK:            nil,
 			ClientPSKIdentity:    []byte{0x00},
 			ServerPSKIdentity:    []byte{0x00},
-			WantClientError:      errIdentityNoPSK,
-			WantServerError:      errIdentityNoPSK,
+			WantClientError:      dtlserrors.ErrIdentityNoPSK,
+			WantServerError:      dtlserrors.ErrIdentityNoPSK,
 		},
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1897,21 +2060,35 @@ func TestPSKConfiguration(t *testing.T) {
 		resultCh := make(chan result)
 
 		go func() {
+			var opts []ClientOption
+			if test.ClientPSK != nil {
+				opts = append(opts, WithPSK(test.ClientPSK))
+			}
+			if test.ClientPSKIdentity != nil {
+				opts = append(opts, WithPSKIdentityHint(test.ClientPSKIdentity))
+			}
 			client, err := testClient(
 				ctx,
 				dtlsnet.PacketConnFromConn(ca),
 				ca.RemoteAddr(),
-				&Config{PSK: test.ClientPSK, PSKIdentityHint: test.ClientPSKIdentity},
+				opts,
 				test.ClientHasCertificate,
 			)
 			resultCh <- result{client, err}
 		}()
 
+		var opts []ServerOption
+		if test.ServerPSK != nil {
+			opts = append(opts, WithPSK(test.ServerPSK))
+		}
+		if test.ServerPSKIdentity != nil {
+			opts = append(opts, WithPSKIdentityHint(test.ServerPSKIdentity))
+		}
 		_, err := testServer(
 			ctx,
 			dtlsnet.PacketConnFromConn(cb),
 			cb.RemoteAddr(),
-			&Config{PSK: test.ServerPSK, PSKIdentityHint: test.ServerPSKIdentity},
+			opts,
 			test.ServerHasCertificate,
 		)
 		if err != nil || test.WantServerError != nil {
@@ -2042,12 +2219,12 @@ func TestServerTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	config := &Config{
-		CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-		FlightInterval: 100 * time.Millisecond,
+	serverOpts := []ServerOption{
+		WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+		WithFlightInterval(100 * time.Millisecond),
 	}
 
-	_, serverErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, true)
+	_, serverErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), serverOpts, true)
 	var netErr net.Error
 	if !errors.As(serverErr, &netErr) || !netErr.Timeout() {
 		t.Fatalf("Client error exp(Temporary network error) failed(%v)", serverErr)
@@ -2079,9 +2256,13 @@ func TestProtocolVersionValidation(t *testing.T) {
 	var rand [28]byte
 	random := handshake.Random{GMTUnixTime: time.Unix(500, 0), RandomBytes: rand}
 
-	config := &Config{
-		CipherSuites:   []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-		FlightInterval: 100 * time.Millisecond,
+	clientOpts := []ClientOption{
+		WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+		WithFlightInterval(100 * time.Millisecond),
+	}
+	serverOpts := []ServerOption{
+		WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+		WithFlightInterval(100 * time.Millisecond),
 	}
 
 	t.Run("Server", func(t *testing.T) {
@@ -2144,13 +2325,12 @@ func TestProtocolVersionValidation(t *testing.T) {
 			},
 		}
 		for name, serverCase := range serverCases {
-			serverCase := serverCase
 			t.Run(name, func(t *testing.T) {
 				ca, cb := dpipe.Pipe()
 				defer func() {
 					err := ca.Close()
 					if err != nil {
-						t.Error(err)
+			t.Error(err)
 					}
 				}()
 
@@ -2162,14 +2342,15 @@ func TestProtocolVersionValidation(t *testing.T) {
 				defer wg.Wait()
 				go func() {
 					defer wg.Done()
-					if _, err := testServer(
+					_, err := testServer(
 						ctx,
 						dtlsnet.PacketConnFromConn(cb),
 						cb.RemoteAddr(),
-						config,
+						serverOpts,
 						true,
-					); !errors.Is(err, errUnsupportedProtocolVersion) {
-						t.Errorf("Client error exp(%v) failed(%v)", errUnsupportedProtocolVersion, err)
+					)
+					if !errors.Is(err, dtlserrors.ErrUnsupportedProtocolVersion) {
+			t.Errorf("expected %v, got %v", dtlserrors.ErrUnsupportedProtocolVersion, err)
 					}
 				}()
 
@@ -2179,24 +2360,24 @@ func TestProtocolVersionValidation(t *testing.T) {
 				for _, record := range serverCase.records {
 					packet, err := record.Marshal()
 					if err != nil {
-						t.Fatal(err)
+			t.Fatal(err)
 					}
 					if _, werr := ca.Write(packet); werr != nil {
-						t.Fatal(werr)
+			t.Fatal(werr)
 					}
 					n, rerr := ca.Read(resp[:cap(resp)])
 					if rerr != nil {
-						t.Fatal(rerr)
+			t.Fatal(rerr)
 					}
 					resp = resp[:n]
 				}
 
 				h := &recordlayer.Header{}
 				if err := h.Unmarshal(resp); err != nil {
-					t.Fatal("Failed to unmarshal response")
+			t.Fatal("Failed to unmarshal response")
 				}
 				if h.ContentType != protocol.ContentTypeAlert {
-					t.Errorf("Peer must return alert to unsupported protocol version")
+			t.Errorf("Peer must return alert to unsupported protocol version")
 				}
 			})
 		}
@@ -2240,13 +2421,12 @@ func TestProtocolVersionValidation(t *testing.T) {
 			},
 		}
 		for name, clientCase := range clientCases {
-			clientCase := clientCase
 			t.Run(name, func(t *testing.T) {
 				ca, cb := dpipe.Pipe()
 				defer func() {
 					err := ca.Close()
 					if err != nil {
-						t.Error(err)
+			t.Error(err)
 					}
 				}()
 
@@ -2258,10 +2438,9 @@ func TestProtocolVersionValidation(t *testing.T) {
 				defer wg.Wait()
 				go func() {
 					defer wg.Done()
-					if _, err := testClient(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, true); !errors.Is(
-						err, errUnsupportedProtocolVersion,
-					) {
-						t.Errorf("Server error exp(%v) failed(%v)", errUnsupportedProtocolVersion, err)
+					_, err := testClient(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), clientOpts, true)
+					if !errors.Is(err, dtlserrors.ErrUnsupportedProtocolVersion) {
+			t.Errorf("expected %v, got %v", dtlserrors.ErrUnsupportedProtocolVersion, err)
 					}
 				}()
 
@@ -2269,30 +2448,30 @@ func TestProtocolVersionValidation(t *testing.T) {
 
 				for _, record := range clientCase.records {
 					if _, err := ca.Read(make([]byte, 1024)); err != nil {
-						t.Fatal(err)
+			t.Fatal(err)
 					}
 
 					packet, err := record.Marshal()
 					if err != nil {
-						t.Fatal(err)
+			t.Fatal(err)
 					}
 					if _, err := ca.Write(packet); err != nil {
-						t.Fatal(err)
+			t.Fatal(err)
 					}
 				}
 				resp := make([]byte, 1024)
 				n, err := ca.Read(resp)
 				if err != nil {
-					t.Fatal(err)
+			t.Fatal(err)
 				}
 				resp = resp[:n]
 
 				h := &recordlayer.Header{}
 				if err := h.Unmarshal(resp); err != nil {
-					t.Fatal("Failed to unmarshal response")
+			t.Fatal("Failed to unmarshal response")
 				}
 				if h.ContentType != protocol.ContentTypeAlert {
-					t.Errorf("Peer must return alert to unsupported protocol version")
+			t.Errorf("Peer must return alert to unsupported protocol version")
 				}
 			})
 		}
@@ -2313,7 +2492,7 @@ func TestMultipleHelloVerifyRequest(t *testing.T) {
 		{},
 	}
 	var packets [][]byte
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		cookie := make([]byte, 20)
 		if _, err := rand.Read(cookie); err != nil {
 			t.Fatal(err)
@@ -2358,7 +2537,7 @@ func TestMultipleHelloVerifyRequest(t *testing.T) {
 	defer wg.Wait()
 	go func() {
 		defer wg.Done()
-		_, _ = testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{}, false)
+		_, _ = testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), nil, false)
 	}()
 
 	for i, cookie := range cookies {
@@ -2405,16 +2584,24 @@ func TestRenegotationInfo(t *testing.T) {
 	resp := make([]byte, 1024)
 
 	for _, testCase := range []struct {
-		Name                    string
-		ExpectRenegotiationInfo bool
+		Name                     string
+		ExpectRenegotiationInfo  bool
+		SendRenegotiationInfoExt bool
+		IncludeRenegotiationSCSV bool
 	}{
 		{
-			"Include RenegotiationInfo",
-			true,
+			Name:                     "Include RenegotiationInfo",
+			ExpectRenegotiationInfo:  true,
+			SendRenegotiationInfoExt: true,
 		},
 		{
-			"No RenegotiationInfo",
-			false,
+			Name:                     "RenegotiationInfo SCSV",
+			ExpectRenegotiationInfo:  true,
+			IncludeRenegotiationSCSV: true,
+		},
+		{
+			Name:                    "No RenegotiationInfo",
+			ExpectRenegotiationInfo: false,
 		},
 	} {
 		test := testCase
@@ -2422,37 +2609,41 @@ func TestRenegotationInfo(t *testing.T) {
 			ca, cb := dpipe.Pipe()
 			defer func() {
 				if err := ca.Close(); err != nil {
-					t.Error(err)
+			t.Error(err)
 				}
 			}()
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			go func() {
 				if _, err := testServer(
 					ctx,
 					dtlsnet.PacketConnFromConn(cb),
 					cb.RemoteAddr(),
-					&Config{},
+					nil,
 					true,
 				); !errors.Is(err, context.Canceled) {
-					t.Error(err)
+			t.Error(err)
 				}
 			}()
 
 			time.Sleep(50 * time.Millisecond)
 
 			extensions := []extension.Extension{}
-			if test.ExpectRenegotiationInfo {
+			if test.SendRenegotiationInfoExt {
 				extensions = append(extensions, &extension.RenegotiationInfo{
 					RenegotiatedConnection: 0,
 				})
 			}
-			err := sendClientHello([]byte{}, ca, 0, extensions)
+			cipherSuites := cipherSuiteIDs(defaultCipherSuites())
+			if test.IncludeRenegotiationSCSV {
+				cipherSuites = append(cipherSuites, renegotiationInfoSCSV)
+			}
+			err := sendClientHello([]byte{}, ca, 0, extensions, cipherSuites...)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			n, err := ca.Read(resp)
 			if err != nil {
 				t.Fatal(err)
@@ -2467,11 +2658,13 @@ func TestRenegotationInfo(t *testing.T) {
 				t.Fatal("Failed to cast MessageHelloVerifyRequest")
 			}
 
-			err = sendClientHello(helloVerifyRequest.Cookie, ca, 1, extensions)
+			err = sendClientHello(helloVerifyRequest.Cookie, ca, 1, extensions, cipherSuites...)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if n, err = ca.Read(resp); err != nil {
+
+			n, err = ca.Read(resp)
+			if err != nil {
 				t.Fatal(err)
 			}
 
@@ -2497,7 +2690,7 @@ func TestRenegotationInfo(t *testing.T) {
 			}
 
 			if test.ExpectRenegotiationInfo != actualNegotationInfo {
-				t.Fatal(fmt.Sprintf(
+				t.Fatalf("%s", fmt.Sprintf(
 					"NegotationInfo state in ServerHello is incorrect: expected(%t) actual(%t)",
 					test.ExpectRenegotiationInfo, actualNegotationInfo))
 			}
@@ -2516,41 +2709,38 @@ func TestServerNameIndicationExtension(t *testing.T) {
 
 	for _, test := range []struct {
 		Name       string
-		ServerName string
+		serverName string
 		Expected   []byte
 		IncludeSNI bool
 	}{
 		{
 			Name:       "Server name is a valid hostname",
-			ServerName: "example.com",
+			serverName: "example.com",
 			Expected:   []byte("example.com"),
 			IncludeSNI: true,
 		},
 		{
 			Name:       "Server name is an IP literal",
-			ServerName: "1.2.3.4",
+			serverName: "1.2.3.4",
 			Expected:   []byte(""),
 			IncludeSNI: false,
 		},
 		{
 			Name:       "Server name is empty",
-			ServerName: "",
+			serverName: "",
 			Expected:   []byte(""),
 			IncludeSNI: false,
 		},
 	} {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			ca, cb := dpipe.Pipe()
 			go func() {
-				conf := &Config{
-					ServerName: test.ServerName,
-				}
-
-				_, _ = testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, false)
+				_, _ = testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{
+					WithServerName(test.serverName),
+				}, false)
 			}()
 
 			// Receive ClientHello
@@ -2576,7 +2766,7 @@ func TestServerNameIndicationExtension(t *testing.T) {
 					gotSNI = true
 					extensionServerName, ok := v.(*extension.ServerName)
 					if !ok {
-						t.Fatal("Failed to cast extension.ServerName")
+			t.Fatal("Failed to cast extension.ServerName")
 					}
 
 					actualServerName = extensionServerName.ServerName
@@ -2658,17 +2848,17 @@ func TestALPNExtension(t *testing.T) {
 			Alert:                  alert.InternalError,
 		},
 	} {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			ca, cb := dpipe.Pipe()
 			go func() {
-				conf := &Config{
-					SupportedProtocols: test.ClientProtocolNameList,
+				var opts []ClientOption
+				if len(test.ClientProtocolNameList) > 0 {
+					opts = append(opts, WithSupportedProtocols(test.ClientProtocolNameList...))
 				}
-				_, _ = testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), conf, false)
+				_, _ = testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, false)
 			}()
 
 			// Receive ClientHello
@@ -2683,16 +2873,14 @@ func TestALPNExtension(t *testing.T) {
 
 			ca2, cb2 := dpipe.Pipe()
 			go func() {
-				conf := &Config{
-					SupportedProtocols: test.ServerProtocolNameList,
+				var opts []ServerOption
+				if len(test.ServerProtocolNameList) > 0 {
+					opts = append(opts, WithSupportedProtocols(test.ServerProtocolNameList...))
 				}
-				if _, err2 := testServer(ctx2, dtlsnet.PacketConnFromConn(cb2), cb2.RemoteAddr(), conf, true); !errors.Is(
-					err2, context.Canceled,
-				) {
-					if test.ExpectAlertFromServer {
-						// Assert the error type?
-					} else {
-						t.Error(err2)
+				_, err2 := testServer(ctx2, dtlsnet.PacketConnFromConn(cb2), cb2.RemoteAddr(), opts, true)
+				if test.ExpectAlertFromServer {
+					if errors.Is(err2, context.Canceled) {
+			t.Errorf("expected non-Canceled error, got %v", err2)
 					}
 				}
 			}()
@@ -2748,16 +2936,16 @@ func TestALPNExtension(t *testing.T) {
 			if test.ExpectAlertFromServer {
 				a, ok := record.Content.(*alert.Alert)
 				if !ok {
-					t.Fatal("Failed to cast alert.Alert")
+			t.Fatal("Failed to cast alert.Alert")
 				}
 
 				if a.Description != test.Alert {
-					t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.Alert, a.Description)
+			t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.Alert, a.Description)
 				}
 			} else {
 				serverHello, ok := record.Content.(*handshake.Handshake).Message.(*handshake.MessageServerHello)
 				if !ok {
-					t.Fatal("Failed to cast handshake.MessageServerHello")
+			t.Fatal("Failed to cast handshake.MessageServerHello")
 				}
 
 				var negotiatedProtocol string
@@ -2765,7 +2953,7 @@ func TestALPNExtension(t *testing.T) {
 					if _, ok := v.(*extension.ALPN); ok {
 						e, ok := v.(*extension.ALPN)
 						if !ok {
-							t.Fatal("Failed to cast extension.ALPN")
+			t.Fatal("Failed to cast extension.ALPN")
 						}
 
 						negotiatedProtocol = e.ProtocolNameList[0]
@@ -2778,38 +2966,38 @@ func TestALPNExtension(t *testing.T) {
 				}
 
 				if negotiatedProtocol != test.ExpectedProtocol {
-					t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.ExpectedProtocol, negotiatedProtocol)
+			t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.ExpectedProtocol, negotiatedProtocol)
 				}
 
 				s, err := record.Marshal()
 				if err != nil {
-					t.Fatal(err)
+			t.Fatal(err)
 				}
 
 				// Forward ServerHello
 				if _, err = cb.Write(s); err != nil {
-					t.Fatal(err)
+			t.Fatal(err)
 				}
 
 				if test.ExpectAlertFromClient {
 					resp5 := make([]byte, 1024)
 					n, err = cb.Read(resp5)
 					if err != nil {
-						t.Fatal(err)
+			t.Fatal(err)
 					}
 
 					r2 := &recordlayer.RecordLayer{}
 					if err := r2.Unmarshal(resp5[:n]); err != nil {
-						t.Fatal(err)
+			t.Fatal(err)
 					}
 
 					a, ok := r2.Content.(*alert.Alert)
 					if !ok {
-						t.Fatal("Failed to cast alert.Alert")
+			t.Fatal("Failed to cast alert.Alert")
 					}
 
 					if a.Description != test.Alert {
-						t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.Alert, a.Description)
+			t.Errorf("ALPN %v: expected(%v) actual(%v)", test.Name, test.Alert, a.Description)
 					}
 				}
 			}
@@ -2835,10 +3023,9 @@ func TestSupportedGroupsExtension(t *testing.T) {
 
 		ca, cb := dpipe.Pipe()
 		go func() {
-			if _, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{}, true); !errors.Is(
-				err, context.Canceled,
-			) {
-				t.Error(err)
+			_, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), nil, true)
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("expected context.Canceled, got %v", err)
 			}
 		}()
 		extensions := []extension.Extension{
@@ -2942,25 +3129,25 @@ func TestSessionResume(t *testing.T) {
 		_ = ss.Set([]byte(ca.RemoteAddr().String()+"_example.com"), s)
 
 		go func() {
-			config := &Config{
-				CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-				ServerName:   "example.com",
-				SessionStore: ss,
-				MTU:          100,
+			opts := []ClientOption{
+				WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+				WithServerName("example.com"),
+				WithSessionStore(ss),
+				WithMTU(100),
 			}
-			c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config, false)
+			c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, false)
 			clientRes <- result{c, err}
 		}()
 
-		config := &Config{
-			CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
-			ServerName:   "example.com",
-			SessionStore: ss,
-			MTU:          100,
+		opts := []ServerOption{
+			WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+			WithServerName("example.com"),
+			WithSessionStore(ss),
+			WithMTU(100),
 		}
-		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, true)
+		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), opts, true)
 		if err != nil {
-			t.Fatalf("TestSessionResume: Server failed(%v)", err)
+			t.Fatal(err)
 		}
 
 		state, ok := server.ConnectionState()
@@ -3002,20 +3189,19 @@ func TestSessionResume(t *testing.T) {
 
 		ca, cb := dpipe.Pipe()
 		go func() {
-			config := &Config{
-				ServerName:   "example.com",
-				SessionStore: s1,
+			opts := []ClientOption{
+				WithServerName("example.com"),
+				WithSessionStore(s1),
 			}
-			c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config, false)
+			c, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, false)
 			clientRes <- result{c, err}
 		}()
 
-		config := &Config{
-			SessionStore: s2,
-		}
-		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), config, true)
+		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+			WithSessionStore(s2),
+		}, true)
 		if err != nil {
-			t.Fatalf("TestSessionResumetion: Server failed(%v)", err)
+			t.Fatal(err)
 		}
 
 		state, ok := server.ConnectionState()
@@ -3117,17 +3303,16 @@ func TestMultipleServerCertificates(t *testing.T) {
 			"foo",
 		},
 	} {
-		test := test
 		t.Run(test.RequestServerName, func(t *testing.T) {
 			clientErr := make(chan error, 2)
 			client := make(chan *Conn, 1)
 
 			ca, cb := dpipe.Pipe()
 			go func() {
-				clientConn, err := testClient(context.TODO(), dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-					RootCAs:    caPool,
-					ServerName: test.RequestServerName,
-					VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+				clientConn, err := testClient(context.TODO(), dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{
+					WithRootCAs(caPool),
+					WithServerName(test.RequestServerName),
+					WithVerifyPeerCertificate(func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 						certificate, err := x509.ParseCertificate(rawCerts[0])
 						if err != nil {
 							return err
@@ -3138,24 +3323,26 @@ func TestMultipleServerCertificates(t *testing.T) {
 						}
 
 						return nil
-					},
+					}),
 				}, false)
 				clientErr <- err
 				client <- clientConn
 			}()
 
-			if s, err := testServer(context.TODO(), dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-				Certificates: []tls.Certificate{fooCert, barCert},
-			}, false); err != nil {
-				t.Fatal(err)
-			} else if err = s.Close(); err != nil {
-				t.Fatal(err)
+			s, err := testServer(context.TODO(), dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+				WithCertificates(fooCert, barCert),
+			}, false)
+			if err != nil {
+				t.Fatalf("unexpected server error: %v", err)
 			}
-
-			if c, err := <-client, <-clientErr; err != nil {
-				t.Fatal(err)
-			} else if err := c.Close(); err != nil {
-				t.Fatal(err)
+			if clientErrVal := <-clientErr; clientErrVal != nil {
+				t.Fatalf("unexpected client error: %v", clientErrVal)
+			}
+			if err := s.Close(); err != nil {
+				t.Fatalf("unexpected error closing server: %v", err)
+			}
+			if err := (<-client).Close(); err != nil {
+				t.Fatalf("unexpected error closing client: %v", err)
 			}
 		})
 	}
@@ -3198,34 +3385,39 @@ func TestEllipticCurveConfiguration(t *testing.T) {
 		resultCh := make(chan result)
 
 		go func() {
-			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}, EllipticCurves: test.ConfigCurves}, true)
+			opts := []ClientOption{WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)}
+			if len(test.ConfigCurves) > 0 {
+				opts = append(opts, WithEllipticCurves(test.ConfigCurves...))
+			}
+			client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), opts, true)
 			resultCh <- result{client, err}
 		}()
 
-		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{CipherSuites: []CipherSuiteID{TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}, EllipticCurves: test.ConfigCurves}, true)
+		opts := []ServerOption{WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)}
+		if len(test.ConfigCurves) > 0 {
+			opts = append(opts, WithEllipticCurves(test.ConfigCurves...))
+		}
+		server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), opts, true)
 		if err != nil {
-			t.Fatalf("Server error: %v", err)
+			t.Fatalf("unexpected server error: %v", err)
 		}
 
-		if len(test.ConfigCurves) == 0 && len(test.HandshakeCurves) != len(server.fsm.cfg.ellipticCurves) {
+		if len(test.ConfigCurves) == 0 && len(test.HandshakeCurves) != len(server.handshakeConfig.EllipticCurves) {
 			t.Fatalf(
 				"Failed to default Elliptic curves, expected %d, got: %d",
 				len(test.HandshakeCurves),
-				len(server.fsm.cfg.ellipticCurves),
+				len(server.handshakeConfig.EllipticCurves),
 			)
 		}
 
 		if len(test.ConfigCurves) != 0 {
-			if len(test.HandshakeCurves) != len(server.fsm.cfg.ellipticCurves) {
-				t.Fatalf(
-					"Failed to configure Elliptic curves, expect %d, got %d",
-					len(test.HandshakeCurves),
-					len(server.fsm.cfg.ellipticCurves),
-				)
+			if len(test.HandshakeCurves) != len(server.handshakeConfig.EllipticCurves) {
+				t.Errorf("Failed to configure Elliptic curves: expected %d, got %d", len(test.HandshakeCurves), len(server.handshakeConfig.EllipticCurves))
 			}
+
 			for i, c := range test.ConfigCurves {
-				if c != server.fsm.cfg.ellipticCurves[i] {
-					t.Fatalf("Failed to maintain Elliptic curve order, expected %s, got %s", c, server.fsm.cfg.ellipticCurves[i])
+				if c != server.handshakeConfig.EllipticCurves[i] {
+			t.Errorf("Failed to maintain Elliptic curve order: expected %v, got %v", c, server.handshakeConfig.EllipticCurves[i])
 				}
 			}
 		}
@@ -3262,10 +3454,10 @@ func TestSkipHelloVerify(t *testing.T) {
 	gotHello := make(chan struct{})
 
 	go func() {
-		server, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-			Certificates:            []tls.Certificate{certificate},
-			LoggerFactory:           logging.NewDefaultLoggerFactory(),
-			InsecureSkipVerifyHello: true,
+		server, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+			WithCertificates(certificate),
+			WithLoggerFactory(logging.NewDefaultLoggerFactory()),
+			WithInsecureSkipVerifyHello(true),
 		}, false)
 		if sErr != nil {
 			t.Error(sErr)
@@ -3282,9 +3474,9 @@ func TestSkipHelloVerify(t *testing.T) {
 		}
 	}()
 
-	client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-		LoggerFactory:      logging.NewDefaultLoggerFactory(),
-		InsecureSkipVerify: true,
+	client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{
+		WithLoggerFactory(logging.NewDefaultLoggerFactory()),
+		WithInsecureSkipVerify(true),
 	}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -3335,28 +3527,26 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
+		var dconn *Conn
 		serverCert, err := selfsign.GenerateSelfSigned()
 		if err != nil {
 			t.Error(err)
-
 			return
 		}
-		cfg := &Config{}
-		cfg.Certificates = []tls.Certificate{serverCert}
 
-		dconn, err := createConn(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), cfg, false, nil)
+		dconn, err = ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), WithCertificates(serverCert))
 		if err != nil {
-			t.Error(err)
-
+			t.Errorf("unexpected error: %v", err)
 			return
 		}
+
 		go func() {
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				dconn.lock.RLock()
 				qlen := len(dconn.encryptedPackets)
 				dconn.lock.RUnlock()
 				if qlen > maxAppDataPacketQueueSize {
-					t.Error("too many encrypted packets enqueued", len(dconn.encryptedPackets))
+			t.Error("too many encrypted packets enqueued", len(dconn.encryptedPackets))
 				}
 				time.Sleep(1 * time.Second)
 			}
@@ -3377,7 +3567,7 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		// Send an application data packet
 		packet, err := (&recordlayer.RecordLayer{
 			Header: recordlayer.Header{
@@ -3399,7 +3589,13 @@ func TestApplicationDataQueueLimited(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second)
 	ca.Close()
-	<-done
+
+	select {
+	case <-done:
+		// Goroutine completed successfully
+	case <-time.After(15 * time.Second):
+		t.Error("test timed out waiting for server handshake to complete")
+	}
 }
 
 func TestHelloRandom(t *testing.T) {
@@ -3422,19 +3618,19 @@ func TestHelloRandom(t *testing.T) {
 	}
 
 	go func() {
-		server, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-			GetCertificate: func(chi *ClientHelloInfo) (*tls.Certificate, error) {
+		server, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+			WithGetCertificate(func(chi *ClientHelloInfo) (*tls.Certificate, error) {
 				if len(chi.CipherSuites) == 0 {
 					return &certificate, nil
 				}
 
 				if !bytes.Equal(chi.RandomBytes[:], chRandom[:]) {
-					t.Error("client hello random differs")
+			t.Error("client hello random differs")
 				}
 
 				return &certificate, nil
-			},
-			LoggerFactory: logging.NewDefaultLoggerFactory(),
+			}),
+			WithLoggerFactory(logging.NewDefaultLoggerFactory()),
 		}, false)
 		if sErr != nil {
 			t.Error(sErr)
@@ -3451,12 +3647,12 @@ func TestHelloRandom(t *testing.T) {
 		}
 	}()
 
-	client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-		LoggerFactory: logging.NewDefaultLoggerFactory(),
-		HelloRandomBytesGenerator: func() [handshake.RandomBytesLength]byte {
+	client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{
+		WithLoggerFactory(logging.NewDefaultLoggerFactory()),
+		WithHelloRandomBytesGenerator(func() [handshake.RandomBytesLength]byte {
 			return chRandom
-		},
-		InsecureSkipVerify: true,
+		}),
+		WithInsecureSkipVerify(true),
 	}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -3485,43 +3681,32 @@ func TestOnConnectionAttempt(t *testing.T) {
 	ca, cb := dpipe.Pipe()
 	clientErr := make(chan error, 1)
 	go func() {
-		_, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-			OnConnectionAttempt: func(in net.Addr) error {
-				clientOnConnectionAttempt.Store(1)
-				if in == nil {
-					t.Fatal("net.Addr is nil")
-				}
-
-				return nil
-			},
-		}, true)
+		_, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), nil, true)
 		clientErr <- err
 	}()
 
-	expectedErr := &FatalError{}
-	if _, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-		OnConnectionAttempt: func(in net.Addr) error {
+	expectedErr := errConnectionAttemptFailed
+	_, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+		WithOnConnectionAttempt(func(in net.Addr) error {
 			serverOnConnectionAttempt.Store(1)
 			if in == nil {
 				t.Fatal("net.Addr is nil")
 			}
 
 			return expectedErr
-		},
-	}, true); !errors.Is(err, expectedErr) {
-		t.Fatal(err)
+		}),
+	}, true)
+	if !errors.Is(err, expectedErr) {
+		t.Errorf("expected %v, got %v", expectedErr, err)
 	}
-
-	if err := <-clientErr; err == nil {
-		t.Fatal(err)
+	if clientErrVal := <-clientErr; clientErrVal == nil {
+		t.Error("expected client error")
 	}
-
-	if v := serverOnConnectionAttempt.Load(); v != 1 {
-		t.Fatal("OnConnectionAttempt did not fire for server")
+	if serverOnConnectionAttempt.Load() != int32(1) {
+		t.Errorf("onConnectionAttempt did not fire for server: got %d", serverOnConnectionAttempt.Load())
 	}
-
-	if v := clientOnConnectionAttempt.Load(); v != 0 {
-		t.Fatal("OnConnectionAttempt fired for client")
+	if clientOnConnectionAttempt.Load() != int32(0) {
+		t.Errorf("onConnectionAttempt fired for client: got %d", clientOnConnectionAttempt.Load())
 	}
 }
 
@@ -3553,16 +3738,19 @@ func TestConnectionState(t *testing.T) {
 	ca, cb := dpipe.Pipe()
 
 	// Setup client
-	clientCfg := &Config{}
 	clientCert, err := selfsign.GenerateSelfSigned()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
 	}
-	clientCfg.Certificates = []tls.Certificate{clientCert}
-	clientCfg.InsecureSkipVerify = true
-	client, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), clientCfg)
+
+	client, err := ClientWithOptions(
+		dtlsnet.PacketConnFromConn(ca),
+		ca.RemoteAddr(),
+		WithCertificates(clientCert),
+		WithInsecureSkipVerify(true),
+	)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ClientWithOptions failed: %v", err)
 	}
 	defer func() {
 		_ = client.Close()
@@ -3582,10 +3770,11 @@ func TestConnectionState(t *testing.T) {
 	}()
 
 	// Setup server
-	server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{}, true)
+	server, err := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), nil, true)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("testServer failed: %v", err)
 	}
+
 	defer func() {
 		_ = server.Close()
 	}()
@@ -3608,13 +3797,12 @@ func TestMultiHandshake(t *testing.T) {
 	ca, cb := dpipe.Pipe()
 	serverCert, err := selfsign.GenerateSelfSigned()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
 	}
-	server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-		Certificates: []tls.Certificate{serverCert},
-	})
+
+	server, err := ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), WithCertificates(serverCert))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ServerWithOptions failed: %v", err)
 	}
 
 	go func() {
@@ -3623,29 +3811,24 @@ func TestMultiHandshake(t *testing.T) {
 
 	clientCert, err := selfsign.GenerateSelfSigned()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
 	}
-	client, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-		Certificates: []tls.Certificate{clientCert},
-	})
+
+	client, err := ClientWithOptions(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), WithCertificates(clientCert))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ClientWithOptions failed: %v", err)
 	}
-
-	if err = client.Handshake(); err == nil {
-		t.Fatal(err)
+	if err := client.Handshake(); err == nil {
+		t.Error("client.Handshake should have failed")
 	}
-
-	if err = client.Handshake(); err == nil {
-		t.Fatal(err)
+	if err := client.Handshake(); err == nil {
+		t.Error("client.Handshake should have failed")
 	}
-
-	if err = server.Close(); err != nil {
-		t.Fatal(err)
+	if err := server.Close(); err != nil {
+		t.Fatalf("server.Close failed: %v", err)
 	}
-
-	if err = client.Close(); err != nil {
-		t.Fatal(err)
+	if err := client.Close(); err != nil {
+		t.Fatalf("client.Close failed: %v", err)
 	}
 }
 
@@ -3658,13 +3841,11 @@ func TestCloseDuringHandshake(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		_, cb := dpipe.Pipe()
-		server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-			Certificates: []tls.Certificate{serverCert},
-		})
+		server, err := ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), WithCertificates(serverCert))
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("ServerWithOptions failed: %v", err)
 		}
 
 		waitChan := make(chan struct{})
@@ -3689,13 +3870,232 @@ func TestCloseWithoutHandshake(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, cb := dpipe.Pipe()
-	server, err := Server(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-		Certificates: []tls.Certificate{serverCert},
-	})
+	server, err := ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), WithCertificates(serverCert))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ServerWithOptions failed: %v", err)
 	}
-	if err = server.Close(); err != nil {
-		t.Fatal(err)
+	if err := server.Close(); err != nil {
+		t.Fatalf("server.Close failed: %v", err)
+	}
+}
+
+// WIP! Tests if DTLS 1.3 handshake flow is enabled and the correct error is returned.
+func TestDTLS13Enabled(t *testing.T) {
+	ca, cb := dpipe.Pipe()
+
+	// Setup client
+	clientCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
+	}
+
+	client, err := ClientWithOptions(
+		dtlsnet.PacketConnFromConn(ca),
+		ca.RemoteAddr(),
+		WithCertificates(clientCert),
+		WithInsecureSkipVerify(true),
+		WithMinVersion(protocol.Version1_3),
+		WithMaxVersion(protocol.Version1_3),
+	)
+	if err != nil {
+		t.Fatalf("ClientWithOptions failed: %v", err)
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	_, ok := client.ConnectionState()
+	if ok {
+		t.Errorf("ConnectionState should be false, got true")
+	}
+
+	ctxClient, cancelClient := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelClient()
+	errorChannel := make(chan error)
+	go func() {
+		errC := client.HandshakeContext(ctxClient)
+		errorChannel <- errC
+	}()
+
+	err = <-errorChannel
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if !errors.Is(err, dtlserrors.ErrStateUnimplemented13) {
+		t.Errorf("expected ErrStateUnimplemented13, got %v", err)
+	}
+
+	// Setup server
+	serverCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
+	}
+
+	server, err := ServerWithOptions(
+		dtlsnet.PacketConnFromConn(cb),
+		cb.RemoteAddr(),
+		WithCertificates(serverCert),
+		WithInsecureSkipVerify(true),
+		WithMinVersion(protocol.Version1_3),
+		WithMaxVersion(protocol.Version1_3),
+	)
+	if err != nil {
+		t.Fatalf("ServerWithOptions failed: %v", err)
+	}
+	defer func() {
+		_ = server.Close()
+	}()
+
+	_, ok = server.ConnectionState()
+	if ok {
+		t.Errorf("ConnectionState should be false, got true")
+	}
+
+	ctxServer, cancelServer := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelServer()
+	go func() {
+		errS := server.HandshakeContext(ctxServer)
+		errorChannel <- errS
+	}()
+	err = <-errorChannel
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if !errors.Is(err, dtlserrors.ErrStateUnimplemented13) {
+		t.Errorf("expected ErrStateUnimplemented13, got %v", err)
+	}
+}
+
+// WIP! Tests if the dual stack mode client managed to negotiate a version successfully.
+func TestDTLSDualStackClient(t *testing.T) {
+	defer test.CheckRoutines(t)()
+	defer test.TimeOut(time.Second * 10).Stop()
+
+	// Setup client
+	clientCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
+	}
+
+	clientOpts := []ClientOption{
+		WithCertificates(clientCert),
+		WithInsecureSkipVerify(true),
+		WithMinVersion(protocol.Version1_2),
+		WithMaxVersion(protocol.Version1_3),
+	}
+
+	// Setup server
+	serverCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
+	}
+
+	serverOpts := []ServerOption{
+		WithCertificates(serverCert),
+		WithInsecureSkipVerify(true),
+		WithMinVersion(protocol.Version1_2),
+		WithMaxVersion(protocol.Version1_2),
+	}
+
+	testDTLSDualStack(t, clientOpts, serverOpts)
+}
+
+// WIP! Tests if the dual stack mode server managed to negotiate a version successfully.
+func TestDTLSDualStackServer(t *testing.T) {
+	defer test.CheckRoutines(t)()
+	defer test.TimeOut(time.Second * 10).Stop()
+
+	// Setup client
+	clientCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
+	}
+
+	clientOpts := []ClientOption{
+		WithCertificates(clientCert),
+		WithInsecureSkipVerify(true),
+		WithMinVersion(protocol.Version1_2),
+		WithMaxVersion(protocol.Version1_2),
+	}
+
+	// Setup server
+	serverCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned failed: %v", err)
+	}
+
+	serverOpts := []ServerOption{
+		WithCertificates(serverCert),
+		WithInsecureSkipVerify(true),
+		WithMinVersion(protocol.Version1_2),
+		WithMaxVersion(protocol.Version1_3),
+	}
+
+	testDTLSDualStack(t, clientOpts, serverOpts)
+}
+
+// WIP! Tests if the dual stack mode managed to negotiate a version successfully.
+func testDTLSDualStack(t *testing.T, clientOpts []ClientOption, serverOpts []ServerOption) {
+	t.Helper()
+	ca, cb := dpipe.Pipe()
+
+	client, err := ClientWithOptions(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), clientOpts...)
+	if err != nil {
+		t.Fatalf("ClientWithOptions failed: %v", err)
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	_, ok := client.ConnectionState()
+	if ok {
+		t.Errorf("ConnectionState should be false, got true")
+	}
+
+	ctxClient, cancelClient := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelClient()
+	errorChannel := make(chan error, 2)
+
+	server, err := ServerWithOptions(dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), serverOpts...)
+	if err != nil {
+		t.Fatalf("ServerWithOptions failed: %v", err)
+	}
+	defer func() {
+		_ = server.Close()
+	}()
+
+	_, ok = server.ConnectionState()
+	if ok {
+		t.Errorf("ConnectionState should be false, got true")
+	}
+
+	ctxServer, cancelServer := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelServer()
+
+	go func() {
+		errC := client.HandshakeContext(ctxClient)
+		errorChannel <- errC
+	}()
+
+	go func() {
+		errS := server.HandshakeContext(ctxServer)
+		errorChannel <- errS
+	}()
+
+	err = <-errorChannel
+	if err != nil {
+		t.Fatalf("first handshake failed: %v", err)
+	}
+
+	err = <-errorChannel
+	if err != nil {
+		t.Fatalf("second handshake failed: %v", err)
+	}
+
+	if err := server.Close(); err != nil {
+		t.Fatalf("server.Close failed: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("client.Close failed: %v", err)
 	}
 }

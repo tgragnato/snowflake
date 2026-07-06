@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package extension
@@ -6,6 +6,7 @@ package extension
 import (
 	"encoding/binary"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 )
 
@@ -17,6 +18,9 @@ const (
 // what curves they both support
 //
 // https://tools.ietf.org/html/rfc8422#section-5.1.1
+//
+// In DTLS 1.3, this extension in renamed to "supported_groups".
+// https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.7
 type SupportedEllipticCurves struct {
 	EllipticCurves []elliptic.Curve
 }
@@ -44,18 +48,25 @@ func (s *SupportedEllipticCurves) Marshal() ([]byte, error) {
 
 // Unmarshal populates the extension from encoded data.
 func (s *SupportedEllipticCurves) Unmarshal(data []byte) error {
-	if len(data) <= supportedGroupsHeaderSize {
-		return errBufferTooSmall
-	} else if TypeValue(binary.BigEndian.Uint16(data)) != s.TypeValue() {
-		return errInvalidExtensionType
+	if len(data) < supportedGroupsHeaderSize {
+		return dtlserrors.ErrBufferTooSmall
 	}
 
+	declaredLength := int(binary.BigEndian.Uint16(data[2:4]))
 	groupCount := int(binary.BigEndian.Uint16(data[4:]) / 2)
-	if supportedGroupsHeaderSize+(groupCount*2) > len(data) {
-		return errLengthMismatch
+
+	switch {
+	case TypeValue(binary.BigEndian.Uint16(data)) != s.TypeValue():
+		return dtlserrors.ErrInvalidExtensionType
+	case declaredLength > len(data)-4: // type + declared length = 4
+		return dtlserrors.ErrLengthMismatch
+	case supportedGroupsHeaderSize+(groupCount*2) > len(data):
+		return dtlserrors.ErrLengthMismatch
+	case groupCount*2+2 != declaredLength:
+		return dtlserrors.ErrLengthMismatch
 	}
 
-	for i := 0; i < groupCount; i++ {
+	for i := range groupCount {
 		supportedGroupID := elliptic.Curve(binary.BigEndian.Uint16(data[(supportedGroupsHeaderSize + (i * 2)):]))
 		if _, ok := elliptic.Curves()[supportedGroupID]; ok {
 			s.EllipticCurves = append(s.EllipticCurves, supportedGroupID)

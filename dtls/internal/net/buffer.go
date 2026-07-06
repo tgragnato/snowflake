@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package net implements DTLS specific networking primitives.
@@ -14,18 +14,18 @@ package net
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/pion/transport/v3/deadline"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
+	"github.com/pion/transport/v4/deadline"
 )
 
 // ErrTimeout indicates that deadline was reached before operation could be
 // completed.
-var ErrTimeout = errors.New("buffer: i/o timeout")
+var ErrTimeout = dtlserrors.ErrNetBufferTimeout
 
 // AddrPacket is a packet payload and the associated remote address from which
 // it was received.

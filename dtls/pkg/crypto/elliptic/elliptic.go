@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package elliptic provides elliptic curve cryptography for DTLS
@@ -6,12 +6,29 @@ package elliptic
 
 import (
 	"crypto/ecdh"
+	"crypto/mlkem"
 	"crypto/rand"
-	"errors"
 	"fmt"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 )
 
-var errInvalidNamedCurve = errors.New("invalid named curve")
+// X25519KeySize is the size in bytes of an X25519 public key, private key, or
+// shared secret.
+const X25519KeySize = 32
+
+const (
+	// X25519MLKEM768ClientPublicKeySize is the encoded client key share size.
+	X25519MLKEM768ClientPublicKeySize = mlkem.EncapsulationKeySize768 + X25519KeySize
+	// X25519MLKEM768ServerPublicKeySize is the encoded server key share size.
+	X25519MLKEM768ServerPublicKeySize = mlkem.CiphertextSize768 + X25519KeySize
+	// X25519MLKEM768ClientPrivateKeySize is the encoded client private key size.
+	X25519MLKEM768ClientPrivateKeySize = mlkem.SeedSize + X25519KeySize
+	// X25519MLKEM768ServerPrivateKeySize is the encoded server private key size.
+	X25519MLKEM768ServerPrivateKeySize = mlkem.SharedKeySize + X25519KeySize
+	// X25519MLKEM768SharedSecretSize is the hybrid shared secret size.
+	X25519MLKEM768SharedSecretSize = mlkem.SharedKeySize + X25519KeySize
+)
 
 // CurvePointFormat is used to represent the IANA registered curve points
 //
@@ -27,7 +44,7 @@ const (
 type Keypair struct {
 	Curve      Curve
 	PublicKey  []byte
-	PrivateKey []byte
+	PrivateKey []byte // no real risk of exporting the private key.
 }
 
 // CurveType is used to represent the IANA registered curve types for TLS
@@ -54,8 +71,10 @@ type Curve uint16
 
 // Curve enums.
 const (
-	P384   Curve = 0x0018
-	X25519 Curve = 0x001d
+	P256           Curve = 0x0017
+	P384           Curve = 0x0018
+	X25519         Curve = 0x001d
+	X25519MLKEM768 Curve = 0x11ec
 )
 
 func (c Curve) String() string {
@@ -64,6 +83,8 @@ func (c Curve) String() string {
 		return "P-384"
 	case X25519:
 		return "X25519"
+	case X25519MLKEM768:
+		return "X25519MLKEM768"
 	}
 
 	return fmt.Sprintf("%#x", uint16(c))
@@ -72,13 +93,34 @@ func (c Curve) String() string {
 // Curves returns all curves we implement.
 func Curves() map[Curve]bool {
 	return map[Curve]bool{
-		X25519: true,
-		P384:   true,
+		X25519:         true,
+		P256:           true,
+		P384:           true,
+		X25519MLKEM768: true,
 	}
 }
 
 // GenerateKeypair generates a keypair for the given Curve.
 func GenerateKeypair(curve Curve) (*Keypair, error) {
+	if curve == X25519MLKEM768 {
+		return generateX25519MLKEM768ClientKeypair()
+	}
+
+	return generateECDHKeypair(curve)
+}
+
+// GenerateKeypairForPeer generates a keypair for the given Curve and peer
+// public key. Classical ECDHE groups ignore peerPublicKey, while hybrid KEM
+// groups need it to produce their response key share.
+func GenerateKeypairForPeer(curve Curve, peerPublicKey []byte) (*Keypair, error) {
+	if curve == X25519MLKEM768 {
+		return generateX25519MLKEM768ServerKeypair(peerPublicKey)
+	}
+
+	return generateECDHKeypair(curve)
+}
+
+func generateECDHKeypair(curve Curve) (*Keypair, error) {
 	ec, err := curve.toECDH()
 	if err != nil {
 		return nil, err
@@ -98,6 +140,63 @@ func GenerateKeypair(curve Curve) (*Keypair, error) {
 	}, nil
 }
 
+func generateX25519MLKEM768ClientKeypair() (*Keypair, error) {
+	mlkemSecretKey, err := mlkem.GenerateKey768()
+	if err != nil {
+		return nil, err
+	}
+
+	x25519Keypair, err := generateECDHKeypair(X25519)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey := make([]byte, 0, X25519MLKEM768ClientPublicKeySize)
+	publicKey = append(publicKey, mlkemSecretKey.EncapsulationKey().Bytes()...)
+	publicKey = append(publicKey, x25519Keypair.PublicKey...)
+
+	privateKey := make([]byte, 0, X25519MLKEM768ClientPrivateKeySize)
+	privateKey = append(privateKey, mlkemSecretKey.Bytes()...)
+	privateKey = append(privateKey, x25519Keypair.PrivateKey...)
+
+	return &Keypair{
+		Curve:      X25519MLKEM768,
+		PublicKey:  publicKey,
+		PrivateKey: privateKey,
+	}, nil
+}
+
+func generateX25519MLKEM768ServerKeypair(peerPublicKey []byte) (*Keypair, error) {
+	if len(peerPublicKey) != X25519MLKEM768ClientPublicKeySize {
+		return nil, dtlserrors.ErrLengthMismatch
+	}
+
+	mlkemEncapsulationKey, err := mlkem.NewEncapsulationKey768(peerPublicKey[:mlkem.EncapsulationKeySize768])
+	if err != nil {
+		return nil, err
+	}
+	mlkemSharedKey, mlkemCiphertext := mlkemEncapsulationKey.Encapsulate()
+
+	x25519Keypair, err := generateECDHKeypair(X25519)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey := make([]byte, 0, X25519MLKEM768ServerPublicKeySize)
+	publicKey = append(publicKey, mlkemCiphertext...)
+	publicKey = append(publicKey, x25519Keypair.PublicKey...)
+
+	privateKey := make([]byte, 0, X25519MLKEM768ServerPrivateKeySize)
+	privateKey = append(privateKey, mlkemSharedKey...)
+	privateKey = append(privateKey, x25519Keypair.PrivateKey...)
+
+	return &Keypair{
+		Curve:      X25519MLKEM768,
+		PublicKey:  publicKey,
+		PrivateKey: privateKey,
+	}, nil
+}
+
 // toECDH returns the crypto/ecdh curve for our enum.
 func (c Curve) toECDH() (ecdh.Curve, error) {
 	switch c {
@@ -106,6 +205,6 @@ func (c Curve) toECDH() (ecdh.Curve, error) {
 	case P384:
 		return ecdh.P384(), nil
 	default:
-		return nil, errInvalidNamedCurve
+		return nil, dtlserrors.ErrInvalidNamedCurve
 	}
 }

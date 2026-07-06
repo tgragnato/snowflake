@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package prf
@@ -8,11 +8,13 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 )
 
@@ -35,6 +37,41 @@ func TestPreMasterSecret(t *testing.T) {
 		t.Fatal(err)
 	} else if !bytes.Equal(expectedPreMasterSecret, preMasterSecret) {
 		t.Fatalf("PremasterSecret exp: % 02x actual: % 02x", expectedPreMasterSecret, preMasterSecret)
+	}
+}
+
+func TestPreMasterSecret_X25519MLKEM768(t *testing.T) {
+	clientKeypair, err := elliptic.GenerateKeypair(elliptic.X25519MLKEM768)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverKeypair, err := elliptic.GenerateKeypairForPeer(elliptic.X25519MLKEM768, clientKeypair.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientSecret, err := PreMasterSecret(
+		serverKeypair.PublicKey,
+		clientKeypair.PrivateKey,
+		elliptic.X25519MLKEM768,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverSecret, err := PreMasterSecret(
+		clientKeypair.PublicKey,
+		serverKeypair.PrivateKey,
+		elliptic.X25519MLKEM768,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(serverSecret, clientSecret) {
+		t.Errorf("expected %v, got %v", serverSecret, clientSecret)
+	}
+	if len(clientSecret) != elliptic.X25519MLKEM768SharedSecretSize {
+		t.Errorf("wrong length: got %d, want %d", len(clientSecret), elliptic.X25519MLKEM768SharedSecretSize)
 	}
 }
 
@@ -275,16 +312,33 @@ func TestEcdhePSKPreMasterSecret_InvalidCurve(t *testing.T) {
 	invalid := elliptic.Curve(0xFFFF)
 
 	_, err := EcdhePSKPreMasterSecret(psk, pub, priv, invalid)
-	if err != errInvalidNamedCurve {
-		t.Errorf("expected errInvalidNamedCurve, got %v", err)
+	if !errors.Is(err, dtlserrors.ErrInvalidNamedCurveFatal) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidNamedCurveFatal, err)
 	}
 }
 
 func TestPreMasterSecret_InvalidCurve(t *testing.T) {
 	invalid := elliptic.Curve(0) // not supported
 	_, err := PreMasterSecret(nil, nil, invalid)
-	if err != errInvalidNamedCurve {
-		t.Errorf("expected errInvalidNamedCurve, got %v", err)
+	if !errors.Is(err, dtlserrors.ErrInvalidNamedCurveFatal) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidNamedCurveFatal, err)
+	}
+}
+
+func TestPreMasterSecret_X25519MLKEM768RejectsBadShareLengths(t *testing.T) {
+	clientKeypair, err := elliptic.GenerateKeypair(elliptic.X25519MLKEM768)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = PreMasterSecret([]byte{0x01}, clientKeypair.PrivateKey, elliptic.X25519MLKEM768)
+	if !errors.Is(err, dtlserrors.ErrLengthMismatch) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrLengthMismatch, err)
+	}
+
+	_, err = PreMasterSecret(clientKeypair.PublicKey, []byte{0x01}, elliptic.X25519MLKEM768)
+	if !errors.Is(err, dtlserrors.ErrLengthMismatch) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrLengthMismatch, err)
 	}
 }
 

@@ -1,19 +1,19 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package e2e
 
 import (
-	"crypto/tls"
 	"fmt"
 	"math/rand/v2"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/pion/dtls/v3"
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
-	transportTest "github.com/pion/transport/v3/test"
+	transportTest "github.com/pion/transport/v4/test"
 )
 
 const (
@@ -124,19 +124,20 @@ func TestPionE2ELossy(t *testing.T) {
 			DisableServerFlightInterval: true,
 		},
 	} {
-		name := fmt.Sprintf("Loss%d_MTU%d", test.LossChanceRange, test.MTU)
+		var name strings.Builder
+		fmt.Fprintf(&name, "Loss%d_MTU%d", test.LossChanceRange, test.MTU)
 		if test.DoClientAuth {
-			name += "_WithCliAuth"
+			name.WriteString("_WithCliAuth")
 		}
 		for _, ciph := range test.CipherSuites {
-			name += "_With" + ciph.String()
+			name.WriteString("_With" + ciph.String())
 		}
 		if test.DisableServerFlightInterval {
-			name += "_WithNoServerFlightInterval"
+			name.WriteString("_WithNoServerFlightInterval")
 		}
 
 		test := test
-		t.Run(name, func(t *testing.T) {
+		t.Run(name.String(), func(t *testing.T) {
 			// Limit runtime in case of deadlocks
 			lim := transportTest.TimeOut(lossyTestTimeout + time.Second)
 			defer lim.Stop()
@@ -151,39 +152,53 @@ func TestPionE2ELossy(t *testing.T) {
 			}
 
 			go func() {
-				cfg := &dtls.Config{
-					FlightInterval:           flightInterval,
-					CipherSuites:             test.CipherSuites,
-					InsecureSkipVerify:       true,
-					MTU:                      test.MTU,
-					DisableRetransmitBackoff: true,
+				clientOpts := []dtls.ClientOption{
+					dtls.WithFlightInterval(flightInterval),
+					dtls.WithInsecureSkipVerify(true),
+					dtls.WithDisableRetransmitBackoff(true),
+				}
+				if len(test.CipherSuites) > 0 {
+					clientOpts = append(clientOpts, dtls.WithCipherSuites(test.CipherSuites...))
+				}
+				if test.MTU > 0 {
+					clientOpts = append(clientOpts, dtls.WithMTU(test.MTU))
 				}
 
 				if test.DoClientAuth {
-					cfg.Certificates = []tls.Certificate{clientCert}
+					clientOpts = append(clientOpts, dtls.WithCertificates(clientCert))
 				}
 
-				client, startupErr := dtls.Client(dtlsnet.PacketConnFromConn(br.GetConn0()), br.GetConn0().RemoteAddr(), cfg)
+				client, startupErr := dtls.ClientWithOptions(
+					dtlsnet.PacketConnFromConn(br.GetConn0()),
+					br.GetConn0().RemoteAddr(),
+					clientOpts...,
+				)
 				clientDone <- runResult{client, startupErr}
 			}()
 
 			go func() {
-				cfg := &dtls.Config{
-					Certificates:             []tls.Certificate{serverCert},
-					FlightInterval:           flightInterval,
-					MTU:                      test.MTU,
-					DisableRetransmitBackoff: true,
+				serverOpts := []dtls.ServerOption{
+					dtls.WithCertificates(serverCert),
+					dtls.WithFlightInterval(flightInterval),
+					dtls.WithDisableRetransmitBackoff(true),
+				}
+				if test.MTU > 0 {
+					serverOpts = append(serverOpts, dtls.WithMTU(test.MTU))
 				}
 
 				if test.DoClientAuth {
-					cfg.ClientAuth = dtls.RequireAnyClientCert
+					serverOpts = append(serverOpts, dtls.WithClientAuth(dtls.RequireAnyClientCert))
 				}
 
 				if test.DisableServerFlightInterval {
-					cfg.FlightInterval = time.Hour
+					serverOpts = append(serverOpts, dtls.WithFlightInterval(time.Hour))
 				}
 
-				server, startupErr := dtls.Server(dtlsnet.PacketConnFromConn(br.GetConn1()), br.GetConn1().RemoteAddr(), cfg)
+				server, startupErr := dtls.ServerWithOptions(
+					dtlsnet.PacketConnFromConn(br.GetConn1()),
+					br.GetConn1().RemoteAddr(),
+					serverOpts...,
+				)
 				serverDone <- runResult{server, startupErr}
 			}()
 
@@ -192,12 +207,12 @@ func TestPionE2ELossy(t *testing.T) {
 			defer func() {
 				if serverConn != nil {
 					if err = serverConn.Close(); err != nil {
-						t.Error(err)
+			t.Error(err)
 					}
 				}
 				if clientConn != nil {
 					if err = clientConn.Close(); err != nil {
-						t.Error(err)
+			t.Error(err)
 					}
 				}
 			}()
@@ -207,7 +222,7 @@ func TestPionE2ELossy(t *testing.T) {
 				select {
 				case serverResult := <-serverDone:
 					if serverResult.err != nil {
-						t.Errorf(
+			t.Errorf(
 							"Fail, serverError: clientComplete(%t) serverComplete(%t) LossChance(%d) error(%v)",
 							clientConn != nil, serverConn != nil, chosenLoss, serverResult.err,
 						)
@@ -218,7 +233,7 @@ func TestPionE2ELossy(t *testing.T) {
 					serverConn = serverResult.dtlsConn
 				case clientResult := <-clientDone:
 					if clientResult.err != nil {
-						t.Errorf(
+			t.Errorf(
 							"Fail, clientError: clientComplete(%t) serverComplete(%t) LossChance(%d) error(%v)",
 							clientConn != nil, serverConn != nil, chosenLoss, clientResult.err,
 						)
@@ -228,7 +243,7 @@ func TestPionE2ELossy(t *testing.T) {
 
 					clientConn = clientResult.dtlsConn
 				case <-testTimer.C:
-					t.Errorf(
+			t.Errorf(
 						"Test expired: clientComplete(%t) serverComplete(%t) LossChance(%d)",
 						clientConn != nil, serverConn != nil, chosenLoss,
 					)

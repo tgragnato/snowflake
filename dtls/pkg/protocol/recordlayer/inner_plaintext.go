@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package recordlayer
 
 import (
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/protocol"
 	"golang.org/x/crypto/cryptobyte"
 )
@@ -29,6 +30,10 @@ func (p *InnerPlaintext) Marshal() ([]byte, error) {
 
 // Unmarshal populates a DTLS InnerPlaintext from binary.
 func (p *InnerPlaintext) Unmarshal(data []byte) error {
+	if len(data) == 0 {
+		return dtlserrors.ErrBufferTooSmall
+	}
+
 	// Process in reverse
 	i := len(data) - 1
 	for i >= 0 {
@@ -39,8 +44,8 @@ func (p *InnerPlaintext) Unmarshal(data []byte) error {
 		}
 		i--
 	}
-	if i == 0 {
-		return errBufferTooSmall
+	if i < 0 {
+		return dtlserrors.ErrBufferTooSmall
 	}
 	p.RealType = protocol.ContentType(data[i])
 	p.Content = append([]byte{}, data[:i]...)

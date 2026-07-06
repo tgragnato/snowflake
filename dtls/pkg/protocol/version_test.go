@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package protocol provides the DTLS wire format
@@ -23,7 +23,6 @@ func TestVersionEqual(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.a.Equal(tc.b)
 			if got != tc.want {
@@ -39,7 +38,7 @@ func TestIsSupportedBytes(t *testing.T) {
 		want     bool
 	}{
 		{0xfe, 0xfd, true},  // DTLS 1.2
-		{0xfe, 0xfc, true},  // DTLS 1.3 (work in progress)
+		{0xfe, 0xfc, false}, // DTLS 1.3 (WIP)
 		{0xfe, 0xff, false}, // DTLS 1.0 not supported
 		{0x03, 0x03, false}, // TLS 1.2, not DTLS
 		{0x00, 0x00, false},
@@ -59,7 +58,7 @@ func TestIsSupportedVersion(t *testing.T) {
 		want bool
 	}{
 		{Version1_2, true},
-		{Version1_3, true},                         // WIP, supported
+		{Version1_3, false},                        // WIP
 		{Version1_0, false},                        // not supported
 		{Version{Major: 0x03, Minor: 0x03}, false}, // TLS 1.2, not DTLS
 	}

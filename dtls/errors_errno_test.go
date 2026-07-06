@@ -1,11 +1,5 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
-
-//go:build aix || darwin || dragonfly || freebsd || linux || nacl || nacljs || netbsd || openbsd || solaris || windows
-// +build aix darwin dragonfly freebsd linux nacl nacljs netbsd openbsd solaris windows
-
-// For systems having syscall.Errno.
-// The build target must be same as errors_errno.go.
 
 package dtls
 

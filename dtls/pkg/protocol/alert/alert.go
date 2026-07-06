@@ -1,17 +1,15 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package alert implements TLS alert protocol https://tools.ietf.org/html/rfc5246#section-7.2
 package alert
 
 import (
-	"errors"
 	"fmt"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/protocol"
 )
-
-var errBufferTooSmall = &protocol.TemporaryError{Err: errors.New("buffer is too small")}
 
 // Level is the level of the TLS Alert.
 type Level byte
@@ -62,6 +60,7 @@ const (
 	InternalError          Description = 80
 	UserCanceled           Description = 90
 	NoRenegotiation        Description = 100
+	MissingExtension       Description = 109
 	UnsupportedExtension   Description = 110
 	NoApplicationProtocol  Description = 120
 )
@@ -116,6 +115,8 @@ func (d Description) String() string {
 		return "UserCanceled"
 	case NoRenegotiation:
 		return "NoRenegotiation"
+	case MissingExtension:
+		return "MissingExtension"
 	case UnsupportedExtension:
 		return "UnsupportedExtension"
 	case NoApplicationProtocol:
@@ -153,7 +154,7 @@ func (a *Alert) Marshal() ([]byte, error) {
 // Unmarshal populates the alert from binary data.
 func (a *Alert) Unmarshal(data []byte) error {
 	if len(data) != 2 {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 
 	a.Level = Level(data[0])

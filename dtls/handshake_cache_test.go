@@ -1,148 +1,209 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
 
 import (
-	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite"
+	dtlsflight "github.com/pion/dtls/v3/internal/flight"
+	"github.com/pion/dtls/v3/pkg/protocol"
 	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 )
 
 func TestHandshakeCacheSinglePush(t *testing.T) {
 	for _, test := range []struct {
 		Name     string
-		Rule     []handshakeCachePullRule
-		Input    []handshakeCacheItem
+		Rule     []dtlsflight.HandshakeCachePullRule
+		Input    []dtlsflight.HandshakeCacheItem
 		Expected []byte
 	}{
 		{
 			Name: "Single Push",
-			Input: []handshakeCacheItem{
-				{0, true, 0, 0, []byte{0x00}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 0, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
 			},
-			Rule: []handshakeCachePullRule{
-				{0, 0, true, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 0, Epoch: 0, IsClient: true, Optional: false},
 			},
 			Expected: []byte{0x00},
 		},
 		{
 			Name: "Multi Push",
-			Input: []handshakeCacheItem{
-				{0, true, 0, 0, []byte{0x00}},
-				{1, true, 0, 1, []byte{0x01}},
-				{2, true, 0, 2, []byte{0x02}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 0, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: 2, IsClient: true, Epoch: 0, MessageSequence: 2, Data: []byte{0x02}},
 			},
-			Rule: []handshakeCachePullRule{
-				{0, 0, true, false},
-				{1, 0, true, false},
-				{2, 0, true, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 0, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 1, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 2, Epoch: 0, IsClient: true, Optional: false},
 			},
 			Expected: []byte{0x00, 0x01, 0x02},
 		},
 		{
 			Name: "Multi Push, Rules set order",
-			Input: []handshakeCacheItem{
-				{2, true, 0, 2, []byte{0x02}},
-				{0, true, 0, 0, []byte{0x00}},
-				{1, true, 0, 1, []byte{0x01}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 2, IsClient: true, Epoch: 0, MessageSequence: 2, Data: []byte{0x02}},
+				{Typ: 0, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
 			},
-			Rule: []handshakeCachePullRule{
-				{0, 0, true, false},
-				{1, 0, true, false},
-				{2, 0, true, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 0, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 1, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 2, Epoch: 0, IsClient: true, Optional: false},
 			},
 			Expected: []byte{0x00, 0x01, 0x02},
 		},
 
 		{
 			Name: "Multi Push, Dupe Seqnum",
-			Input: []handshakeCacheItem{
-				{0, true, 0, 0, []byte{0x00}},
-				{1, true, 0, 1, []byte{0x01}},
-				{1, true, 0, 1, []byte{0x01}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 0, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
 			},
-			Rule: []handshakeCachePullRule{
-				{0, 0, true, false},
-				{1, 0, true, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 0, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 1, Epoch: 0, IsClient: true, Optional: false},
 			},
 			Expected: []byte{0x00, 0x01},
 		},
 		{
 			Name: "Multi Push, Dupe Seqnum Client/Server",
-			Input: []handshakeCacheItem{
-				{0, true, 0, 0, []byte{0x00}},
-				{1, true, 0, 1, []byte{0x01}},
-				{1, false, 0, 1, []byte{0x02}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 0, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: 1, IsClient: false, Epoch: 0, MessageSequence: 1, Data: []byte{0x02}},
 			},
-			Rule: []handshakeCachePullRule{
-				{0, 0, true, false},
-				{1, 0, true, false},
-				{1, 0, false, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 0, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 1, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 1, Epoch: 0, IsClient: false, Optional: false},
 			},
 			Expected: []byte{0x00, 0x01, 0x02},
 		},
 		{
 			Name: "Multi Push, Dupe Seqnum with Unique HandshakeType",
-			Input: []handshakeCacheItem{
-				{1, true, 0, 0, []byte{0x00}},
-				{2, true, 0, 1, []byte{0x01}},
-				{3, false, 0, 0, []byte{0x02}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: 2, IsClient: true, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: 3, IsClient: false, Epoch: 0, MessageSequence: 0, Data: []byte{0x02}},
 			},
-			Rule: []handshakeCachePullRule{
-				{1, 0, true, false},
-				{2, 0, true, false},
-				{3, 0, false, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 1, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 2, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 3, Epoch: 0, IsClient: false, Optional: false},
 			},
 			Expected: []byte{0x00, 0x01, 0x02},
 		},
 		{
 			Name: "Multi Push, Wrong epoch",
-			Input: []handshakeCacheItem{
-				{1, true, 0, 0, []byte{0x00}},
-				{2, true, 1, 1, []byte{0x01}},
-				{2, true, 0, 2, []byte{0x11}},
-				{3, false, 0, 0, []byte{0x02}},
-				{3, false, 1, 0, []byte{0x12}},
-				{3, false, 2, 0, []byte{0x12}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: 1, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: 2, IsClient: true, Epoch: 1, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: 2, IsClient: true, Epoch: 0, MessageSequence: 2, Data: []byte{0x11}},
+				{Typ: 3, IsClient: false, Epoch: 0, MessageSequence: 0, Data: []byte{0x02}},
+				{Typ: 3, IsClient: false, Epoch: 1, MessageSequence: 0, Data: []byte{0x12}},
+				{Typ: 3, IsClient: false, Epoch: 2, MessageSequence: 0, Data: []byte{0x12}},
 			},
-			Rule: []handshakeCachePullRule{
-				{1, 0, true, false},
-				{2, 1, true, false},
-				{3, 0, false, false},
+			Rule: []dtlsflight.HandshakeCachePullRule{
+				{Typ: 1, Epoch: 0, IsClient: true, Optional: false},
+				{Typ: 2, Epoch: 1, IsClient: true, Optional: false},
+				{Typ: 3, Epoch: 0, IsClient: false, Optional: false},
 			},
 			Expected: []byte{0x00, 0x01, 0x02},
 		},
 	} {
-		h := newHandshakeCache()
+		h := dtlsflight.NewCache()
 		for _, i := range test.Input {
-			h.push(i.data, i.epoch, i.messageSequence, i.typ, i.isClient)
+			h.Push(i.Data, i.Epoch, i.MessageSequence, i.Typ, i.IsClient)
 		}
-		verifyData := h.pullAndMerge(test.Rule...)
-		if !bytes.Equal(verifyData, test.Expected) {
-			t.Errorf("handshakeCache '%s' exp: % 02x actual % 02x", test.Name, test.Expected, verifyData)
+		verifyData := h.PullAndMerge(test.Rule...)
+		if !reflect.DeepEqual(test.Expected, verifyData) {
+			t.Errorf("expected %v, got %v", test.Expected, verifyData)
 		}
 	}
+}
+
+func TestHandshakeCacheFullPullMapItemsReturnsAcceptedRawItems(t *testing.T) {
+	cipherSuiteID := uint16(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256)
+	rawClientHello := marshalHandshakeCacheTestMessage(t, 0, &handshake.MessageClientHello{
+		Version:            protocol.Version1_2,
+		CipherSuiteIDs:     []uint16{uint16(TLS_PSK_WITH_CHACHA20_POLY1305_SHA256)},
+		CompressionMethods: defaultCompressionMethods(),
+	})
+	rawServerHello := marshalHandshakeCacheTestMessage(t, 1, &handshake.MessageServerHello{
+		Version:           protocol.Version1_2,
+		CipherSuiteID:     &cipherSuiteID,
+		CompressionMethod: defaultCompressionMethods()[0],
+	})
+
+	cache := dtlsflight.NewCache()
+	cache.Push(rawServerHello, 0, 1, handshake.TypeServerHello, false)
+	cache.Push(rawClientHello, 0, 0, handshake.TypeClientHello, true)
+
+	seq, msgs, items, ok := cache.FullPullMapItems(0, nil,
+		dtlsflight.HandshakeCachePullRule{Typ: handshake.TypeClientHello, Epoch: 0, IsClient: true, Optional: false},
+		dtlsflight.HandshakeCachePullRule{Typ: handshake.TypeServerHello, Epoch: 0, IsClient: false, Optional: false},
+	)
+
+	if !ok {
+		t.Fatal("expected true")
+	}
+	if 2 != seq {
+		t.Errorf("expected %v, got %v", 2, seq)
+	}
+	if _, ok := msgs[handshake.TypeClientHello].(*handshake.MessageClientHello); !ok {
+		t.Fatalf("expected *handshake.MessageClientHello, got %T", msgs[handshake.TypeClientHello])
+	}
+	if _, ok := msgs[handshake.TypeServerHello].(*handshake.MessageServerHello); !ok {
+		t.Fatalf("expected *handshake.MessageServerHello, got %T", msgs[handshake.TypeServerHello])
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected len %d, got %d", 2, len(items))
+	}
+	if !reflect.DeepEqual(rawClientHello, items[0].Data) {
+		t.Errorf("expected %v, got %v", rawClientHello, items[0].Data)
+	}
+	if !reflect.DeepEqual(rawServerHello, items[1].Data) {
+		t.Errorf("expected %v, got %v", rawServerHello, items[1].Data)
+	}
+}
+
+func marshalHandshakeCacheTestMessage(t *testing.T, seq uint16, message handshake.Message) []byte {
+	t.Helper()
+
+	raw, err := (&handshake.Handshake{
+		Header:  handshake.Header{MessageSequence: seq},
+		Message: message,
+	}).Marshal()
+	if err != nil {
+		t.Fatal("error: ", err)
+	}
+
+	return raw
 }
 
 func TestHandshakeCacheSessionHash(t *testing.T) {
 	for _, test := range []struct {
 		Name     string
-		Rule     []handshakeCachePullRule
-		Input    []handshakeCacheItem
+		Rule     []dtlsflight.HandshakeCachePullRule
+		Input    []dtlsflight.HandshakeCacheItem
 		Expected []byte
 	}{
 		{
 			Name: "Standard Handshake",
-			Input: []handshakeCacheItem{
-				{handshake.TypeClientHello, true, 0, 0, []byte{0x00}},
-				{handshake.TypeServerHello, false, 0, 1, []byte{0x01}},
-				{handshake.TypeCertificate, false, 0, 2, []byte{0x02}},
-				{handshake.TypeServerKeyExchange, false, 0, 3, []byte{0x03}},
-				{handshake.TypeServerHelloDone, false, 0, 4, []byte{0x04}},
-				{handshake.TypeClientKeyExchange, true, 0, 5, []byte{0x05}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: handshake.TypeClientHello, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: handshake.TypeServerHello, IsClient: false, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: handshake.TypeCertificate, IsClient: false, Epoch: 0, MessageSequence: 2, Data: []byte{0x02}},
+				{Typ: handshake.TypeServerKeyExchange, IsClient: false, Epoch: 0, MessageSequence: 3, Data: []byte{0x03}},
+				{Typ: handshake.TypeServerHelloDone, IsClient: false, Epoch: 0, MessageSequence: 4, Data: []byte{0x04}},
+				{Typ: handshake.TypeClientKeyExchange, IsClient: true, Epoch: 0, MessageSequence: 5, Data: []byte{0x05}},
 			},
 			Expected: []byte{
 				0x79, 0xf4, 0x73, 0x87, 0x06, 0xfc, 0xe9, 0x65, 0x0a, 0xc6, 0x02, 0x66, 0x67, 0x5c, 0x3c, 0xd0,
@@ -152,14 +213,14 @@ func TestHandshakeCacheSessionHash(t *testing.T) {
 		},
 		{
 			Name: "Handshake With Client Cert Request",
-			Input: []handshakeCacheItem{
-				{handshake.TypeClientHello, true, 0, 0, []byte{0x00}},
-				{handshake.TypeServerHello, false, 0, 1, []byte{0x01}},
-				{handshake.TypeCertificate, false, 0, 2, []byte{0x02}},
-				{handshake.TypeServerKeyExchange, false, 0, 3, []byte{0x03}},
-				{handshake.TypeCertificateRequest, false, 0, 4, []byte{0x04}},
-				{handshake.TypeServerHelloDone, false, 0, 5, []byte{0x05}},
-				{handshake.TypeClientKeyExchange, true, 0, 6, []byte{0x06}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: handshake.TypeClientHello, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: handshake.TypeServerHello, IsClient: false, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: handshake.TypeCertificate, IsClient: false, Epoch: 0, MessageSequence: 2, Data: []byte{0x02}},
+				{Typ: handshake.TypeServerKeyExchange, IsClient: false, Epoch: 0, MessageSequence: 3, Data: []byte{0x03}},
+				{Typ: handshake.TypeCertificateRequest, IsClient: false, Epoch: 0, MessageSequence: 4, Data: []byte{0x04}},
+				{Typ: handshake.TypeServerHelloDone, IsClient: false, Epoch: 0, MessageSequence: 5, Data: []byte{0x05}},
+				{Typ: handshake.TypeClientKeyExchange, IsClient: true, Epoch: 0, MessageSequence: 6, Data: []byte{0x06}},
 			},
 			Expected: []byte{
 				0xe6, 0xce, 0x18, 0x96, 0xc9, 0x78, 0x3a, 0x70, 0xac, 0x4c, 0x90, 0x27, 0x6c, 0xc3, 0x7b, 0x37,
@@ -169,17 +230,17 @@ func TestHandshakeCacheSessionHash(t *testing.T) {
 		},
 		{
 			Name: "Handshake Ignores after ClientKeyExchange",
-			Input: []handshakeCacheItem{
-				{handshake.TypeClientHello, true, 0, 0, []byte{0x00}},
-				{handshake.TypeServerHello, false, 0, 1, []byte{0x01}},
-				{handshake.TypeCertificate, false, 0, 2, []byte{0x02}},
-				{handshake.TypeServerKeyExchange, false, 0, 3, []byte{0x03}},
-				{handshake.TypeCertificateRequest, false, 0, 4, []byte{0x04}},
-				{handshake.TypeServerHelloDone, false, 0, 5, []byte{0x05}},
-				{handshake.TypeClientKeyExchange, true, 0, 6, []byte{0x06}},
-				{handshake.TypeCertificateVerify, true, 0, 7, []byte{0x07}},
-				{handshake.TypeFinished, true, 1, 7, []byte{0x08}},
-				{handshake.TypeFinished, false, 1, 7, []byte{0x09}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: handshake.TypeClientHello, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: handshake.TypeServerHello, IsClient: false, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: handshake.TypeCertificate, IsClient: false, Epoch: 0, MessageSequence: 2, Data: []byte{0x02}},
+				{Typ: handshake.TypeServerKeyExchange, IsClient: false, Epoch: 0, MessageSequence: 3, Data: []byte{0x03}},
+				{Typ: handshake.TypeCertificateRequest, IsClient: false, Epoch: 0, MessageSequence: 4, Data: []byte{0x04}},
+				{Typ: handshake.TypeServerHelloDone, IsClient: false, Epoch: 0, MessageSequence: 5, Data: []byte{0x05}},
+				{Typ: handshake.TypeClientKeyExchange, IsClient: true, Epoch: 0, MessageSequence: 6, Data: []byte{0x06}},
+				{Typ: handshake.TypeCertificateVerify, IsClient: true, Epoch: 0, MessageSequence: 7, Data: []byte{0x07}},
+				{Typ: handshake.TypeFinished, IsClient: true, Epoch: 1, MessageSequence: 7, Data: []byte{0x08}},
+				{Typ: handshake.TypeFinished, IsClient: false, Epoch: 1, MessageSequence: 7, Data: []byte{0x09}},
 			},
 			Expected: []byte{
 				0xe6, 0xce, 0x18, 0x96, 0xc9, 0x78, 0x3a, 0x70, 0xac, 0x4c, 0x90, 0x27, 0x6c, 0xc3, 0x7b, 0x37,
@@ -189,21 +250,21 @@ func TestHandshakeCacheSessionHash(t *testing.T) {
 		},
 		{
 			Name: "Handshake Ignores wrong epoch",
-			Input: []handshakeCacheItem{
-				{handshake.TypeClientHello, true, 0, 0, []byte{0x00}},
-				{handshake.TypeServerHello, false, 0, 1, []byte{0x01}},
-				{handshake.TypeCertificate, false, 0, 2, []byte{0x02}},
-				{handshake.TypeServerKeyExchange, false, 0, 3, []byte{0x03}},
-				{handshake.TypeCertificateRequest, false, 0, 4, []byte{0x04}},
-				{handshake.TypeServerHelloDone, false, 0, 5, []byte{0x05}},
-				{handshake.TypeClientKeyExchange, true, 0, 6, []byte{0x06}},
-				{handshake.TypeCertificateVerify, true, 0, 7, []byte{0x07}},
-				{handshake.TypeFinished, true, 0, 7, []byte{0xf0}},
-				{handshake.TypeFinished, false, 0, 7, []byte{0xf1}},
-				{handshake.TypeFinished, true, 1, 7, []byte{0x08}},
-				{handshake.TypeFinished, false, 1, 7, []byte{0x09}},
-				{handshake.TypeFinished, true, 0, 7, []byte{0xf0}},
-				{handshake.TypeFinished, false, 0, 7, []byte{0xf1}},
+			Input: []dtlsflight.HandshakeCacheItem{
+				{Typ: handshake.TypeClientHello, IsClient: true, Epoch: 0, MessageSequence: 0, Data: []byte{0x00}},
+				{Typ: handshake.TypeServerHello, IsClient: false, Epoch: 0, MessageSequence: 1, Data: []byte{0x01}},
+				{Typ: handshake.TypeCertificate, IsClient: false, Epoch: 0, MessageSequence: 2, Data: []byte{0x02}},
+				{Typ: handshake.TypeServerKeyExchange, IsClient: false, Epoch: 0, MessageSequence: 3, Data: []byte{0x03}},
+				{Typ: handshake.TypeCertificateRequest, IsClient: false, Epoch: 0, MessageSequence: 4, Data: []byte{0x04}},
+				{Typ: handshake.TypeServerHelloDone, IsClient: false, Epoch: 0, MessageSequence: 5, Data: []byte{0x05}},
+				{Typ: handshake.TypeClientKeyExchange, IsClient: true, Epoch: 0, MessageSequence: 6, Data: []byte{0x06}},
+				{Typ: handshake.TypeCertificateVerify, IsClient: true, Epoch: 0, MessageSequence: 7, Data: []byte{0x07}},
+				{Typ: handshake.TypeFinished, IsClient: true, Epoch: 0, MessageSequence: 7, Data: []byte{0xf0}},
+				{Typ: handshake.TypeFinished, IsClient: false, Epoch: 0, MessageSequence: 7, Data: []byte{0xf1}},
+				{Typ: handshake.TypeFinished, IsClient: true, Epoch: 1, MessageSequence: 7, Data: []byte{0x08}},
+				{Typ: handshake.TypeFinished, IsClient: false, Epoch: 1, MessageSequence: 7, Data: []byte{0x09}},
+				{Typ: handshake.TypeFinished, IsClient: true, Epoch: 0, MessageSequence: 7, Data: []byte{0xf0}},
+				{Typ: handshake.TypeFinished, IsClient: false, Epoch: 0, MessageSequence: 7, Data: []byte{0xf1}},
 			},
 			Expected: []byte{
 				0xe6, 0xce, 0x18, 0x96, 0xc9, 0x78, 0x3a, 0x70, 0xac, 0x4c, 0x90, 0x27, 0x6c, 0xc3, 0x7b, 0x37,
@@ -212,18 +273,18 @@ func TestHandshakeCacheSessionHash(t *testing.T) {
 			},
 		},
 	} {
-		h := newHandshakeCache()
+		h := dtlsflight.NewCache()
 		for _, i := range test.Input {
-			h.push(i.data, i.epoch, i.messageSequence, i.typ, i.isClient)
+			h.Push(i.Data, i.Epoch, i.MessageSequence, i.Typ, i.IsClient)
 		}
 
 		cipherSuite := ciphersuite.TLSEcdheEcdsaWithAes256GcmSha384{}
-		verifyData, err := h.sessionHash(cipherSuite.HashFunc(), 0)
+		verifyData, err := h.SessionHash(cipherSuite.HashFunc(), 0)
 		if err != nil {
-			t.Error(err)
+			t.Error("error: ", err)
 		}
-		if !bytes.Equal(verifyData, test.Expected) {
-			t.Errorf("handshakeCacheSesssionHassh '%s' exp: % 02x actual % 02x", test.Name, test.Expected, verifyData)
+		if !reflect.DeepEqual(test.Expected, verifyData) {
+			t.Errorf("handshakeCacheSessionHash: expected %v, got %v", test.Expected, verifyData)
 		}
 	}
 }

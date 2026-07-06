@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
@@ -6,71 +6,31 @@ package dtls
 import (
 	"bytes"
 	"encoding/gob"
-	"errors"
 	"sync/atomic"
 
-	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
+	dtlsstate "github.com/pion/dtls/v3/internal/state"
 	"github.com/pion/dtls/v3/pkg/crypto/prf"
-	"github.com/pion/dtls/v3/pkg/crypto/signaturehash"
 	"github.com/pion/dtls/v3/pkg/protocol/handshake"
-	"github.com/pion/transport/v3/replaydetector"
 )
 
 // State holds the dtls connection state and implements both encoding.BinaryMarshaler and
 // encoding.BinaryUnmarshaler.
 type State struct {
-	localEpoch, remoteEpoch   atomic.Value
-	localSequenceNumber       []uint64 // uint48
+	localEpoch, remoteEpoch   uint16
 	localRandom, remoteRandom handshake.Random
 	masterSecret              []byte
-	cipherSuite               CipherSuite // nil if a cipherSuite hasn't been chosen
-	CipherSuiteID             CipherSuiteID
+	sequenceNumber            uint64
+	srtpProtectionProfile     SRTPProtectionProfile
+	localConnectionID         []byte
+	remoteConnectionID        []byte
+	isClient                  bool
 
-	remoteSupportsRenegotiation bool // True when Client Hello contained renegotiation extension
-
-	srtpProtectionProfile         atomic.Value // Negotiated SRTPProtectionProfile
-	remoteSRTPMasterKeyIdentifier []byte
-
-	PeerCertificates [][]byte
-	IdentityHint     []byte
-	SessionID        []byte
-
-	// Connection Identifiers must be negotiated afresh on session resumption.
-	// https://datatracker.ietf.org/doc/html/rfc9146#name-the-connection_id-extension
-
-	// localConnectionID is the locally generated connection ID that is expected
-	// to be received from the remote endpoint.
-	// For a server, this is the connection ID sent in ServerHello.
-	// For a client, this is the connection ID sent in the ClientHello.
-	localConnectionID atomic.Value
-	// remoteConnectionID is the connection ID that the remote endpoint
-	// specifies should be sent.
-	// For a server, this is the connection ID received in the ClientHello.
-	// For a client, this is the connection ID received in the ServerHello.
-	remoteConnectionID []byte
-
-	isClient bool
-
-	preMasterSecret      []byte
-	extendedMasterSecret bool
-
-	namedCurve                 elliptic.Curve
-	localKeypair               *elliptic.Keypair
-	cookie                     []byte
-	handshakeSendSequence      int
-	handshakeRecvSequence      int
-	serverName                 string
-	remoteCertRequestAlgs      []signaturehash.Algorithm
-	remoteRequestedCertificate bool   // Did we get a CertificateRequest
-	localCertificatesVerify    []byte // cache CertificateVerify
-	localVerifyData            []byte // cached VerifyData
-	localKeySignature          []byte // cached keySignature
-	peerCertificatesVerified   bool
-
-	replayDetector []replaydetector.ReplayDetector
-
-	peerSupportedProtocols []string
-	NegotiatedProtocol     string
+	CipherSuiteID      CipherSuiteID
+	PeerCertificates   [][]byte
+	IdentityHint       []byte
+	SessionID          []byte
+	NegotiatedProtocol string
 }
 
 type serializedState struct {
@@ -91,44 +51,51 @@ type serializedState struct {
 	NegotiatedProtocol    string
 }
 
-var errCipherSuiteNotSet = &InternalError{Err: errors.New("cipher suite not set")}
-
-func (s *State) clone() (*State, error) {
-	serialized, err := s.serialize()
-	if err != nil {
-		return nil, err
+func generateState(internalState *dtlsstate.State) (*State, error) {
+	if internalState.CipherSuite == nil {
+		return nil, dtlserrors.ErrCipherSuiteNotSet
 	}
-	state := &State{}
-	state.deserialize(*serialized)
 
-	return state, err
+	epoch := internalState.GetLocalEpoch()
+
+	return &State{
+		localEpoch:            internalState.GetLocalEpoch(),
+		remoteEpoch:           internalState.GetRemoteEpoch(),
+		localRandom:           internalState.LocalRandom,
+		remoteRandom:          internalState.RemoteRandom,
+		masterSecret:          internalState.MasterSecret,
+		sequenceNumber:        atomic.LoadUint64(&internalState.LocalSequenceNumber[epoch]),
+		srtpProtectionProfile: internalState.GetSRTPProtectionProfile(),
+		localConnectionID:     internalState.GetLocalConnectionID(),
+		remoteConnectionID:    internalState.RemoteConnectionID,
+		isClient:              internalState.IsClient,
+		CipherSuiteID:         internalState.CipherSuite.ID(),
+		PeerCertificates:      internalState.PeerCertificates,
+		IdentityHint:          internalState.IdentityHint,
+		SessionID:             internalState.SessionID,
+		NegotiatedProtocol:    internalState.NegotiatedProtocol,
+	}, nil
 }
 
 func (s *State) serialize() (*serializedState, error) {
-	if s.cipherSuite == nil {
-		return nil, errCipherSuiteNotSet
+	// 0 (TLS_NULL_WITH_NULL_NULL) is never negotiated, so it signals an unset suite.
+	if s.CipherSuiteID == 0 {
+		return nil, dtlserrors.ErrCipherSuiteNotSet
 	}
-	cipherSuiteID := uint16(s.cipherSuite.ID())
-
-	// Marshal random values
-	localRnd := s.localRandom.MarshalFixed()
-	remoteRnd := s.remoteRandom.MarshalFixed()
-
-	epoch := s.getLocalEpoch()
 
 	return &serializedState{
-		LocalEpoch:            s.getLocalEpoch(),
-		RemoteEpoch:           s.getRemoteEpoch(),
-		CipherSuiteID:         cipherSuiteID,
+		LocalEpoch:            s.localEpoch,
+		RemoteEpoch:           s.remoteEpoch,
+		CipherSuiteID:         uint16(s.CipherSuiteID),
 		MasterSecret:          s.masterSecret,
-		SequenceNumber:        atomic.LoadUint64(&s.localSequenceNumber[epoch]),
-		LocalRandom:           localRnd,
-		RemoteRandom:          remoteRnd,
-		SRTPProtectionProfile: uint16(s.getSRTPProtectionProfile()),
+		SequenceNumber:        s.sequenceNumber,
+		LocalRandom:           s.localRandom.MarshalFixed(),
+		RemoteRandom:          s.remoteRandom.MarshalFixed(),
+		SRTPProtectionProfile: uint16(s.srtpProtectionProfile),
 		PeerCertificates:      s.PeerCertificates,
 		IdentityHint:          s.IdentityHint,
 		SessionID:             s.SessionID,
-		LocalConnectionID:     s.getLocalConnectionID(),
+		LocalConnectionID:     s.localConnectionID,
 		RemoteConnectionID:    s.remoteConnectionID,
 		IsClient:              s.isClient,
 		NegotiatedProtocol:    s.NegotiatedProtocol,
@@ -136,53 +103,31 @@ func (s *State) serialize() (*serializedState, error) {
 }
 
 func (s *State) deserialize(serialized serializedState) {
-	// Set epoch values
-	epoch := serialized.LocalEpoch
-	s.localEpoch.Store(serialized.LocalEpoch)
-	s.remoteEpoch.Store(serialized.RemoteEpoch)
-
-	for len(s.localSequenceNumber) <= int(epoch) {
-		s.localSequenceNumber = append(s.localSequenceNumber, uint64(0))
-	}
-
-	// Set random values
-	localRandom := &handshake.Random{}
-	localRandom.UnmarshalFixed(serialized.LocalRandom)
-	s.localRandom = *localRandom
-
-	remoteRandom := &handshake.Random{}
-	remoteRandom.UnmarshalFixed(serialized.RemoteRandom)
-	s.remoteRandom = *remoteRandom
-
+	s.localEpoch = serialized.LocalEpoch
+	s.remoteEpoch = serialized.RemoteEpoch
+	s.localRandom.UnmarshalFixed(serialized.LocalRandom)
+	s.remoteRandom.UnmarshalFixed(serialized.RemoteRandom)
+	s.masterSecret = serialized.MasterSecret
+	s.sequenceNumber = serialized.SequenceNumber
+	s.srtpProtectionProfile = SRTPProtectionProfile(serialized.SRTPProtectionProfile)
+	s.localConnectionID = serialized.LocalConnectionID
+	s.remoteConnectionID = serialized.RemoteConnectionID
 	s.isClient = serialized.IsClient
 
-	// Set master secret
-	s.masterSecret = serialized.MasterSecret
-
-	// Set cipher suite
 	s.CipherSuiteID = CipherSuiteID(serialized.CipherSuiteID)
-	s.cipherSuite = cipherSuiteForID(s.CipherSuiteID, nil)
-
-	atomic.StoreUint64(&s.localSequenceNumber[epoch], serialized.SequenceNumber)
-	s.setSRTPProtectionProfile(SRTPProtectionProfile(serialized.SRTPProtectionProfile))
-
-	// Set remote certificate
 	s.PeerCertificates = serialized.PeerCertificates
-
 	s.IdentityHint = serialized.IdentityHint
-
-	// Set local and remote connection IDs
-	s.setLocalConnectionID(serialized.LocalConnectionID)
-	s.remoteConnectionID = serialized.RemoteConnectionID
-
 	s.SessionID = serialized.SessionID
-
 	s.NegotiatedProtocol = serialized.NegotiatedProtocol
 }
 
-func (s *State) initCipherSuite() error {
-	if s.cipherSuite.IsInitialized() {
-		return nil
+func (s *State) initializedCipherSuite() (CipherSuite, error) {
+	cipherSuite := cipherSuiteForID(s.CipherSuiteID)
+	if cipherSuite == nil {
+		return nil, dtlserrors.ErrCipherSuiteNotSet
+	}
+	if cipherSuite.IsInitialized() {
+		return cipherSuite, nil
 	}
 
 	localRandom := s.localRandom.MarshalFixed()
@@ -190,15 +135,51 @@ func (s *State) initCipherSuite() error {
 
 	var err error
 	if s.isClient {
-		err = s.cipherSuite.Init(s.masterSecret, localRandom[:], remoteRandom[:], true)
+		err = cipherSuite.Init(s.masterSecret, localRandom[:], remoteRandom[:], true)
 	} else {
-		err = s.cipherSuite.Init(s.masterSecret, remoteRandom[:], localRandom[:], false)
+		err = cipherSuite.Init(s.masterSecret, remoteRandom[:], localRandom[:], false)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return cipherSuite, nil
+}
+
+// generateInternalState is the inverse of generateState: it expands the public
+// State into the internal state used by the connection internals.
+func (s *State) generateInternalState() (*dtlsstate.State, error) {
+	if s.CipherSuiteID == 0 {
+		return nil, dtlserrors.ErrCipherSuiteNotSet
+	}
+
+	state := &dtlsstate.State{
+		LocalRandom:        s.localRandom,
+		RemoteRandom:       s.remoteRandom,
+		MasterSecret:       s.masterSecret,
+		CipherSuite:        cipherSuiteForID(s.CipherSuiteID),
+		RemoteConnectionID: s.remoteConnectionID,
+		IsClient:           s.isClient,
+		PeerCertificates:   s.PeerCertificates,
+		IdentityHint:       s.IdentityHint,
+		SessionID:          s.SessionID,
+		NegotiatedProtocol: s.NegotiatedProtocol,
+	}
+	state.LocalEpoch.Store(s.localEpoch)
+	state.RemoteEpoch.Store(s.remoteEpoch)
+	state.SetSRTPProtectionProfile(s.srtpProtectionProfile)
+	state.SetLocalConnectionID(s.localConnectionID)
+
+	for len(state.LocalSequenceNumber) <= int(s.localEpoch) {
+		state.LocalSequenceNumber = append(state.LocalSequenceNumber, uint64(0))
+	}
+	atomic.StoreUint64(&state.LocalSequenceNumber[s.localEpoch], s.sequenceNumber)
+
+	if err := state.InitCipherSuite(); err != nil {
+		return nil, err
+	}
+
+	return state, nil
 }
 
 // MarshalBinary is a binary.BinaryMarshaler.MarshalBinary implementation.
@@ -227,7 +208,9 @@ func (s *State) UnmarshalBinary(data []byte) error {
 
 	s.deserialize(serialized)
 
-	return s.initCipherSuite()
+	_, err := s.initializedCipherSuite()
+
+	return err
 }
 
 // ExportKeyingMaterial returns length bytes of exported key material in a new
@@ -235,12 +218,16 @@ func (s *State) UnmarshalBinary(data []byte) error {
 // This allows protocols to use DTLS for key establishment, but
 // then use some of the keying material for their own purposes.
 func (s *State) ExportKeyingMaterial(label string, context []byte, length int) ([]byte, error) {
-	if s.getLocalEpoch() == 0 {
-		return nil, errHandshakeInProgress
+	if s.localEpoch == 0 {
+		return nil, dtlserrors.ErrHandshakeInProgress
 	} else if len(context) != 0 {
-		return nil, errContextUnsupported
+		return nil, dtlserrors.ErrContextUnsupported
 	} else if _, ok := invalidKeyingLabels()[label]; ok {
-		return nil, errReservedExportKeyingMaterial
+		return nil, dtlserrors.ErrReservedExportKeyingMaterial
+	}
+	cipherSuite, err := s.initializedCipherSuite()
+	if err != nil {
+		return nil, err
 	}
 
 	localRandom := s.localRandom.MarshalFixed()
@@ -253,47 +240,7 @@ func (s *State) ExportKeyingMaterial(label string, context []byte, length int) (
 		seed = append(append(seed, remoteRandom[:]...), localRandom[:]...)
 	}
 
-	return prf.PHash(s.masterSecret, seed, length, s.cipherSuite.HashFunc())
-}
-
-func (s *State) getRemoteEpoch() uint16 {
-	if remoteEpoch, ok := s.remoteEpoch.Load().(uint16); ok {
-		return remoteEpoch
-	}
-
-	return 0
-}
-
-func (s *State) getLocalEpoch() uint16 {
-	if localEpoch, ok := s.localEpoch.Load().(uint16); ok {
-		return localEpoch
-	}
-
-	return 0
-}
-
-func (s *State) setSRTPProtectionProfile(profile SRTPProtectionProfile) {
-	s.srtpProtectionProfile.Store(profile)
-}
-
-func (s *State) getSRTPProtectionProfile() SRTPProtectionProfile {
-	if val, ok := s.srtpProtectionProfile.Load().(SRTPProtectionProfile); ok {
-		return val
-	}
-
-	return 0
-}
-
-func (s *State) getLocalConnectionID() []byte {
-	if val, ok := s.localConnectionID.Load().([]byte); ok {
-		return val
-	}
-
-	return nil
-}
-
-func (s *State) setLocalConnectionID(v []byte) {
-	s.localConnectionID.Store(v)
+	return prf.PHash(s.masterSecret, seed, length, cipherSuite.HashFunc())
 }
 
 // RemoteRandomBytes returns the remote client hello random bytes.

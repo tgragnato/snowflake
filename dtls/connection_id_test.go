@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
@@ -140,7 +140,7 @@ func TestCIDDatagramRouter(t *testing.T) {
 					SequenceNumber: 1,
 				}).Marshal()
 				if err != nil {
-					t.Fatal(err)
+			t.Fatal(err)
 				}
 
 				return append(altCIDHeader, inner...)
@@ -168,7 +168,7 @@ func TestCIDDatagramRouter(t *testing.T) {
 					SequenceNumber: 1,
 				}).Marshal()
 				if err != nil {
-					t.Fatal(err)
+			t.Fatal(err)
 				}
 
 				return append(altCIDHeader, inner...)

@@ -1,13 +1,15 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 )
 
 func TestHandshakeMessageClientKeyExchange(t *testing.T) {
@@ -35,5 +37,17 @@ func TestHandshakeMessageClientKeyExchange(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawClientKeyExchange) {
 		t.Errorf("handshakeMessageClientKeyExchange marshal: got %#v, want %#v", raw, rawClientKeyExchange)
+	}
+}
+
+func TestHandshakeMessageClientKeyExchange_PublicKeyTooLong(t *testing.T) {
+	c := &MessageClientKeyExchange{
+		PublicKey:            make([]byte, 256),
+		KeyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+	}
+
+	_, err := c.Marshal()
+	if !errors.Is(err, dtlserrors.ErrPublicKeyTooLong) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrPublicKeyTooLong, err)
 	}
 }

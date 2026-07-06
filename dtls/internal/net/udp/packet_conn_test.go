@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package udp implements DTLS specific UDP networking primitives.
@@ -16,7 +16,7 @@ import (
 	"time"
 
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/test"
 )
 
 var errHandshakeFailed = errors.New("handshake failed")
@@ -131,8 +131,12 @@ func TestListenerCloseUnaccepted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < backlog; i++ {
-		conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
+	for i := range backlog {
+		aAddr, ok := listener.Addr().(*net.UDPAddr)
+		if !ok {
+			t.Error("expected true")
+		}
+		conn, dErr := net.DialUDP(network, nil, aAddr)
 		if dErr != nil {
 			t.Error(dErr)
 
@@ -178,7 +182,6 @@ func TestListenerAcceptFilter(t *testing.T) {
 	}
 
 	for name, testCase := range testCases {
-		testCase := testCase
 		t.Run(name, func(t *testing.T) {
 			network, addr := getConfig()
 			listener, err := (&ListenConfig{
@@ -267,8 +270,12 @@ func TestListenerConcurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < backlog+1; i++ {
-		conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
+	for i := range backlog + 1 {
+		addr, ok := listener.Addr().(*net.UDPAddr)
+		if !ok {
+			t.Error("expected true")
+		}
+		conn, dErr := net.DialUDP(network, nil, addr)
 		if dErr != nil {
 			t.Error(dErr)
 
@@ -284,7 +291,7 @@ func TestListenerConcurrent(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond) // Wait all packets being processed by readLoop
 
-	for i := 0; i < backlog; i++ {
+	for i := range backlog {
 		conn, _, lErr := listener.Accept()
 		if lErr != nil {
 			t.Error(lErr)
@@ -534,13 +541,13 @@ func TestListenerCustomConnIDs(t *testing.T) {
 	var clientWg sync.WaitGroup
 	var phaseOne [5]chan struct{}
 	for i := range phaseOne {
-		phaseOne[i] = make(chan struct{})
+		phaseOne[i] = make(chan struct{}) // not out of range access.
 	}
 	var serverWg sync.WaitGroup
 	clientMap := map[string]struct{}{}
 	var clientMapMu sync.Mutex
 	// Start servers.
-	for i := 0; i < serverCount; i++ {
+	for range serverCount {
 		serverWg.Add(1)
 		go func() {
 			defer serverWg.Done()
@@ -594,7 +601,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			close(phaseOne[connID])
 			// Receive packets, ensuring that each one came from a different
 			// client remote address and has a unique payload.
-			for j := 0; j < clientCount/serverCount; j++ {
+			for range clientCount / serverCount {
 				buf := make([]byte, 100)
 				n, _, err := conn.ReadFrom(buf)
 				if err != nil {
@@ -632,7 +639,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 
 	// Start a client per server to send initial "hello" message and receive a
 	// "set" message.
-	for i := 0; i < serverCount; i++ {
+	for i := range serverCount {
 		clientWg.Add(1)
 		go func(connID int) {
 			defer clientWg.Done()
@@ -696,7 +703,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 	// Spawn clients sending to server connections.
 	for i := 1; i <= clientCount; i++ {
 		clientWg.Add(1)
-		go func(connID int) {
+		go func(connID int, clientID string) {
 			defer clientWg.Done()
 			// Ensure that we are using a connection ID for packet
 			// routing prior to sending any messages.
@@ -704,29 +711,27 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			conn, dErr := net.DialUDP(network, nil, listener.Addr().(*net.UDPAddr))
 			if dErr != nil {
 				t.Error(dErr)
-
 				return
 			}
-			// Send a packet with a connection ID and this client's local
-			// address. The latter is used to identify this client as unique.
+
+			// Send a packet with a connection ID and this client's unique ID.
 			buf, err := json.Marshal(&pkt{
 				ID:      connID,
-				Payload: conn.LocalAddr().String(),
+				Payload: clientID,
 			})
 			if err != nil {
 				t.Error(err)
-
 				return
 			}
-			if _, wErr := conn.Write(buf); wErr != nil {
+
+			_, wErr := conn.Write(buf)
+			if wErr != nil {
 				t.Error(wErr)
-
-				return
 			}
-			if cErr := conn.Close(); cErr != nil {
-				t.Error(cErr)
+			if conn.Close() != nil {
+				t.Error(conn.Close())
 			}
-		}(i % serverCount)
+		}(i%serverCount, fmt.Sprintf("client-%d", i))
 	}
 
 	// Wait for clients to exit.

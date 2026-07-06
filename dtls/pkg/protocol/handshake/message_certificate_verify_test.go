@@ -1,12 +1,14 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
 )
@@ -37,5 +39,18 @@ func TestHandshakeMessageCertificateVerify(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawCertificateVerify) {
 		t.Errorf("handshakeMessageCertificateVerify marshal: got %#v, want %#v", raw, rawCertificateVerify)
+	}
+}
+
+func TestHandshakeMessageCertificateVerify_InvalidAlgorithmValue(t *testing.T) {
+	c := &MessageCertificateVerify{
+		HashAlgorithm:      hash.Algorithm(0x100),
+		SignatureAlgorithm: signature.RSA_PSS_RSAE_SHA512,
+		Signature:          []byte{0x00},
+	}
+
+	_, err := c.Marshal()
+	if !errors.Is(err, dtlserrors.ErrInvalidSignHashAlgorithm) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidSignHashAlgorithm, err)
 	}
 }

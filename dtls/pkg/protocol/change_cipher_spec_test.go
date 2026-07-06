@@ -1,12 +1,13 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package protocol
 
 import (
 	"errors"
-	"reflect"
 	"testing"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 )
 
 func TestChangeCipherSpecRoundTrip(t *testing.T) {
@@ -17,18 +18,17 @@ func TestChangeCipherSpecRoundTrip(t *testing.T) {
 	}
 
 	var cNew ChangeCipherSpec
-	if err := cNew.Unmarshal(raw); err != nil {
-		t.Error(err)
+	if cNew.Unmarshal(raw) != nil {
+		t.Error(cNew.Unmarshal(raw))
 	}
-
-	if !reflect.DeepEqual(c, cNew) {
-		t.Errorf("ChangeCipherSpec round trip: got %#v, want %#v", cNew, c)
+	if c != cNew {
+		t.Errorf("expected %v, got %v", c, cNew)
 	}
 }
 
 func TestChangeCipherSpecInvalid(t *testing.T) {
 	c := ChangeCipherSpec{}
-	if err := c.Unmarshal([]byte{0x00}); !errors.Is(err, errInvalidCipherSpec) {
-		t.Errorf("ChangeCipherSpec invalid assert: got %#v, want %#v", err, errInvalidCipherSpec)
+	if !errors.Is(c.Unmarshal([]byte{0x00}), dtlserrors.ErrInvalidCipherSpec) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidCipherSpec, c.Unmarshal([]byte{0x00}))
 	}
 }

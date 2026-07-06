@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package selfsign is a test helper that generates self signed certificate.
@@ -13,12 +13,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"errors"
 	"math/big"
 	"time"
-)
 
-var errInvalidPrivateKey = errors.New("selfsign: invalid private key type")
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
+)
 
 // GenerateSelfSigned creates a self-signed certificate.
 func GenerateSelfSigned() (tls.Certificate, error) {
@@ -54,7 +53,7 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 
 	signer, ok := key.(crypto.Signer)
 	if !ok {
-		return tls.Certificate{}, errInvalidPrivateKey
+		return tls.Certificate{}, dtlserrors.ErrSelfSignInvalidPrivateKey
 	}
 
 	switch k := signer.Public().(type) {
@@ -63,7 +62,7 @@ func WithDNS(key crypto.PrivateKey, cn string, sans ...string) (tls.Certificate,
 	case *ecdsa.PublicKey:
 		pubKey = k
 	default:
-		return tls.Certificate{}, errInvalidPrivateKey
+		return tls.Certificate{}, dtlserrors.ErrSelfSignInvalidPrivateKey
 	}
 
 	/* #nosec */

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/pion/transport/v3"
+	"github.com/pion/transport/v4"
 	"github.com/txthinking/socks5"
 )
 

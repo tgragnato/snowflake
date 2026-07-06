@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package extension
@@ -6,6 +6,7 @@ package extension
 import (
 	"strings"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"golang.org/x/crypto/cryptobyte"
 )
 
@@ -47,35 +48,42 @@ func (s *ServerName) Unmarshal(data []byte) error {
 	var extension uint16
 	val.ReadUint16(&extension)
 	if TypeValue(extension) != s.TypeValue() {
-		return errInvalidExtensionType
+		return dtlserrors.ErrInvalidExtensionType
 	}
 
 	var extData cryptobyte.String
-	val.ReadUint16LengthPrefixed(&extData)
+	if !val.ReadUint16LengthPrefixed(&extData) {
+		return dtlserrors.ErrBufferTooSmall
+	}
 
 	var nameList cryptobyte.String
 	if !extData.ReadUint16LengthPrefixed(&nameList) || nameList.Empty() {
-		return errInvalidSNIFormat
+		return dtlserrors.ErrInvalidSNIFormat
 	}
+
+	if !extData.Empty() {
+		return dtlserrors.ErrLengthMismatch
+	}
+
 	for !nameList.Empty() {
 		var nameType uint8
 		var serverName cryptobyte.String
 		if !nameList.ReadUint8(&nameType) ||
 			!nameList.ReadUint16LengthPrefixed(&serverName) ||
 			serverName.Empty() {
-			return errInvalidSNIFormat
+			return dtlserrors.ErrInvalidSNIFormat
 		}
 		if nameType != serverNameTypeDNSHostName {
 			continue
 		}
 		if len(s.ServerName) != 0 {
 			// Multiple names of the same name_type are prohibited.
-			return errInvalidSNIFormat
+			return dtlserrors.ErrInvalidSNIFormat
 		}
 		s.ServerName = string(serverName)
 		// An SNI value may not include a trailing dot.
 		if strings.HasSuffix(s.ServerName, ".") {
-			return errInvalidSNIFormat
+			return dtlserrors.ErrInvalidSNIFormat
 		}
 	}
 

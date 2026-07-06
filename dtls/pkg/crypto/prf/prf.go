@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package prf implements TLS 1.2 Pseudorandom functions
@@ -7,14 +7,14 @@ package prf
 import (
 	"crypto/ecdh"
 	"crypto/hmac"
+	"crypto/mlkem"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"hash"
 	"math"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v3/pkg/protocol"
 )
 
 const (
@@ -38,8 +38,6 @@ type EncryptionKeys struct {
 	ClientWriteIV  []byte
 	ServerWriteIV  []byte
 }
-
-var errInvalidNamedCurve = &protocol.FatalError{Err: errors.New("invalid named curve")}
 
 func (e *EncryptionKeys) String() string {
 	return fmt.Sprintf(`encryptionKeys:
@@ -105,8 +103,17 @@ func EcdhePSKPreMasterSecret(psk, publicKey, privateKey []byte, curve elliptic.C
 	return out, nil
 }
 
-// PreMasterSecret implements TLS 1.2 Premaster Secret generation given a keypair and a curve.
+// PreMasterSecret implements ECDHE and hybrid key agreement for a peer public
+// key, local private key, and negotiated group.
 func PreMasterSecret(publicKey, privateKey []byte, curve elliptic.Curve) ([]byte, error) {
+	if curve == elliptic.X25519MLKEM768 {
+		return x25519MLKEM768PreMasterSecret(publicKey, privateKey)
+	}
+
+	return ecdhPreMasterSecret(publicKey, privateKey, curve)
+}
+
+func ecdhPreMasterSecret(publicKey, privateKey []byte, curve elliptic.Curve) ([]byte, error) {
 	var ec ecdh.Curve
 
 	switch curve {
@@ -115,7 +122,7 @@ func PreMasterSecret(publicKey, privateKey []byte, curve elliptic.Curve) ([]byte
 	case elliptic.P384:
 		ec = ecdh.P384()
 	default:
-		return nil, errInvalidNamedCurve
+		return nil, dtlserrors.ErrInvalidNamedCurveFatal
 	}
 
 	sk, err := ec.NewPrivateKey(privateKey)
@@ -129,6 +136,69 @@ func PreMasterSecret(publicKey, privateKey []byte, curve elliptic.Curve) ([]byte
 	}
 
 	return sk.ECDH(pk)
+}
+
+func x25519MLKEM768PreMasterSecret(publicKey, privateKey []byte) ([]byte, error) {
+	switch len(privateKey) {
+	case elliptic.X25519MLKEM768ClientPrivateKeySize:
+		return x25519MLKEM768ClientPreMasterSecret(publicKey, privateKey)
+	case elliptic.X25519MLKEM768ServerPrivateKeySize:
+		return x25519MLKEM768ServerPreMasterSecret(publicKey, privateKey)
+	default:
+		return nil, dtlserrors.ErrLengthMismatch
+	}
+}
+
+func x25519MLKEM768ClientPreMasterSecret(serverPublicKey, clientPrivateKey []byte) ([]byte, error) {
+	if len(serverPublicKey) != elliptic.X25519MLKEM768ServerPublicKeySize {
+		return nil, dtlserrors.ErrLengthMismatch
+	}
+
+	mlkemSecretKey, err := mlkem.NewDecapsulationKey768(clientPrivateKey[:mlkem.SeedSize])
+	if err != nil {
+		return nil, err
+	}
+
+	mlkemSharedKey, err := mlkemSecretKey.Decapsulate(serverPublicKey[:mlkem.CiphertextSize768])
+	if err != nil {
+		return nil, err
+	}
+
+	x25519SharedKey, err := ecdhPreMasterSecret(
+		serverPublicKey[mlkem.CiphertextSize768:],
+		clientPrivateKey[mlkem.SeedSize:],
+		elliptic.X25519,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	secret := make([]byte, 0, elliptic.X25519MLKEM768SharedSecretSize)
+	secret = append(secret, mlkemSharedKey...)
+	secret = append(secret, x25519SharedKey...)
+
+	return secret, nil
+}
+
+func x25519MLKEM768ServerPreMasterSecret(clientPublicKey, serverPrivateKey []byte) ([]byte, error) {
+	if len(clientPublicKey) != elliptic.X25519MLKEM768ClientPublicKeySize {
+		return nil, dtlserrors.ErrLengthMismatch
+	}
+
+	x25519SharedKey, err := ecdhPreMasterSecret(
+		clientPublicKey[mlkem.EncapsulationKeySize768:],
+		serverPrivateKey[mlkem.SharedKeySize:],
+		elliptic.X25519,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	secret := make([]byte, 0, elliptic.X25519MLKEM768SharedSecretSize)
+	secret = append(secret, serverPrivateKey[:mlkem.SharedKeySize]...)
+	secret = append(secret, x25519SharedKey...)
+
+	return secret, nil
 }
 
 // PHash is PRF is the SHA-256 hash function is used for all cipher suites
@@ -169,7 +239,7 @@ func PHash(secret, seed []byte, requestedLength int, hashFunc HashFunc) ([]byte,
 	out := []byte{}
 
 	iterations := int(math.Ceil(float64(requestedLength) / float64(hashFunc().Size())))
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		lastRound, err = hmacSHA256(secret, lastRound)
 		if err != nil {
 			return nil, err

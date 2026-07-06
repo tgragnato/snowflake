@@ -1,10 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
-	"reflect"
+	"bytes"
 	"testing"
 )
 
@@ -13,16 +13,18 @@ func TestHandshakeMessageServerHelloDone(t *testing.T) {
 	parsedServerHelloDone := &MessageServerHelloDone{}
 
 	c := &MessageServerHelloDone{}
-	if err := c.Unmarshal(rawServerHelloDone); err != nil {
-		t.Error(err)
-	} else if !reflect.DeepEqual(c, parsedServerHelloDone) {
-		t.Errorf("handshakeMessageServerHelloDone unmarshal: got %#v, want %#v", c, parsedServerHelloDone)
+	if c.Unmarshal(rawServerHelloDone) != nil {
+		t.Error(c.Unmarshal(rawServerHelloDone))
+	}
+	if parsedServerHelloDone != c {
+		t.Errorf("expected %v, got %v", parsedServerHelloDone, c)
 	}
 
 	raw, err := c.Marshal()
 	if err != nil {
 		t.Error(err)
-	} else if !reflect.DeepEqual(raw, rawServerHelloDone) {
-		t.Errorf("handshakeMessageServerHelloDone marshal: got %#v, want %#v", raw, rawServerHelloDone)
+	}
+	if !bytes.Equal(rawServerHelloDone, raw) {
+		t.Errorf("expected %v, got %v", rawServerHelloDone, raw)
 	}
 }

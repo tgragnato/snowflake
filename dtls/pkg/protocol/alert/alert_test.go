@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package alert
@@ -7,6 +7,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 )
 
 func TestAlert(t *testing.T) {
@@ -28,7 +30,7 @@ func TestAlert(t *testing.T) {
 			Name:               "Invalid alert length",
 			Data:               []byte{0x00},
 			Want:               &Alert{},
-			WantUnmarshalError: errBufferTooSmall,
+			WantUnmarshalError: dtlserrors.ErrBufferTooSmall,
 		},
 	} {
 		a := &Alert{}

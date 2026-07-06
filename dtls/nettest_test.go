@@ -1,14 +1,15 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/test"
 	"golang.org/x/net/nettest"
 )
 
@@ -21,11 +22,15 @@ func TestNetTest(t *testing.T) {
 		if err != nil {
 			return nil, nil, nil, err
 		}
+
+		var stopOnce sync.Once
 		stop = func() {
-			_ = c1.Close()
-			_ = c2.Close()
+			stopOnce.Do(func() {
+				_ = c1.Close()
+				_ = c2.Close()
+			})
 		}
 
-		return
+		return c1, c2, stop, nil
 	})
 }

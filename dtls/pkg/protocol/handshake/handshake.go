@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package handshake provides the DTLS wire protocol for handshakes
@@ -6,6 +6,7 @@ package handshake
 
 import (
 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/internal/util"
 	"github.com/pion/dtls/v3/pkg/protocol"
 )
@@ -16,18 +17,34 @@ type Type uint8
 
 // Types of DTLS Handshake messages we know about.
 const (
-	TypeHelloRequest       Type = 0
-	TypeClientHello        Type = 1
-	TypeServerHello        Type = 2
-	TypeHelloVerifyRequest Type = 3
-	TypeCertificate        Type = 11
-	TypeServerKeyExchange  Type = 12
-	TypeCertificateRequest Type = 13
-	TypeServerHelloDone    Type = 14
-	TypeCertificateVerify  Type = 15
-	TypeClientKeyExchange  Type = 16
-	TypeFinished           Type = 20
+	TypeHelloRequest        Type = 0
+	TypeClientHello         Type = 1
+	TypeServerHello         Type = 2
+	TypeHelloVerifyRequest  Type = 3
+	TypeEncryptedExtensions Type = 8
+	TypeCertificate         Type = 11
+	TypeServerKeyExchange   Type = 12
+	TypeCertificateRequest  Type = 13
+	TypeServerHelloDone     Type = 14
+	TypeCertificateVerify   Type = 15
+	TypeClientKeyExchange   Type = 16
+	TypeFinished            Type = 20
+
+	// TypeMessageHash is a synthetic TLS 1.3 transcript-only handshake type.
+	TypeMessageHash Type = 254
 )
+
+// HelloRetryRequestRandom is set as the Random value of a ServerHello
+// to signal that the message is actually a HelloRetryRequest.
+// See RFC 8446 Section 4.1.3.
+func HelloRetryRequestRandom() []byte {
+	return []byte{
+		0xCF, 0x21, 0xAD, 0x74, 0xE5, 0x9A, 0x61, 0x11,
+		0xBE, 0x1D, 0x8C, 0x02, 0x1E, 0x65, 0xB8, 0x91,
+		0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB, 0x8C, 0x5E,
+		0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C,
+	}
+}
 
 // String returns the string representation of this type.
 func (t Type) String() string {
@@ -40,6 +57,8 @@ func (t Type) String() string {
 		return "ServerHello"
 	case TypeHelloVerifyRequest:
 		return "HelloVerifyRequest"
+	case TypeEncryptedExtensions:
+		return "EncryptedExtensions"
 	case TypeCertificate:
 		return "TypeCertificate"
 	case TypeServerKeyExchange:
@@ -54,6 +73,8 @@ func (t Type) String() string {
 		return "ClientKeyExchange"
 	case TypeFinished:
 		return "Finished"
+	case TypeMessageHash:
+		return "MessageHash"
 	}
 
 	return ""
@@ -87,9 +108,9 @@ func (h Handshake) ContentType() protocol.ContentType {
 // Marshal encodes a handshake into a binary message.
 func (h *Handshake) Marshal() ([]byte, error) {
 	if h.Message == nil {
-		return nil, errHandshakeMessageUnset
+		return nil, dtlserrors.ErrHandshakeMessageUnset
 	} else if h.Header.FragmentOffset != 0 {
-		return nil, errUnableToMarshalFragmented
+		return nil, dtlserrors.ErrUnableToMarshalFragmented
 	}
 
 	msg, err := h.Message.Marshal()
@@ -116,20 +137,22 @@ func (h *Handshake) Unmarshal(data []byte) error {
 
 	reportedLen := util.BigEndianUint24(data[1:])
 	if uint32(len(data)-HeaderLength) != reportedLen {
-		return errLengthMismatch
+		return dtlserrors.ErrLengthMismatch
 	} else if reportedLen != h.Header.FragmentLength {
-		return errLengthMismatch
+		return dtlserrors.ErrLengthMismatch
 	}
 
 	switch Type(data[0]) {
 	case TypeHelloRequest:
-		return errNotImplemented
+		return dtlserrors.ErrNotImplemented
 	case TypeClientHello:
 		h.Message = &MessageClientHello{}
 	case TypeHelloVerifyRequest:
 		h.Message = &MessageHelloVerifyRequest{}
 	case TypeServerHello:
 		h.Message = &MessageServerHello{}
+	case TypeEncryptedExtensions:
+		h.Message = &MessageEncryptedExtensions{}
 	case TypeCertificate:
 		h.Message = &MessageCertificate{}
 	case TypeServerKeyExchange:
@@ -145,7 +168,7 @@ func (h *Handshake) Unmarshal(data []byte) error {
 	case TypeCertificateVerify:
 		h.Message = &MessageCertificateVerify{}
 	default:
-		return errNotImplemented
+		return dtlserrors.ErrNotImplemented
 	}
 
 	return h.Message.Unmarshal(data[HeaderLength:])

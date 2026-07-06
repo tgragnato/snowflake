@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package protocol
@@ -6,6 +6,8 @@ package protocol
 import (
 	"errors"
 	"testing"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 )
 
 func TestDecodeCompressionMethods(t *testing.T) {
@@ -14,7 +16,7 @@ func TestDecodeCompressionMethods(t *testing.T) {
 		result []*CompressionMethod
 		err    error
 	}{
-		{[]byte{}, nil, errBufferTooSmall},
+		{[]byte{}, nil, dtlserrors.ErrBufferTooSmall},
 	}
 
 	for _, testCase := range testCases {

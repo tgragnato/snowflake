@@ -1,14 +1,16 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v3/pkg/protocol"
 	"github.com/pion/dtls/v3/pkg/protocol/extension"
@@ -93,5 +95,35 @@ func TestHandshakeMessageClientHelloSessionID(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawClientHello) {
 		t.Errorf("handshakeMessageClientHello marshal: got %#v, want %#v", raw, rawClientHello)
+	}
+}
+
+func TestHandshakeMessageClientHello_SessionIDTooLong(t *testing.T) {
+	c := &MessageClientHello{
+		Version:            protocol.Version{Major: 0xFE, Minor: 0xFD},
+		SessionID:          make([]byte, 256),
+		CompressionMethods: []*protocol.CompressionMethod{{ID: 0}},
+	}
+
+	_, err := c.Marshal()
+	if !errors.Is(err, dtlserrors.ErrSessionIDTooLong) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrSessionIDTooLong, err)
+	}
+}
+
+func TestHandshakeMessageClientHello_CompressionMethodsTooLong(t *testing.T) {
+	compressionMethods := make([]*protocol.CompressionMethod, 256)
+	for i := range compressionMethods {
+		compressionMethods[i] = &protocol.CompressionMethod{ID: 0}
+	}
+
+	c := &MessageClientHello{
+		Version:            protocol.Version{Major: 0xFE, Minor: 0xFD},
+		CompressionMethods: compressionMethods,
+	}
+
+	_, err := c.Marshal()
+	if !errors.Is(err, dtlserrors.ErrCompressionMethodsTooLong) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrCompressionMethodsTooLong, err)
 	}
 }

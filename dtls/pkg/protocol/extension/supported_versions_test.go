@@ -1,12 +1,14 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package extension
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/protocol"
 )
 
@@ -39,18 +41,22 @@ func TestSupportedVersions_ClientHello_RoundTrip(t *testing.T) {
 	}
 
 	var rt SupportedVersions
-	if err := rt.Unmarshal(raw); err != nil {
-		t.Fatalf("Unmarshal failed: %v", err)
+	if rt.Unmarshal(raw) != nil {
+		t.Error(rt.Unmarshal(raw))
 	}
 	if !reflect.DeepEqual(ext.Versions, rt.Versions) {
-		t.Errorf("Versions mismatch after roundtrip.\nExpected: %v\nGot:      %v", ext.Versions, rt.Versions)
+		t.Errorf("expected %v, got %v", ext.Versions, rt.Versions)
+	}
+	if rt.IsSelectedVersion() {
+		t.Error("expected false")
 	}
 }
 
 func TestSupportedVersions_ServerHello_RoundTrip(t *testing.T) {
 	// Server/HRR form: exactly one entry in Versions.
 	ext := &SupportedVersions{
-		Versions: []protocol.Version{protocol.Version1_3},
+		Versions:        []protocol.Version{protocol.Version1_3},
+		SelectedVersion: true,
 	}
 
 	// length=2, selected_version = 0xfe,0xfc
@@ -69,12 +75,47 @@ func TestSupportedVersions_ServerHello_RoundTrip(t *testing.T) {
 	}
 
 	var rt SupportedVersions
-	if err := rt.Unmarshal(raw); err != nil {
-		t.Fatalf("Unmarshal failed: %v", err)
+	if rt.Unmarshal(raw) != nil {
+		t.Error(rt.Unmarshal(raw))
 	}
-	expectedVersions := []protocol.Version{protocol.Version1_3}
-	if !reflect.DeepEqual(expectedVersions, rt.Versions) {
-		t.Errorf("Versions mismatch after roundtrip.\nExpected: %v\nGot:      %v", expectedVersions, rt.Versions)
+	if !reflect.DeepEqual([]protocol.Version{protocol.Version1_3}, rt.Versions) {
+		t.Errorf("expected %v, got %v", []protocol.Version{protocol.Version1_3}, rt.Versions)
+	}
+	if !rt.IsSelectedVersion() {
+		t.Error("expected true")
+	}
+}
+
+func TestSupportedVersions_ClientHello_SingleVersionRoundTrip(t *testing.T) {
+	ext := &SupportedVersions{
+		Versions: []protocol.Version{protocol.Version1_3},
+	}
+
+	// length=3, listLen=2, DTLS v1.3
+	rawExpected := []byte{
+		0x00, 0x2b, // extension type
+		0x00, 0x03, // extension_data length
+		0x02,       // versions length (bytes)
+		0xfe, 0xfc, // DTLS v1.3
+	}
+
+	raw, err := ext.Marshal()
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(rawExpected, raw) {
+		t.Errorf("expected %v, got %v", rawExpected, raw)
+	}
+
+	var rt SupportedVersions
+	if rt.Unmarshal(raw) != nil {
+		t.Error(rt.Unmarshal(raw))
+	}
+	if !reflect.DeepEqual([]protocol.Version{protocol.Version1_3}, rt.Versions) {
+		t.Errorf("expected %v, got %v", []protocol.Version{protocol.Version1_3}, rt.Versions)
+	}
+	if rt.IsSelectedVersion() {
+		t.Error("expected false")
 	}
 }
 
@@ -91,8 +132,8 @@ func TestSupportedVersions_ClientHello_Marshal_Invalid(t *testing.T) {
 
 	// in this case we want it to error to protect against malformed messages/DOS attacks.
 	_, err := ext.Marshal()
-	if err != errInvalidDTLSVersion {
-		t.Errorf("expected error %v, got %v", errInvalidDTLSVersion, err)
+	if !errors.Is(err, dtlserrors.ErrInvalidDTLSVersion) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidDTLSVersion, err)
 	}
 }
 
@@ -137,8 +178,23 @@ func TestSupportedVersions_Marshal_LengthBounds(t *testing.T) {
 
 	ext := &SupportedVersions{Versions: tooMany}
 	_, err := ext.Marshal()
-	if err != errInvalidSupportedVersionsFormat {
-		t.Errorf("expected error %v, got %v", errInvalidSupportedVersionsFormat, err)
+	if !errors.Is(err, dtlserrors.ErrInvalidSupportedVersionsFormat) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidSupportedVersionsFormat, err)
+	}
+}
+
+func TestSupportedVersions_Marshal_SelectedVersionRequiresSingleVersion(t *testing.T) {
+	ext := &SupportedVersions{
+		Versions: []protocol.Version{
+			protocol.Version1_3,
+			protocol.Version1_2,
+		},
+		SelectedVersion: true,
+	}
+
+	_, err := ext.Marshal()
+	if !errors.Is(err, dtlserrors.ErrInvalidSupportedVersionsFormat) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrInvalidSupportedVersionsFormat, err)
 	}
 }
 
@@ -153,7 +209,7 @@ func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
 			raw: []byte{
 				0x00, 0x0d, // invalid extension type
 			},
-			err: errInvalidExtensionType,
+			err: dtlserrors.ErrInvalidExtensionType,
 		},
 		{
 			name: "empty extension_data",
@@ -161,7 +217,7 @@ func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
 				0x00, 0x2b, // extension type
 				0x00, 0x00, // length = 0
 			},
-			err: errInvalidSupportedVersionsFormat,
+			err: dtlserrors.ErrInvalidSupportedVersionsFormat,
 		},
 		{
 			name: "client list odd length",
@@ -172,7 +228,7 @@ func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
 				0x03,             // listLen = 3
 				0xfe, 0xfd, 0xfe, // extra byte, parsing as list must fail
 			},
-			err: errInvalidSupportedVersionsFormat,
+			err: dtlserrors.ErrInvalidSupportedVersionsFormat,
 		},
 		{
 			name: "client list length mismatch",
@@ -183,7 +239,7 @@ func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
 				0x04,       // listLen = 4
 				0xfe, 0xfd, // but only 2 bytes present
 			},
-			err: errInvalidSupportedVersionsFormat,
+			err: dtlserrors.ErrInvalidSupportedVersionsFormat,
 		},
 		{
 			name: "server selected wrong size",
@@ -193,12 +249,11 @@ func TestSupportedVersions_Unmarshal_Errors(t *testing.T) {
 				0x00, 0x03, // length = 3
 				0xfe, 0xfc, 0x00,
 			},
-			err: errInvalidSupportedVersionsFormat,
+			err: dtlserrors.ErrInvalidSupportedVersionsFormat,
 		},
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var sv SupportedVersions
 			err := sv.Unmarshal(tc.raw)
@@ -228,7 +283,10 @@ func TestExtensionsUnmarshal_SupportedVersions_ClientHello(t *testing.T) {
 		protocol.Version1_2,
 	}
 	if !reflect.DeepEqual(expected, sv.Versions) {
-		t.Errorf("Versions mismatch.\nExpected: %v\nGot:      %v", expected, sv.Versions)
+		t.Errorf("expected %v, got %v", expected, sv.Versions)
+	}
+	if sv.IsSelectedVersion() {
+		t.Error("expected false")
 	}
 }
 
@@ -244,10 +302,72 @@ func TestExtensionsUnmarshal_SupportedVersions_ServerHello(t *testing.T) {
 
 	ex := sv.Unmarshal(supportedVersionsExt)
 	if ex != nil {
-		t.Fatalf("Unmarshal failed: %v", ex)
+		t.Error(ex)
 	}
-	expected := []protocol.Version{protocol.Version1_3}
-	if !reflect.DeepEqual(expected, sv.Versions) {
-		t.Errorf("Versions mismatch.\nExpected: %v\nGot:      %v", expected, sv.Versions)
+	// Server/HRR form yields a single entry in Versions.
+	if !reflect.DeepEqual([]protocol.Version{protocol.Version1_3}, sv.Versions) {
+		t.Errorf("expected %v, got %v", []protocol.Version{protocol.Version1_3}, sv.Versions)
 	}
+	if !sv.IsSelectedVersion() {
+		t.Error("expected true")
+	}
+}
+
+func TestExtensionsUnmarshal_SupportedVersions_OneItemVector(t *testing.T) {
+	supportedVersionsExt := []byte{
+		0x00, 0x2b, // extension type
+		0x00, 0x03, // extension_data length = 3
+		0x02,       // list length = 2
+		0xfe, 0xfc, // DTLS v1.3
+	}
+
+	var sv SupportedVersions
+
+	ex := sv.Unmarshal(supportedVersionsExt)
+	if ex != nil {
+		t.Error(ex)
+	}
+	if !reflect.DeepEqual([]protocol.Version{protocol.Version1_3}, sv.Versions) {
+		t.Errorf("expected %v, got %v", []protocol.Version{protocol.Version1_3}, sv.Versions)
+	}
+	if sv.IsSelectedVersion() {
+		t.Error("expected false")
+	}
+}
+
+func FuzzSupportedVersionsUnmarshal(f *testing.F) {
+	tcs := [][]byte{
+		{
+			0x00, 0x2b, // extension type
+			0x00, 0x02, // extension_data length = 2
+			0xfe, 0xfc, // selected_version = DTLS v1.3
+		},
+		{
+			0x00, 0x2b, // extension type
+			0x00, 0x07, // extension_data length
+			0x06,       // versions length (bytes)
+			0xfe, 0xfc, // DTLS v1.3
+			0xfe, 0xfd, // DTLS v1.2
+			0xfe, 0xff, // DTLS v1.0
+		},
+		{
+			0x00, 0x2b, // extension type
+			0x00, 0x02, // extension_data length
+			0xfe, 0xfc, // selected_version
+		},
+	}
+
+	for _, tc := range tcs {
+		f.Add(tc)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		vers := SupportedVersions{}
+		err := vers.Unmarshal(data)
+		if err != nil {
+			return
+		}
+		// Invalid versions are filtered out
+		testExtDataLength(t, &vers, data, false)
+	})
 }

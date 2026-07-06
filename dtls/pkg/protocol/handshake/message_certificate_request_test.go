@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/clientcertificate"
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
@@ -55,12 +56,11 @@ func TestHandshakeMessageCertificateRequest(t *testing.T) {
 				0x02, 0x01, 0x40, 0x00, 0x0C, 0x04, 0x03, 0x04, 0x01, 0x05,
 				0x03, 0x05, 0x01, 0x06, 0x01, 0x02, 0x01, 0x01,
 			},
-			expErr: errBufferTooSmall,
+			expErr: dtlserrors.ErrBufferTooSmall,
 		},
 	}
 
 	for name, testCase := range cases {
-		testCase := testCase
 		t.Run(name, func(t *testing.T) {
 			c := &MessageCertificateRequest{}
 			if err := c.Unmarshal(testCase.rawCertificateRequest); err != nil {
@@ -80,5 +80,47 @@ func TestHandshakeMessageCertificateRequest(t *testing.T) {
 				t.Errorf("parsedCertificateRequest marshal: got %#v, want %#v", raw, testCase.rawCertificateRequest)
 			}
 		})
+	}
+}
+
+// verify unrecognized signature algorithm pairs in a CertificateRequest are silently
+// skipped rather than causing a handshake failure.
+func TestHandshakeMessageCertificateRequest_SkipsUnknownAlgorithms(t *testing.T) {
+	raw := []byte{
+		0x02,       // cert types length: 2
+		0x01, 0x40, // RSASign, ECDSASign
+		0x00, 0x0C, // sig algs length: 12 bytes (6 pairs)
+		0x04, 0x03, // SHA256+ECDSA  (valid)
+		0x04, 0x01, // SHA256+RSA    (valid)
+		0x04, 0x02, // SHA256+DSA    (unknown, skip) — Firefox 0x0402
+		0x05, 0x02, // SHA384+DSA    (unknown, skip) — Firefox 0x0502
+		0x06, 0x02, // SHA512+DSA    (unknown, skip) — Firefox 0x0602
+		0x02, 0x02, // SHA1+DSA      (unknown, skip) — Firefox 0x0202
+		0x00, 0x00, // CAs length: 0
+	}
+
+	c := &MessageCertificateRequest{}
+	if c.Unmarshal(raw) != nil {
+		t.Error(c.Unmarshal(raw))
+	}
+	if !reflect.DeepEqual([]signaturehash.Algorithm{
+		{Hash: hash.SHA256, Signature: signature.ECDSA},
+		{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+	}, c.SignatureHashAlgorithms) {
+		t.Errorf("expected %v, got %v", []signaturehash.Algorithm{
+			{Hash: hash.SHA256, Signature: signature.ECDSA},
+			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+		}, c.SignatureHashAlgorithms)
+	}
+}
+
+func TestHandshakeMessageCertificateRequest_CertificateTypesTooLong(t *testing.T) {
+	c := &MessageCertificateRequest{
+		CertificateTypes: make([]clientcertificate.Type, 256),
+	}
+
+	_, err := c.Marshal()
+	if !errors.Is(err, dtlserrors.ErrCertificateTypesTooLong) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrCertificateTypesTooLong, err)
 	}
 }

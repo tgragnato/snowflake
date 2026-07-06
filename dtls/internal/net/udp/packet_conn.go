@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package udp implements DTLS specific UDP networking primitives.
@@ -18,15 +18,15 @@ package udp
 
 import (
 	"context"
-	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	idtlsnet "github.com/pion/dtls/v3/internal/net"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
-	"github.com/pion/transport/v3/deadline"
+	"github.com/pion/transport/v4/deadline"
 )
 
 const (
@@ -36,8 +36,8 @@ const (
 
 // Typed errors.
 var (
-	ErrClosedListener      = errors.New("udp: listener closed")
-	ErrListenQueueExceeded = errors.New("udp: listen queue exceeded")
+	ErrClosedListener      = dtlserrors.ErrUDPClosedListener
+	ErrListenQueueExceeded = dtlserrors.ErrUDPListenQueueExceeded
 )
 
 // listener augments a connection-oriented Listener over a UDP PacketConn.
@@ -157,6 +157,9 @@ type ListenConfig struct {
 	// the identifier is not already associated with the connection, it will be
 	// added.
 	ConnectionIdentifier func([]byte) (string, bool)
+
+	// Internal listen config used to open the UDP socket.
+	ListenConfig net.ListenConfig
 }
 
 // Listen creates a new listener based on the ListenConfig.
@@ -165,9 +168,17 @@ func (lc *ListenConfig) Listen(network string, laddr *net.UDPAddr) (dtlsnet.Pack
 		lc.Backlog = defaultListenBacklog
 	}
 
-	conn, err := net.ListenUDP(network, laddr)
+	laddrStr := ":0"
+	if laddr != nil {
+		laddrStr = laddr.String()
+	}
+	innerConn, err := lc.ListenConfig.ListenPacket(context.Background(), network, laddrStr)
 	if err != nil {
 		return nil, err
+	}
+	conn, ok := innerConn.(*net.UDPConn)
+	if !ok {
+		return nil, dtlserrors.ErrUDPListenPacketNotUDPConn
 	}
 
 	packetListener := &listener{

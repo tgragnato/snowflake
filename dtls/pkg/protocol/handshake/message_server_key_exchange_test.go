@@ -1,13 +1,15 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
@@ -76,4 +78,123 @@ func TestHandshakeMessageServerKeyExchange(t *testing.T) {
 
 		test(rawServerKeyExchange, parsedServerKeyExchange)
 	})
+}
+
+func TestHandshakeMessageServerKeyExchangeUnmarshalErrors(t *testing.T) {
+	for _, test := range []struct {
+		name                 string
+		keyExchangeAlgorithm types.KeyExchangeAlgorithm
+		data                 []byte
+		expectedErr          error
+	}{
+		{
+			name:                 "BufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x00},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			name:                 "CipherSuiteUnset",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmNone,
+			data:                 []byte{0x00, 0x00},
+			expectedErr:          dtlserrors.ErrCipherSuiteUnset,
+		},
+		{
+			// PSK-only: a non-empty body remains after the identity hint.
+			name:                 "PskLengthMismatch",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmPsk,
+			data:                 []byte{0x00, 0x00, 0xAA},
+			expectedErr:          dtlserrors.ErrLengthMismatch,
+		},
+		{
+			// An algorithm that is neither PSK nor ECDHE is unsupported here.
+			name:                 "UnsupportedKeyExchangeAlgorithm",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithm(1),
+			data:                 []byte{0x00, 0x00},
+			expectedErr:          dtlserrors.ErrLengthMismatch,
+		},
+		{
+			// ECDHE_PSK where the (empty) identity hint consumes the whole body,
+			// leaving nothing for the ECDHE parameters. Previously panicked.
+			name:                 "EcdhePskEmptyHintConsumesBody",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmPsk | types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x00, 0x00},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			name:                 "InvalidEllipticCurveType",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x99, 0x00},
+			expectedErr:          dtlserrors.ErrInvalidEllipticCurveType,
+		},
+		{
+			// Valid curve type but not enough bytes for the named curve.
+			name:                 "NamedCurveBufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			name:                 "InvalidNamedCurve",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0xFF, 0xFF},
+			expectedErr:          dtlserrors.ErrInvalidNamedCurveFatal,
+		},
+		{
+			// Valid curve type and named curve but missing the public key length.
+			name:                 "PublicKeyLengthBufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			// Public key length exceeds the remaining body.
+			name:                 "PublicKeyBufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d, 0x05},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			// Valid signature algorithm (0x03 = ECDSA) but invalid hash algorithm (0x07).
+			name:                 "InvalidHashAlgorithm",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d, 0x00, 0x07, 0x03},
+			expectedErr:          dtlserrors.ErrInvalidSignHashAlgorithm,
+		},
+		{
+			// Valid hash algorithm but missing the signature algorithm byte.
+			name:                 "SignatureAlgorithmBufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d, 0x00, 0x04},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			// Valid hash algorithm (0x04 = SHA256) but invalid signature algorithm (0x02).
+			name:                 "InvalidSignatureAlgorithm",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d, 0x00, 0x04, 0x02},
+			expectedErr:          dtlserrors.ErrInvalidSignHashAlgorithm,
+		},
+		{
+			// Valid hash and signature algorithms but missing the signature length.
+			name:                 "SignatureLengthBufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d, 0x00, 0x04, 0x03},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+		{
+			// Signature length exceeds the remaining body.
+			name:                 "SignatureBufferTooSmall",
+			keyExchangeAlgorithm: types.KeyExchangeAlgorithmEcdhe,
+			data:                 []byte{0x03, 0x00, 0x1d, 0x00, 0x04, 0x03, 0x00, 0x05},
+			expectedErr:          dtlserrors.ErrBufferTooSmall,
+		},
+	} {
+		c := &MessageServerKeyExchange{
+			KeyExchangeAlgorithm: test.keyExchangeAlgorithm,
+		}
+		if !errors.Is(c.Unmarshal(test.data), test.expectedErr) {
+			t.Errorf("expected error %v, got %v", test.expectedErr, test.name)
+		}
+	}
 }

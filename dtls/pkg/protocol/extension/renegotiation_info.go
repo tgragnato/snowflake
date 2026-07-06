@@ -1,9 +1,13 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package extension
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
+)
 
 const (
 	renegotiationInfoHeaderSize = 5
@@ -35,10 +39,13 @@ func (r *RenegotiationInfo) Marshal() ([]byte, error) {
 
 // Unmarshal populates the extension from encoded data.
 func (r *RenegotiationInfo) Unmarshal(data []byte) error {
-	if len(data) < renegotiationInfoHeaderSize {
-		return errBufferTooSmall
-	} else if TypeValue(binary.BigEndian.Uint16(data)) != r.TypeValue() {
-		return errInvalidExtensionType
+	switch {
+	case len(data) < renegotiationInfoHeaderSize:
+		return dtlserrors.ErrBufferTooSmall
+	case TypeValue(binary.BigEndian.Uint16(data)) != r.TypeValue():
+		return dtlserrors.ErrInvalidExtensionType
+	case binary.BigEndian.Uint16(data[2:4]) != 1:
+		return dtlserrors.ErrLengthMismatch
 	}
 
 	r.RenegotiatedConnection = data[4]

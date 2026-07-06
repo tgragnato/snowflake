@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package extension
 
 import (
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"golang.org/x/crypto/cryptobyte"
 )
 
@@ -42,19 +43,26 @@ func (c *ConnectionID) Unmarshal(data []byte) error {
 	var extension uint16
 	val.ReadUint16(&extension)
 	if TypeValue(extension) != c.TypeValue() {
-		return errInvalidExtensionType
+		return dtlserrors.ErrInvalidExtensionType
 	}
 
 	var extData cryptobyte.String
-	val.ReadUint16LengthPrefixed(&extData)
+	if !val.ReadUint16LengthPrefixed(&extData) {
+		return dtlserrors.ErrBufferTooSmall
+	}
 
 	var cid cryptobyte.String
 	if !extData.ReadUint8LengthPrefixed(&cid) {
-		return errInvalidCIDFormat
+		return dtlserrors.ErrInvalidCIDFormat
 	}
+
+	if !extData.Empty() {
+		return dtlserrors.ErrLengthMismatch
+	}
+
 	c.CID = make([]byte, len(cid))
 	if !cid.CopyBytes(c.CID) {
-		return errInvalidCIDFormat
+		return dtlserrors.ErrInvalidCIDFormat
 	}
 
 	return nil

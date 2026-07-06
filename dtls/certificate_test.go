@@ -1,13 +1,13 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
 
 import (
 	"crypto/tls"
-	"reflect"
 	"testing"
 
+	dtlsconfig "github.com/pion/dtls/v3/internal/config"
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 )
 
@@ -85,19 +85,28 @@ func TestGetCertificate(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			cfg := &handshakeConfig{
-				localCertificates:   test.localCertificates,
-				localGetCertificate: test.getCertificate,
+			getCertificate := func(info *dtlsconfig.ClientHelloInfo) (*tls.Certificate, error) {
+				return test.getCertificate(&ClientHelloInfo{
+					ServerName:   info.ServerName,
+					CipherSuites: info.CipherSuites,
+					RandomBytes:  info.RandomBytes,
+				})
 			}
-			cert, err := cfg.getCertificate(&ClientHelloInfo{ServerName: test.serverName})
-			if err != nil {
-				t.Fatal(err)
+			if test.getCertificate == nil {
+				getCertificate = nil
 			}
 
-			if !reflect.DeepEqual(cert.Leaf, test.expectedCertificate.Leaf) {
-				t.Fatalf("Certificate does not match: expected(%v) actual(%v)", test.expectedCertificate.Leaf, cert.Leaf)
+			cfg := &handshakeConfig{
+				LocalCertificates:   test.localCertificates,
+				LocalGetCertificate: getCertificate,
+			}
+			cert, err := cfg.GetCertificate(&dtlsconfig.ClientHelloInfo{ServerName: test.serverName})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if test.expectedCertificate.Leaf != cert.Leaf {
+				t.Errorf("Certificate Leaf should match expected: got %v, want %v", cert.Leaf, test.expectedCertificate.Leaf)
 			}
 		})
 	}

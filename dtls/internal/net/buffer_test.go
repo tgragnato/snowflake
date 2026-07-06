@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package net implements DTLS specific networking primitives.
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -417,6 +418,10 @@ func BenchmarkBufferWWR1400(b *testing.B) {
 func benchmarkBuffer(b *testing.B, size int64) {
 	b.Helper()
 
+	if runtime.GOARCH == "386" {
+		b.Skip("skip memory-intensive benchmark on 32-bit")
+	}
+
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5684")
 	if err != nil {
 		b.Fatalf("net.ResolveUDPAddr: %v", err)
@@ -515,23 +520,23 @@ func FuzzPacketBuffer_WriteReadRoundTrip(f *testing.F) {
 			if len(expect) == 0 {
 				if len(rb) == 0 {
 					if errRead != nil {
-						t.Fatalf("ReadFrom returned error: %v", errRead)
+			t.Fatalf("ReadFrom returned error: %v", errRead)
 					}
 					if n != 0 {
-						t.Fatalf("Expected 0 bytes read, got %d", n)
+			t.Fatalf("Expected 0 bytes read, got %d", n)
 					}
 					if raddr == nil {
-						t.Fatalf("Expected non-nil remote addr")
+			t.Fatalf("Expected non-nil remote addr")
 					}
 					if raddr.String() != addr.String() {
-						t.Fatalf("Expected addr %v got %v", addr.String(), raddr.String())
+			t.Fatalf("Expected addr %v got %v", addr.String(), raddr.String())
 					}
 				} else {
 					if !errors.Is(errRead, io.EOF) {
-						t.Fatalf("Unexpected err %v wanted io.EOF", errRead)
+			t.Fatalf("Unexpected err %v wanted io.EOF", errRead)
 					}
 					if n != 0 {
-						t.Fatalf("Expected 0 bytes read, got %d", n)
+			t.Fatalf("Expected 0 bytes read, got %d", n)
 					}
 				}
 

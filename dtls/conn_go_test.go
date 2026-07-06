@@ -1,12 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
 
 import (
-	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"testing"
@@ -14,8 +12,8 @@ import (
 
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
-	"github.com/pion/transport/v3/dpipe"
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/dpipe"
+	"github.com/pion/transport/v4/test"
 )
 
 func TestContextConfig(t *testing.T) {
@@ -46,22 +44,25 @@ func TestContextConfig(t *testing.T) {
 
 	cert, err := selfsign.GenerateSelfSigned()
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	config := &Config{
-		Certificates: []tls.Certificate{cert},
+
+	clientOpts := []ClientOption{
+		WithCertificates(cert),
+	}
+	serverOpts := []ServerOption{
+		WithCertificates(cert),
 	}
 
 	dials := map[string]struct {
-		f     func() (func() (net.Conn, error), func())
-		order []byte
+		f func() (func() (net.Conn, error), func())
 	}{
 		"Dial": {
 			f: func() (func() (net.Conn, error), func()) {
 				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 
 				return func() (net.Conn, error) {
-						conn, err := Dial("udp", addr, config)
+						conn, err := DialWithOptions("udp", addr, clientOpts...)
 						if err != nil {
 							return nil, err
 						}
@@ -71,7 +72,6 @@ func TestContextConfig(t *testing.T) {
 						cancel()
 					}
 			},
-			order: []byte{0, 1, 2},
 		},
 		"Client": {
 			f: func() (func() (net.Conn, error), func()) {
@@ -79,7 +79,7 @@ func TestContextConfig(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 
 				return func() (net.Conn, error) {
-						conn, err := Client(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						conn, err := ClientWithOptions(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), clientOpts...)
 						if err != nil {
 							return nil, err
 						}
@@ -90,7 +90,6 @@ func TestContextConfig(t *testing.T) {
 						cancel()
 					}
 			},
-			order: []byte{0, 1, 2},
 		},
 		"Server": {
 			f: func() (func() (net.Conn, error), func()) {
@@ -98,7 +97,7 @@ func TestContextConfig(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 
 				return func() (net.Conn, error) {
-						conn, err := Server(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), config)
+						conn, err := ServerWithOptions(dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), serverOpts...)
 						if err != nil {
 							return nil, err
 						}
@@ -109,52 +108,61 @@ func TestContextConfig(t *testing.T) {
 						cancel()
 					}
 			},
-			order: []byte{0, 1, 2},
 		},
 	}
 
+	type dialResult struct {
+		err         error
+		ok          bool
+		completedAt time.Time
+	}
+
 	for name, dial := range dials {
-		dial := dial
 		t.Run(name, func(t *testing.T) {
-			done := make(chan struct{})
+			done := make(chan dialResult, 1)
+			startedAt := time.Now()
 
 			go func() {
 				d, cancel := dial.f()
 				conn, err := d()
 				defer cancel()
 				var netError net.Error
-				if !errors.As(err, &netError) || !netError.Temporary() {
-					t.Errorf("Client error exp(Temporary network error) failed(%v)", err)
-					close(done)
-
-					return
-				}
-				done <- struct{}{}
 				if err == nil {
 					_ = conn.Close()
 				}
-			}()
 
-			var order []byte
-			early := time.After(20 * time.Millisecond)
-			late := time.After(60 * time.Millisecond)
-			func() {
-				for len(order) < 3 {
-					select {
-					case <-early:
-						order = append(order, 0)
-					case _, ok := <-done:
-						if !ok {
-							return
-						}
-						order = append(order, 1)
-					case <-late:
-						order = append(order, 2)
-					}
+				done <- dialResult{
+					err:         err,
+					ok:          errors.As(err, &netError) && netError.Temporary(),
+					completedAt: time.Now(),
 				}
 			}()
-			if !bytes.Equal(dial.order, order) {
-				t.Errorf("Invalid cancel timing, expected: %v, got: %v", dial.order, order)
+
+			const earlyCancelWindow = 20 * time.Millisecond
+			time.Sleep(earlyCancelWindow)
+
+			assertResult := func(result dialResult) {
+				if result.completedAt.Sub(startedAt) < earlyCancelWindow {
+					t.Errorf("Invalid cancel timing: completed too early")
+				}
+				if !result.ok {
+					t.Errorf("Dial failed with unexpected error: err: %v", result.err)
+				}
+			}
+
+			select {
+			case result := <-done:
+				assertResult(result)
+
+				return
+			default:
+			}
+
+			select {
+			case result := <-done:
+				assertResult(result)
+			case <-time.After(time.Second):
+				t.Error("Dial did not finish after context cancellation")
 			}
 		})
 	}

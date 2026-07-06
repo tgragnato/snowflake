@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
@@ -12,12 +12,15 @@ import (
 	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
 )
 
-// Listen creates a DTLS listener.
-func Listen(network string, laddr *net.UDPAddr, config *Config) (net.Listener, error) {
+func listenWithValidatedConfig(network string, laddr *net.UDPAddr, config *dtlsConfig) (net.Listener, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
 
+	return listenWithConfig(network, laddr, config)
+}
+
+func listenWithConfig(network string, laddr *net.UDPAddr, config *dtlsConfig) (net.Listener, error) {
 	lc := udp.ListenConfig{
 		AcceptFilter: func(packet []byte) bool {
 			pkts, err := recordlayer.UnpackDatagram(packet)
@@ -31,6 +34,7 @@ func Listen(network string, laddr *net.UDPAddr, config *Config) (net.Listener, e
 
 			return h.ContentType == protocol.ContentTypeHandshake
 		},
+		ListenConfig: config.ListenConfig,
 	}
 	// If connection ID support is enabled, then they must be supported in
 	// routing.
@@ -49,21 +53,44 @@ func Listen(network string, laddr *net.UDPAddr, config *Config) (net.Listener, e
 	}, nil
 }
 
-// NewListener creates a DTLS listener which accepts connections from an inner Listener.
-func NewListener(inner dtlsnet.PacketListener, config *Config) (net.Listener, error) {
+// ListenWithOptions creates a DTLS listener.
+func ListenWithOptions(network string, laddr *net.UDPAddr, opts ...ServerOption) (net.Listener, error) {
+	config, err := buildServerConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return listenWithValidatedConfig(network, laddr, config)
+}
+
+func newListenerWithValidatedConfig(inner dtlsnet.PacketListener, config *dtlsConfig) (net.Listener, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
 
+	return newListenerWithConfig(inner, config), nil
+}
+
+func newListenerWithConfig(inner dtlsnet.PacketListener, config *dtlsConfig) net.Listener {
 	return &listener{
 		config: config,
 		parent: inner,
-	}, nil
+	}
+}
+
+// NewListenerWithOptions creates a DTLS listener which accepts connections from an inner Listener.
+func NewListenerWithOptions(inner dtlsnet.PacketListener, opts ...ServerOption) (net.Listener, error) {
+	config, err := buildServerConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return newListenerWithValidatedConfig(inner, config)
 }
 
 // listener represents a DTLS listener.
 type listener struct {
-	config *Config
+	config *dtlsConfig
 	parent dtlsnet.PacketListener
 }
 
@@ -75,7 +102,7 @@ func (l *listener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	return Server(c, raddr, l.config)
+	return serverWithConfig(c, raddr, l.config)
 }
 
 // Close closes the listener.

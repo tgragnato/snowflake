@@ -1,7 +1,9 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package protocol
+
+import dtlserrors "github.com/pion/dtls/v3/internal/errors"
 
 // ChangeCipherSpec protocol exists to signal transitions in
 // ciphering strategies.  The protocol consists of a single message,
@@ -26,5 +28,5 @@ func (c *ChangeCipherSpec) Unmarshal(data []byte) error {
 		return nil
 	}
 
-	return errInvalidCipherSpec
+	return dtlserrors.ErrInvalidCipherSpec
 }

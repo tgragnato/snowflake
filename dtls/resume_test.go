@@ -1,11 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
 
 import (
 	"bytes"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -15,7 +14,7 @@ import (
 
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/test"
 )
 
 var (
@@ -24,11 +23,29 @@ var (
 )
 
 func TestResumeClient(t *testing.T) {
-	DoTestResume(t, Client, Server)
+	DoTestResume(t, resumeClient, resumeServer)
 }
 
 func TestResumeServer(t *testing.T) {
-	DoTestResume(t, Server, Client)
+	DoTestResume(t, resumeServer, resumeClient)
+}
+
+func resumeClient(conn net.PacketConn, rAddr net.Addr, opts []Option) (*Conn, error) {
+	clientOpts := make([]ClientOption, len(opts))
+	for i, opt := range opts {
+		clientOpts[i] = opt
+	}
+
+	return ClientWithOptions(conn, rAddr, clientOpts...)
+}
+
+func resumeServer(conn net.PacketConn, rAddr net.Addr, opts []Option) (*Conn, error) {
+	serverOpts := make([]ServerOption, len(opts))
+	for i, opt := range opts {
+		serverOpts[i] = opt
+	}
+
+	return ServerWithOptions(conn, rAddr, serverOpts...)
 }
 
 func fatal(t *testing.T, errChan chan error, err error) {
@@ -41,7 +58,7 @@ func fatal(t *testing.T, errChan chan error, err error) {
 func DoTestResume(
 	t *testing.T,
 	newLocal,
-	newRemote func(net.PacketConn, net.Addr, *Config) (*Conn, error),
+	newRemote func(net.PacketConn, net.Addr, []Option) (*Conn, error),
 ) {
 	t.Helper()
 
@@ -71,21 +88,21 @@ func DoTestResume(
 			t.Fatal(err)
 		}
 	}()
-	config := &Config{
-		Certificates:         []tls.Certificate{certificate},
-		InsecureSkipVerify:   true,
-		ExtendedMasterSecret: RequireExtendedMasterSecret,
+	opts := []Option{
+		WithCertificates(certificate),
+		WithInsecureSkipVerify(true),
+		WithExtendedMasterSecret(RequireExtendedMasterSecret),
 	}
 	go func() {
 		var remote *Conn
 		var errR error
-		remote, errR = newRemote(dtlsnet.PacketConnFromConn(remoteConn), remoteConn.RemoteAddr(), config)
+		remote, errR = newRemote(dtlsnet.PacketConnFromConn(remoteConn), remoteConn.RemoteAddr(), opts)
 		if errR != nil {
 			errChan <- errR
 		}
 
 		// Loop of read write
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			recv := make([]byte, 1024)
 			var n int
 			n, errR = remote.Read(recv)
@@ -101,7 +118,7 @@ func DoTestResume(
 	}()
 
 	var local *Conn
-	local, err = newLocal(dtlsnet.PacketConnFromConn(localConn1), localConn1.RemoteAddr(), config)
+	local, err = newLocal(dtlsnet.PacketConnFromConn(localConn1), localConn1.RemoteAddr(), opts)
 	if err != nil {
 		fatal(t, errChan, err)
 	}
@@ -147,7 +164,12 @@ func DoTestResume(
 
 	// Resume dtls connection
 	var resumed net.Conn
-	resumed, err = Resume(deserialized, dtlsnet.PacketConnFromConn(localConn2), localConn2.RemoteAddr(), config)
+	resumed, err = ResumeWithOptions(
+		deserialized,
+		dtlsnet.PacketConnFromConn(localConn2),
+		localConn2.RemoteAddr(),
+		opts...,
+	)
 	if err != nil {
 		fatal(t, errChan, err)
 	}

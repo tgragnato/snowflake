@@ -1,11 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"testing"
 	"time"
@@ -13,8 +12,8 @@ import (
 	"github.com/pion/dtls/v3/pkg/crypto/selfsign"
 	dtlsnet "github.com/pion/dtls/v3/pkg/net"
 	"github.com/pion/logging"
-	"github.com/pion/transport/v3/dpipe"
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/dpipe"
+	"github.com/pion/transport/v4/test"
 )
 
 func TestSimpleReadWrite(t *testing.T) {
@@ -31,9 +30,9 @@ func TestSimpleReadWrite(t *testing.T) {
 	gotHello := make(chan struct{})
 
 	go func() {
-		server, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-			Certificates:  []tls.Certificate{certificate},
-			LoggerFactory: logging.NewDefaultLoggerFactory(),
+		server, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+			WithCertificates(certificate),
+			WithLoggerFactory(logging.NewDefaultLoggerFactory()),
 		}, false)
 		if sErr != nil {
 			t.Error(sErr)
@@ -50,9 +49,9 @@ func TestSimpleReadWrite(t *testing.T) {
 		}
 	}()
 
-	client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{
-		LoggerFactory:      logging.NewDefaultLoggerFactory(),
-		InsecureSkipVerify: true,
+	client, err := testClient(ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{
+		WithLoggerFactory(logging.NewDefaultLoggerFactory()),
+		WithInsecureSkipVerify(true),
 	}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -82,8 +81,8 @@ func benchmarkConn(b *testing.B, payloadSize int64) {
 		certificate, err := selfsign.GenerateSelfSigned()
 		server := make(chan *Conn)
 		go func() {
-			s, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), &Config{
-				Certificates: []tls.Certificate{certificate},
+			s, sErr := testServer(ctx, dtlsnet.PacketConnFromConn(cb), cb.RemoteAddr(), []ServerOption{
+				WithCertificates(certificate),
 			}, false)
 			if err != nil {
 				b.Error(sErr)
@@ -100,7 +99,7 @@ func benchmarkConn(b *testing.B, payloadSize int64) {
 		b.SetBytes(int64(len(hw)))
 		go func() {
 			client, cErr := testClient(
-				ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), &Config{InsecureSkipVerify: true}, false,
+				ctx, dtlsnet.PacketConnFromConn(ca), ca.RemoteAddr(), []ClientOption{WithInsecureSkipVerify(true)}, false,
 			)
 			if cErr != nil {
 				b.Error(err)

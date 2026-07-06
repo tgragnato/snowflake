@@ -1,13 +1,11 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package util contains small helpers used across the repo
-package util // nolint:revive
+package util
 
 import (
 	"encoding/binary"
-
-	"golang.org/x/crypto/cryptobyte"
 )
 
 // BigEndianUint24 returns the value of a big endian uint24.
@@ -43,11 +41,4 @@ func Max(a, b int) int {
 	}
 
 	return b
-}
-
-// AddUint48 appends a big-endian, 48-bit value to the byte string.
-// Remove if / when https://github.com/golang/crypto/pull/265 is merged
-// upstream.
-func AddUint48(b *cryptobyte.Builder, v uint64) {
-	b.AddBytes([]byte{byte(v >> 40), byte(v >> 32), byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
 }

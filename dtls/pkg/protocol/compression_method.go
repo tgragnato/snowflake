@@ -1,7 +1,9 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package protocol
+
+import dtlserrors "github.com/pion/dtls/v3/internal/errors"
 
 // CompressionMethodID is the ID for a CompressionMethod.
 type CompressionMethodID byte
@@ -25,13 +27,13 @@ func CompressionMethods() map[CompressionMethodID]*CompressionMethod {
 // DecodeCompressionMethods the given compression methods.
 func DecodeCompressionMethods(buf []byte) ([]*CompressionMethod, error) {
 	if len(buf) < 1 {
-		return nil, errBufferTooSmall
+		return nil, dtlserrors.ErrBufferTooSmall
 	}
 	compressionMethodsCount := int(buf[0])
 	c := []*CompressionMethod{}
-	for i := 0; i < compressionMethodsCount; i++ {
+	for i := range compressionMethodsCount {
 		if len(buf) <= i+1 {
-			return nil, errBufferTooSmall
+			return nil, dtlserrors.ErrBufferTooSmall
 		}
 		id := CompressionMethodID(buf[i+1])
 		if compressionMethod, ok := CompressionMethods()[id]; ok {
@@ -44,6 +46,7 @@ func DecodeCompressionMethods(buf []byte) ([]*CompressionMethod, error) {
 
 // EncodeCompressionMethods the given compression methods.
 func EncodeCompressionMethods(c []*CompressionMethod) []byte {
+	// G115: TLS encodes compression_methods vector length as a single byte.
 	out := []byte{byte(len(c))}
 	for i := len(c); i > 0; i-- {
 		out = append(out, byte(c[i-1].ID))

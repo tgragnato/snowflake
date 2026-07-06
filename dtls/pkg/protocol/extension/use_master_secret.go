@@ -1,9 +1,13 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package extension
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
+)
 
 const (
 	useExtendedMasterSecretHeaderSize = 4
@@ -37,10 +41,13 @@ func (u *UseExtendedMasterSecret) Marshal() ([]byte, error) {
 
 // Unmarshal populates the extension from encoded data.
 func (u *UseExtendedMasterSecret) Unmarshal(data []byte) error {
-	if len(data) < useExtendedMasterSecretHeaderSize {
-		return errBufferTooSmall
-	} else if TypeValue(binary.BigEndian.Uint16(data)) != u.TypeValue() {
-		return errInvalidExtensionType
+	switch {
+	case len(data) < useExtendedMasterSecretHeaderSize:
+		return dtlserrors.ErrBufferTooSmall
+	case data[2] != 0x00 || data[3] != 0x00:
+		return dtlserrors.ErrLengthMismatch
+	case TypeValue(binary.BigEndian.Uint16(data)) != u.TypeValue():
+		return dtlserrors.ErrInvalidExtensionType
 	}
 
 	u.Supported = true

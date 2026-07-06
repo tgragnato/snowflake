@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/internal/util"
 )
 
@@ -26,19 +27,27 @@ const (
 
 // Marshal encodes the Handshake.
 func (m *MessageCertificate) Marshal() ([]byte, error) {
-	out := make([]byte, handshakeMessageCertificateLengthFieldSize)
+	total := handshakeMessageCertificateLengthFieldSize
 
-	for _, r := range m.Certificate {
-		// Certificate Length
-		out = append(out, make([]byte, handshakeMessageCertificateLengthFieldSize)...)
-		util.PutBigEndianUint24(out[len(out)-handshakeMessageCertificateLengthFieldSize:], uint32(len(r)))
-
-		// Certificate body
-		out = append(out, append([]byte{}, r...)...)
+	for _, cert := range m.Certificate {
+		total += handshakeMessageCertificateLengthFieldSize + len(cert)
 	}
 
+	out := make([]byte, total)
+
 	// Total Payload Size
-	util.PutBigEndianUint24(out[0:], uint32(len(out[handshakeMessageCertificateLengthFieldSize:])))
+	util.PutBigEndianUint24(out, uint32(total-handshakeMessageCertificateLengthFieldSize))
+	offset := handshakeMessageCertificateLengthFieldSize
+
+	for _, cert := range m.Certificate {
+		// Certificate Length
+		util.PutBigEndianUint24(out[offset:], uint32(len(cert)))
+		offset += handshakeMessageCertificateLengthFieldSize
+
+		// Certificate body
+		copy(out[offset:], cert)
+		offset += len(cert)
+	}
 
 	return out, nil
 }
@@ -46,13 +55,13 @@ func (m *MessageCertificate) Marshal() ([]byte, error) {
 // Unmarshal populates the message from encoded data.
 func (m *MessageCertificate) Unmarshal(data []byte) error {
 	if len(data) < handshakeMessageCertificateLengthFieldSize {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 
 	if certificateBodyLen := int(util.BigEndianUint24(
 		data,
 	)); certificateBodyLen+handshakeMessageCertificateLengthFieldSize != len(data) {
-		return errLengthMismatch
+		return dtlserrors.ErrLengthMismatch
 	}
 
 	offset := handshakeMessageCertificateLengthFieldSize
@@ -61,7 +70,7 @@ func (m *MessageCertificate) Unmarshal(data []byte) error {
 		offset += handshakeMessageCertificateLengthFieldSize
 
 		if offset+certificateLen > len(data) {
-			return errLengthMismatch
+			return dtlserrors.ErrLengthMismatch
 		}
 
 		m.Certificate = append(m.Certificate, append([]byte{}, data[offset:offset+certificateLen]...))

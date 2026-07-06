@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package fingerprint
@@ -8,6 +8,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"testing"
+
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 )
 
 func TestFingerprint(t *testing.T) {
@@ -53,7 +55,7 @@ func TestFingerprint(t *testing.T) {
 
 func TestFingerprint_UnavailableHash(t *testing.T) {
 	_, err := Fingerprint(&x509.Certificate{}, crypto.Hash(0xFFFFFFFF))
-	if !errors.Is(err, errHashUnavailable) {
-		t.Fatalf("Expected error '%v' for invalid hash ID, got '%v'", errHashUnavailable, err)
+	if !errors.Is(err, dtlserrors.ErrFingerprintHashUnavailable) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrFingerprintHashUnavailable, err)
 	}
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
@@ -6,6 +6,7 @@ package handshake
 import (
 	"encoding/binary"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/protocol"
 	"github.com/pion/dtls/v3/pkg/protocol/extension"
 )
@@ -36,31 +37,33 @@ func (m MessageServerHello) Type() Type {
 
 // Marshal encodes the Handshake.
 func (m *MessageServerHello) Marshal() ([]byte, error) {
-	if m.CipherSuiteID == nil {
-		return nil, errCipherSuiteUnset
-	} else if m.CompressionMethod == nil {
-		return nil, errCompressionMethodUnset
+	switch {
+	case m.CipherSuiteID == nil:
+		return nil, dtlserrors.ErrCipherSuiteUnset
+	case m.CompressionMethod == nil:
+		return nil, dtlserrors.ErrCompressionMethodUnset
+	case len(m.SessionID) > 255:
+		return nil, dtlserrors.ErrSessionIDTooLong
 	}
-
-	out := make([]byte, messageServerHelloVariableWidthStart)
-	out[0] = m.Version.Major
-	out[1] = m.Version.Minor
-
-	rand := m.Random.MarshalFixed()
-	copy(out[2:], rand[:])
-
-	out = append(out, byte(len(m.SessionID)))
-	out = append(out, m.SessionID...)
-
-	out = append(out, []byte{0x00, 0x00}...)
-	binary.BigEndian.PutUint16(out[len(out)-2:], *m.CipherSuiteID)
-
-	out = append(out, byte(m.CompressionMethod.ID))
 
 	extensions, err := extension.Marshal(m.Extensions)
 	if err != nil {
 		return nil, err
 	}
+
+	out := make([]byte, 0, messageServerHelloVariableWidthStart+1+len(m.SessionID)+2+1+len(extensions))
+	out = append(out, m.Version.Major, m.Version.Minor)
+
+	rand := m.Random.MarshalFixed()
+	out = append(out, rand[:]...)
+
+	out = append(out, byte(len(m.SessionID))) // G115: session ID length is validated to be <= 255 above.
+	out = append(out, m.SessionID...)
+
+	out = append(out, 0x00, 0x00)
+	binary.BigEndian.PutUint16(out[len(out)-2:], *m.CipherSuiteID)
+
+	out = append(out, byte(m.CompressionMethod.ID))
 
 	return append(out, extensions...), nil
 }
@@ -68,7 +71,7 @@ func (m *MessageServerHello) Marshal() ([]byte, error) {
 // Unmarshal populates the message from encoded data.
 func (m *MessageServerHello) Unmarshal(data []byte) error {
 	if len(data) < 2+RandomLength {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 
 	m.Version.Major = data[0]
@@ -81,31 +84,31 @@ func (m *MessageServerHello) Unmarshal(data []byte) error {
 	currOffset := messageServerHelloVariableWidthStart
 	currOffset++
 	if len(data) <= currOffset {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 
 	n := int(data[currOffset-1])
 	if len(data) <= currOffset+n {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	m.SessionID = append([]byte{}, data[currOffset:currOffset+n]...)
 	currOffset += len(m.SessionID)
 
 	if len(data) < currOffset+2 {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	m.CipherSuiteID = new(uint16)
 	*m.CipherSuiteID = binary.BigEndian.Uint16(data[currOffset:])
 	currOffset += 2
 
 	if len(data) <= currOffset {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	if compressionMethod, ok := protocol.CompressionMethods()[protocol.CompressionMethodID(data[currOffset])]; ok {
 		m.CompressionMethod = compressionMethod
 		currOffset++
 	} else {
-		return errInvalidCompressionMethod
+		return dtlserrors.ErrInvalidCompressionMethod
 	}
 
 	if len(data) <= currOffset {

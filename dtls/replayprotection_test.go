@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package dtls
@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/transport/v3/dpipe"
-	"github.com/pion/transport/v3/test"
+	"github.com/pion/transport/v4/dpipe"
+	"github.com/pion/transport/v4/test"
 )
 
 func TestReplayProtection(t *testing.T) {
@@ -62,7 +62,7 @@ func TestReplayProtection(t *testing.T) {
 				// Replay bit later
 				time.Sleep(time.Millisecond)
 				if _, werr := cb.Write(b[:n]); werr != nil {
-					t.Error(werr)
+			t.Error(werr)
 				}
 			}()
 		}
@@ -80,8 +80,6 @@ func TestReplayProtection(t *testing.T) {
 
 	var received [2][][]byte
 	for i, c := range []net.Conn{ca, cb} {
-		i := i
-		c := c
 		wgRoutines.Add(1)
 		atomic.AddInt32(&cntReplays, 1) // Keep locked until the final message
 		var lastMsgDone sync.Once
@@ -105,7 +103,7 @@ func TestReplayProtection(t *testing.T) {
 	}
 
 	var sent [][]byte
-	for i := 0; i < numMsgs; i++ {
+	for i := range numMsgs {
 		data := []byte{byte(i)}
 		sent = append(sent, data)
 		if _, werr := ca.Write(data); werr != nil {
@@ -124,16 +122,10 @@ func TestReplayProtection(t *testing.T) {
 	<-ctxReplayDone.Done()
 	time.Sleep(10 * time.Millisecond) // Ensure all replayed packets are sent
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if err := conn[i].Close(); err != nil {
-			t.Error(err)
+			t.Fatalf("conn[%d].Close failed: %v", i, err)
 		}
-	}
-	if err := ca.Close(); err != nil {
-		t.Error(err)
-	}
-	if err := cb.Close(); err != nil {
-		t.Error(err)
 	}
 	wgRoutines.Wait()
 

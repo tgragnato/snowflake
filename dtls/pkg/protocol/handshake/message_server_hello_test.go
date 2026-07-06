@@ -1,14 +1,16 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
 
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/protocol"
 	"github.com/pion/dtls/v3/pkg/protocol/extension"
 )
@@ -84,5 +86,21 @@ func TestHandshakeMessageServerHelloSessionID(t *testing.T) {
 		t.Error(err)
 	} else if !reflect.DeepEqual(raw, rawServerHello) {
 		t.Errorf("handshakeMessageServerHello marshal: got %#v, want %#v", raw, rawServerHello)
+	}
+}
+
+func TestHandshakeMessageServerHello_SessionIDTooLong(t *testing.T) {
+	cipherSuiteID := uint16(0xc02b)
+	c := &MessageServerHello{
+		Version:           protocol.Version{Major: 0xFE, Minor: 0xFD},
+		SessionID:         make([]byte, 256),
+		CipherSuiteID:     &cipherSuiteID,
+		CompressionMethod: &protocol.CompressionMethod{ID: 0},
+		Extensions:        []extension.Extension{},
+	}
+
+	_, err := c.Marshal()
+	if !errors.Is(err, dtlserrors.ErrSessionIDTooLong) {
+		t.Errorf("expected error %v, got %v", dtlserrors.ErrSessionIDTooLong, err)
 	}
 }

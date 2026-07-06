@@ -1,15 +1,18 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package handshake
 
 import (
+	"crypto/tls"
 	"encoding/binary"
 
 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
+	dtlserrors "github.com/pion/dtls/v3/internal/errors"
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/dtls/v3/pkg/crypto/hash"
 	"github.com/pion/dtls/v3/pkg/crypto/signature"
+	"github.com/pion/dtls/v3/pkg/crypto/signaturehash"
 )
 
 // MessageServerKeyExchange supports ECDH and PSK.
@@ -46,20 +49,22 @@ func (m *MessageServerKeyExchange) Marshal() ([]byte, error) {
 	out = append(out, byte(m.EllipticCurveType), 0x00, 0x00)
 	binary.BigEndian.PutUint16(out[len(out)-2:], uint16(m.NamedCurve))
 
+	// G115, no risk of overflow, the biggest supported curve is 97 bytes.
 	out = append(out, byte(len(m.PublicKey)))
 	out = append(out, m.PublicKey...)
 	switch {
 	case m.HashAlgorithm != hash.None && len(m.Signature) == 0:
-		return nil, errInvalidHashAlgorithm
+		return nil, dtlserrors.ErrInvalidSignHashAlgorithm
 	case m.HashAlgorithm == hash.None && len(m.Signature) > 0:
-		return nil, errInvalidHashAlgorithm
+		return nil, dtlserrors.ErrInvalidSignHashAlgorithm
 	case m.SignatureAlgorithm == signature.Anonymous && (m.HashAlgorithm != hash.None || len(m.Signature) > 0):
-		return nil, errInvalidSignatureAlgorithm
+		return nil, dtlserrors.ErrInvalidSignHashAlgorithm
 	case m.SignatureAlgorithm == signature.Anonymous:
 		return out, nil
 	}
 
-	out = append(out, []byte{byte(m.HashAlgorithm), byte(m.SignatureAlgorithm), 0x00, 0x00}...)
+	alg := signaturehash.Algorithm{Hash: m.HashAlgorithm, Signature: m.SignatureAlgorithm}
+	out = append(out, append(alg.Marshal(), []byte{0x00, 0x00}...)...)
 	binary.BigEndian.PutUint16(out[len(out)-2:], uint16(len(m.Signature)))
 	out = append(out, m.Signature...)
 
@@ -70,9 +75,9 @@ func (m *MessageServerKeyExchange) Marshal() ([]byte, error) {
 func (m *MessageServerKeyExchange) Unmarshal(data []byte) error {
 	switch {
 	case len(data) < 2:
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	case m.KeyExchangeAlgorithm == types.KeyExchangeAlgorithmNone:
-		return errCipherSuiteUnset
+		return dtlserrors.ErrCipherSuiteUnset
 	}
 
 	hintLength := binary.BigEndian.Uint16(data)
@@ -85,64 +90,67 @@ func (m *MessageServerKeyExchange) Unmarshal(data []byte) error {
 			return nil
 		}
 
-		return errLengthMismatch
+		return dtlserrors.ErrLengthMismatch
 	}
 
 	if !m.KeyExchangeAlgorithm.Has(types.KeyExchangeAlgorithmEcdhe) {
-		return errLengthMismatch
+		return dtlserrors.ErrLengthMismatch
+	}
+
+	if len(data) == 0 {
+		return dtlserrors.ErrBufferTooSmall
 	}
 
 	if _, ok := elliptic.CurveTypes()[elliptic.CurveType(data[0])]; ok {
 		m.EllipticCurveType = elliptic.CurveType(data[0])
 	} else {
-		return errInvalidEllipticCurveType
+		return dtlserrors.ErrInvalidEllipticCurveType
 	}
 
 	if len(data[1:]) < 2 {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	m.NamedCurve = elliptic.Curve(binary.BigEndian.Uint16(data[1:3]))
 	if _, ok := elliptic.Curves()[m.NamedCurve]; !ok {
-		return errInvalidNamedCurve
+		return dtlserrors.ErrInvalidNamedCurveFatal
 	}
 	if len(data) < 4 {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 
 	publicKeyLength := int(data[3])
 	offset := 4 + publicKeyLength
 	if len(data) < offset {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	m.PublicKey = append([]byte{}, data[4:offset]...)
 
 	// Anon connection doesn't contains hashAlgorithm, signatureAlgorithm, signature
 	if len(data) == offset {
 		return nil
-	} else if len(data) <= offset {
-		return errBufferTooSmall
+	} else if len(data) <= offset+1 {
+		return dtlserrors.ErrBufferTooSmall
 	}
 
-	m.HashAlgorithm = hash.Algorithm(data[offset])
-	if _, ok := hash.Algorithms()[m.HashAlgorithm]; !ok {
-		return errInvalidHashAlgorithm
+	scheme := binary.BigEndian.Uint16(data[offset : offset+2])
+	var alg signaturehash.Algorithm
+	err := alg.Unmarshal(tls.SignatureScheme(scheme))
+	if err != nil {
+		return dtlserrors.ErrInvalidSignHashAlgorithm
 	}
-	offset++
-	if len(data) <= offset {
-		return errBufferTooSmall
-	}
-	m.SignatureAlgorithm = signature.Algorithm(data[offset])
-	if _, ok := signature.Algorithms()[m.SignatureAlgorithm]; !ok {
-		return errInvalidSignatureAlgorithm
-	}
-	offset++
+
+	m.HashAlgorithm = alg.Hash
+	m.SignatureAlgorithm = alg.Signature
+
+	offset += 2
+
 	if len(data) < offset+2 {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	signatureLength := int(binary.BigEndian.Uint16(data[offset:]))
 	offset += 2
 	if len(data) < offset+signatureLength {
-		return errBufferTooSmall
+		return dtlserrors.ErrBufferTooSmall
 	}
 	m.Signature = append([]byte{}, data[offset:offset+signatureLength]...)
 
