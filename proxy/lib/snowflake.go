@@ -468,7 +468,13 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	if sf.OutboundAddress != "" {
 		// replace SDP host candidates with the given IP without validation
 		// still have server reflexive candidates to fall back on
-		settingsEngine.SetNAT1To1IPs([]string{sf.OutboundAddress}, webrtc.ICECandidateTypeHost)
+		if err := settingsEngine.SetICEAddressRewriteRules(webrtc.ICEAddressRewriteRule{
+			External:        []string{sf.OutboundAddress},
+			AsCandidateType: webrtc.ICECandidateTypeHost,
+			Mode:            webrtc.ICEAddressRewriteReplace,
+		}); err != nil {
+			log.Fatalf("Failed to set ICE address rewrite rules: %s", err)
+		}
 	}
 
 	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
@@ -946,8 +952,9 @@ func (sf *SnowflakeProxy) Start() error {
 			log.Printf("Connection to bridge at %s failed: %s", sf.RelayURL, err.Error())
 		},
 	}
-	BridgeProbeRetestTask.Start()
-	defer BridgeProbeRetestTask.Close()
+	if err := BridgeProbeRetestTask.Start(); err == nil {
+		defer BridgeProbeRetestTask.Close()
+	}
 
 	sf.pollTicker = time.NewTicker(sf.PollInterval)
 	defer sf.pollTicker.Stop()
