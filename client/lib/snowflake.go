@@ -395,8 +395,6 @@ func newSession(snowflakes SnowflakeCollector) (net.PacketConn, *smux.Session, e
 		pconn.Close()
 		return nil, nil, err
 	}
-	// Permit coalescing the payloads of consecutive sends.
-	conn.SetStreamMode(true)
 	// Set the maximum send and receive window sizes to a high number
 	// Removes KCP bottlenecks: https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40026
 	conn.SetWindowSize(WindowSize, WindowSize)
