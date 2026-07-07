@@ -3,11 +3,11 @@ package ipsetsink
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/sha3"
 	"encoding/binary"
 	"hash"
 
 	"github.com/clarkduvall/hyperloglog"
-	"golang.org/x/crypto/sha3"
 )
 
 func NewIPSetSink(maskingKey []byte) *IPSetSink {
@@ -25,7 +25,7 @@ type IPSetSink struct {
 
 func (s *IPSetSink) maskIPAddress(ipAddress string) []byte {
 	hmacIPMasker := hmac.New(func() hash.Hash {
-		return sha3.New256()
+		return hash.Hash(sha3.New256())
 	}, s.ipMaskingKey)
 	hmacIPMasker.Write([]byte(ipAddress))
 	return hmacIPMasker.Sum(nil)
@@ -50,6 +50,9 @@ type truncatedHash64FromBytes struct {
 
 func (c truncatedHash64FromBytes) Sum64() uint64 {
 	var value uint64
-	binary.Read(bytes.NewReader(c.hashValue), binary.BigEndian, &value)
+	err := binary.Read(bytes.NewReader(c.hashValue), binary.BigEndian, &value)
+	if err != nil {
+		return 0
+	}
 	return value
 }
