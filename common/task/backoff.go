@@ -27,6 +27,7 @@ SOFTWARE.
 package task
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -94,7 +95,9 @@ func (t *ExpBackoff) checkedExecute() error {
 	}
 
 	t.timer = time.AfterFunc(t.interval, func() {
-		t.checkedExecute()
+		if err := t.checkedExecute(); err != nil {
+			log.Println("task failed, shutting down:", err)
+		}
 	})
 
 	return nil
@@ -116,7 +119,9 @@ func (t *ExpBackoff) Start() error {
 
 func (t *ExpBackoff) WaitThenStart() {
 	time.AfterFunc(t.MinInterval, func() {
-		t.Start()
+		if err := t.Start(); err != nil {
+			log.Println("task failed to start: ", err)
+		}
 	})
 }
 
