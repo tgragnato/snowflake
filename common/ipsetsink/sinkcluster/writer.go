@@ -50,7 +50,7 @@ func (c *ClusterWriter) WriteIPSetToDisk() {
 	for _, sink := range c.sinks {
 		data, err := sink.current.Dump()
 		if err != nil {
-			log.Println("unable able to write ipset to file:", err)
+			log.Println("unable to write ipset to file:", err)
 			return
 		}
 		entry := &SinkEntry{
@@ -60,16 +60,18 @@ func (c *ClusterWriter) WriteIPSetToDisk() {
 		}
 		jsonData, err := json.Marshal(entry)
 		if err != nil {
-			log.Println("unable able to write ipset to file:", err)
+			log.Println("unable to write ipset to file: ", err)
 			return
 		}
 		jsonData = append(jsonData, byte('\n'))
 		_, err = io.Copy(sink.writer, bytes.NewReader(jsonData))
 		if err != nil {
-			log.Println("unable able to write ipset to file:", err)
+			log.Println("unable to write ipset to file: ", err)
 			return
 		}
-		sink.writer.Sync()
+		if err := sink.writer.Sync(); err != nil {
+			log.Println("unable to write ipset to file: ", err)
+		}
 		sink.current.Reset()
 	}
 	c.lastWriteTime = currentTime
