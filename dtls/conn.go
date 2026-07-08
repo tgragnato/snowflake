@@ -1231,16 +1231,6 @@ func (c *Conn) enqueueEncryptedPackets(packet addrPkt) bool {
 	return false
 }
 
-func (c *Conn) handleIncomingPacket13(
-	ctx context.Context,
-	buf []byte,
-	rAddr net.Addr,
-	enqueue bool,
-) (bool, bool, *alert.Alert, error) {
-	// Placeholder function
-	return false, false, nil, nil
-}
-
 func (c *Conn) handleIncomingPacket(
 	ctx context.Context,
 	buf []byte,

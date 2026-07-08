@@ -5,7 +5,6 @@ package ciphersuite
 
 import (
 	"bytes"
-	"crypto/aes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -42,20 +41,6 @@ func recordProtection13TestCases() []recordProtection13TestCase {
 			expectedSequenceNumberMask: expectedChaCha20SequenceNumberMask13,
 		},
 	}
-}
-
-func expectedAESSequenceNumberMask13(t *testing.T, sequenceNumberKey, encryptedRecord []byte) []byte {
-	t.Helper()
-
-	block, err := aes.NewCipher(sequenceNumberKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectedMask := make([]byte, aes.BlockSize)
-	block.Encrypt(expectedMask, encryptedRecord[:aes.BlockSize])
-
-	return expectedMask
 }
 
 func expectedChaCha20SequenceNumberMask13(t *testing.T, sequenceNumberKey, encryptedRecord []byte) []byte {
