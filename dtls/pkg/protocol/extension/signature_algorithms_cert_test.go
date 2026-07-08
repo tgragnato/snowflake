@@ -188,10 +188,8 @@ func TestSignatureAlgorithmsCertRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Error(err, "Failed to unmarshal")
 			}
-
 			if !reflect.DeepEqual(tc.ext, parsed) {
-
-				t.Errorf("expected %v, got %v", tc.ext, parsed, "Round trip failed")
+				t.Errorf("Round trip failed - expected %v, got %v", tc.ext, parsed)
 			}
 		})
 	}
