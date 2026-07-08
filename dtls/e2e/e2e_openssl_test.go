@@ -9,7 +9,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -216,11 +215,11 @@ func writeTempPEMFromCerts(certs []tls.Certificate) (string, string, error) {
 		return "", "", fmt.Errorf("no certificates provided")
 	}
 
-	certOut, err := ioutil.TempFile("", "cert.pem")
+	certOut, err := os.CreateTemp("", "cert.pem")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
-	keyOut, err := ioutil.TempFile("", "key.pem")
+	keyOut, err := os.CreateTemp("", "key.pem")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
