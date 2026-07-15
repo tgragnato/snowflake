@@ -125,8 +125,12 @@ type GeoIP interface {
 // Snowflake in another Go application.
 // For some more info also see CLI parameter descriptions in README.
 type SnowflakeProxy struct {
-	// How often to ask the broker for a new client
-	PollInterval    time.Duration
+	// PollInterval is a deprecated, fallback value for how often to ask the broker for a new client.
+	// Proxies will dynamically adjust their poll interval based on broker recommendation.
+	PollInterval time.Duration
+	// MinPollInterval Minimum time interval between when the proxy asks the broker for a client.
+	// A proxy will never poll more frequently than the MinPollInterval, regardless of the broker
+	// recommended poll interval value.
 	MinPollInterval time.Duration
 	// Capacity is the maximum number of clients a Snowflake will serve.
 	// Proxies with a capacity of 0 will accept an unlimited number of clients.
