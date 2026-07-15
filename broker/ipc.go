@@ -139,8 +139,22 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		clients:   req.Clients,
 		addr:      remoteIP,
 	}
+	pool := i.ctx.GetPool(poll)
+	pollInterval := pool.CheckAllowedPollTime(remoteIP).Milliseconds()
+	if pollInterval > 0 {
+		resp := messages.ProxyPollResponse{
+			Status:   "polled too soon",
+			NextPoll: pollInterval,
+		}
+		b, err := resp.Encode()
+		*response = b
+		if err != nil {
+			return messages.ErrInternal
+		}
+		return nil
+	}
 	offer := i.ctx.RequestOffer(poll)
-	pollInterval := i.ctx.GetPool(poll).GetPollInterval().Milliseconds()
+	pollInterval = pool.CheckAllowedPollTime(remoteIP).Milliseconds()
 
 	if offer == nil {
 		i.ctx.metrics.IncrementCounter("proxy-idle")
