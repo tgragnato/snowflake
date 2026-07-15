@@ -25,7 +25,7 @@ const minPollInterval = 2 * time.Second
 
 func main() {
 	pollInterval := flag.Duration("poll-interval", sf.DefaultPollInterval,
-		fmt.Sprint("how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
+		fmt.Sprint("a deprecated fallback value for often to ask the broker for a new client. Proxies will dynamically change their poll interval based on broker recommendation. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
 	capacity := flag.Uint("capacity", 0, "maximum concurrent clients (default is to accept an unlimited number of clients)")
 	stunURL := flag.String("stun", sf.DefaultSTUNURL, "Comma-separated STUN server `URL`s that this proxy will use will use to, among some other things, determine its public IP address")
 	logFilename := flag.String("log", "", "log `filename`. If not specified, logs will be output to stderr (console).")
