@@ -94,6 +94,7 @@ type ProxyPoll struct {
 	proxyType    string
 	natType      string
 	clients      int
+	addr         string
 	offerChannel chan *ClientOffer
 }
 
@@ -114,6 +115,7 @@ func (ctx *BrokerContext) Broker() {
 	for request := range ctx.proxyPolls {
 		pool := ctx.GetPool(request)
 		snowflake := NewSnowflake(request.id, request.proxyType, request.natType, request.clients)
+		snowflake.addr = request.addr
 		pool.Push(snowflake)
 		ctx.snowflakeLock.Lock()
 		ctx.idToSnowflake[snowflake.id] = snowflake

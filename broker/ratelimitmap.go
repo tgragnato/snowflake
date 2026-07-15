@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"hash"
-	"net"
 	"sync"
 	"time"
 
@@ -50,7 +49,7 @@ func NewRateLimitMap() *RateLimitMap {
 
 // Lookup checks the RateLimitMap and returns a timestamp if available
 // and a boolean indicating whether or one was found
-func (m *RateLimitMap) Lookup(addr net.Addr) (time.Time, bool) {
+func (m *RateLimitMap) Lookup(addr string) (time.Time, bool) {
 	hash := hashAddr(m.key, addr)
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -61,7 +60,7 @@ func (m *RateLimitMap) Lookup(addr net.Addr) (time.Time, bool) {
 	return time.Now(), false
 }
 
-func (m *RateLimitMap) Add(addr net.Addr, noSoonerThan time.Time) {
+func (m *RateLimitMap) Add(addr string, noSoonerThan time.Time) {
 	record := &proxyRecord{
 		AddrHash:     hashAddr(m.key, addr),
 		NoSoonerThan: noSoonerThan,
@@ -71,11 +70,11 @@ func (m *RateLimitMap) Add(addr net.Addr, noSoonerThan time.Time) {
 	m.lock.Unlock()
 }
 
-func hashAddr(key []byte, addr net.Addr) [32]byte {
+func hashAddr(key []byte, addr string) [32]byte {
 	hmacIPMasker := hmac.New(func() hash.Hash {
 		return sha3.New256()
 	}, key)
-	hmacIPMasker.Write([]byte(addr.String()))
+	hmacIPMasker.Write([]byte(addr))
 	return [32]byte(hmacIPMasker.Sum(nil))
 }
 

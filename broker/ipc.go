@@ -137,6 +137,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		proxyType: req.Type,
 		natType:   req.NAT,
 		clients:   req.Clients,
+		addr:      remoteIP,
 	}
 	offer := i.ctx.RequestOffer(poll)
 	pollInterval := i.ctx.GetPool(poll).GetPollInterval().Milliseconds()

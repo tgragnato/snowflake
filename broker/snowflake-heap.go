@@ -21,6 +21,7 @@ type Snowflake struct {
 	offerChannel  chan *ClientOffer
 	answerChannel chan string
 	clients       int
+	addr          string
 	index         int
 }
 
@@ -89,6 +90,7 @@ func (sp *SnowflakePool) Push(s *Snowflake) {
 	sp.lock.Lock()
 	defer sp.lock.Unlock()
 	heap.Push(sp.h, s)
+	sp.rateLimitMap.Add(s.addr, time.Now().Add(sp.pollInterval))
 }
 
 func (sp *SnowflakePool) Pop() *Snowflake {
