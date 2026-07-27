@@ -11,7 +11,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.72
-	github.com/pion/ice/v4 v4.3.0
+	github.com/pion/ice/v4 v4.4.0
 	github.com/pion/sdp/v3 v3.0.19
 	github.com/pion/stun/v3 v3.1.6
 	github.com/pion/transport/v4 v4.0.2
