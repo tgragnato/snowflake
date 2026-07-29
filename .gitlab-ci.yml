@@ -7,11 +7,8 @@ variables:
 
 stages:
   - test
+  - build
   - deploy
-  - container-build
-  - container-mirror
-  - binary_build
-  - release
 
 variables:
   DEBIAN_FRONTEND: noninteractive
@@ -270,7 +267,7 @@ shadow-integration:
     - tar -czvf $CI_PROJECT_DIR/shadow.data.tar.gz shadow-snowflake-minimal/shadow.data/ shadow-snowflake-minimal/shadow.log
 
 generate_tarball:
-  stage: deploy
+  stage: build
   image: ${DOCKER_REGISTRY_URL}/golang:1.24-$DEBIAN_STABLE
   rules:
     - if: $CI_COMMIT_TAG
@@ -308,10 +305,10 @@ release-job:
 # Build the container only if the commit is to main, or it is a tag.
 # If the commit is to main, then the docker image tag should be set to `nightly`.
 # If it is a tag, then the docker image tag should be set to the tag name.
-build-container:
+container:
   variables:
-    TAG: $CI_COMMIT_TAG # Will not be set on a non-tag build, will be set later 
-  stage: container-build
+    TAG: $CI_COMMIT_TAG # Will not be set on a non-tag build, will be set later
+  stage: build
   parallel:
     matrix:
       - ARCH: amd64
@@ -331,14 +328,23 @@ build-container:
   rules:
     - if: $CI_COMMIT_REF_NAME == "main"
     - if: $CI_COMMIT_TAG
+  dependencies: []
 
 merge-manifests:
   variables:
     TAG: $CI_COMMIT_TAG
-  stage: container-build
+  stage: build
   needs:
-    - job: build-container
+    - job: container
       artifacts: false
+      parallel:
+        matrix:
+          - ARCH: amd64
+    - job: container
+      artifacts: false
+      parallel:
+        matrix:
+          - ARCH: arm64
   image:
       name: ${DOCKER_REGISTRY_URL}/mplatform/manifest-tool:alpine
       entrypoint: [""]
@@ -360,11 +366,11 @@ merge-manifests:
 
 # If this is a tag, then we want to additionally tag the image as `latest`
 tag-container-release:
-  stage: container-build
+  stage: build
   needs:
     - job: merge-manifests
       artifacts: false
-  image: 
+  image:
       name: gcr.io/go-containerregistry/crane:debug
       entrypoint: [""]
   allow_failure: false
@@ -381,7 +387,7 @@ tag-container-release:
       when: always
 
 clean-image-tags:
-  stage: container-build
+  stage: build
   needs:
     - job: merge-manifests
       artifacts: false
@@ -397,27 +403,28 @@ clean-image-tags:
       when: always
     - if: $CI_COMMIT_TAG
       when: always
-      
+
 mirror-image-to-dockerhub:
-  stage: container-mirror
+  stage: deploy
   variables:
     DOCKERHUB_MIRROR_REPOURL: $DOCKERHUB_MIRROR_REPOURL
     DOCKERHUB_USERNAME: $DOCKERHUB_MIRROR_USERNAME
     DOCKERHUB_PASSWORD: $DOCKERHUB_MIRROR_PASSWORD
-  image: 
+  image:
     name: gcr.io/go-containerregistry/crane:debug
     entrypoint: [""]
   rules:
-    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $DOCKERHUB_MIRROR_USERNAME && $DOCKERHUB_PASSWORD && $CI_COMMIT_REF_NAME == "main"
       when: always
-    - if: $CI_COMMIT_TAG
+    - if: $DOCKERHUB_MIRROR_USERNAME && $DOCKERHUB_PASSWORD && $CI_COMMIT_TAG
       when: always
   script:
     - echo "$DOCKERHUB_PASSWORD" | crane auth login docker.io -u $DOCKERHUB_MIRROR_USERNAME --password-stdin
     - crane cp -a containers.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake $DOCKERHUB_MIRROR_REPOURL
+  dependencies: []
 
-binary_build_step:
-  stage: binary_build
+goreleaser:
+  stage: build
   image:
     name: ${DOCKER_REGISTRY_URL}/goreleaser/goreleaser
     entrypoint: [""]
@@ -441,9 +448,9 @@ binary_build_step:
       - dist/
     expire_in: 1 week
 
-upload:
+upload-debtpo:
   extends: .debtpo
-  stage: release
+  stage: deploy
   before_script:
     # generate .changes files for each .deb package
     - apt install -Uy devscripts dpkg-dev
@@ -464,3 +471,5 @@ upload:
     - mv dist/*.{changes,deb} dupload
   rules:
     - if: $TORDEB_SSH_PRIVATE_KEY && $CI_COMMIT_TAG
+  needs:
+    - job: goreleaser
