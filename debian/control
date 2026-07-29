@@ -11,11 +11,12 @@ Description: WebRTC pluggable transport for Tor (client)
  connection to volunteer proxies. These proxies relay Tor traffic to a
  Snowflake bridge and then to through the Tor network.
  .
- This package provides the proxy.
+ This package provides the client.
 
 Package: snowflake-proxy
 Section: net
 Priority: optional
+Architecture: any
 Homepage: https://snowflake.torproject.org/
 Description: WebRTC pluggable transport for Tor (proxy)
  Snowflake helps users circumvent censorship by making a WebRTC
