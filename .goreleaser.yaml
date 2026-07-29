@@ -57,14 +57,10 @@ nfpms:
     license: BSD-3-Clause
     description: |
       WebRTC pluggable transport for Tor (proxy)
-      
       Snowflake helps users circumvent censorship by making a WebRTC
-
       connection to volunteer proxies. These proxies relay Tor traffic to a
-
       Snowflake bridge and then to through the Tor network.
-
-      
+      .
       This package provides the proxy.
     section: net
     contents:
@@ -89,9 +85,12 @@ nfpms:
       preremove: "debian/snowflake-proxy.prerm"
     formats:
       - deb
-    file_name_template: '{{ .PackageName }}_{{ .Version }}-1~torproject_{{ .Arch }}'
-    release: 1~torproject
+    deb:
+      fields:
+        Source: snowflake
     mtime: "{{ .CommitDate }}"
+    version_metadata: "tpo"
+    release: 1
 
   - id: client
     package_name: snowflake-client
@@ -102,16 +101,12 @@ nfpms:
     license: BSD-3-Clause
     description: |
       WebRTC pluggable transport for Tor (client)
-      
       Snowflake helps users circumvent censorship by making a WebRTC
-
       connection to volunteer proxies. These proxies relay Tor traffic to a
-
       Snowflake bridge and then to through the Tor network.
-
-      
+      .
       This package provides the client.
-    section: network
+    section: net
     contents:
       # TODO: this would be nice to be compressed
       - src: doc/snowflake-client.1
@@ -120,10 +115,13 @@ nfpms:
           mode: 644
     formats:
       - deb
-    file_name_template: '{{ .PackageName }}_{{ .Version }}-1~torproject_{{ .Arch }}'
-    release: 1~torproject
+    deb:
+      fields:
+        Source: snowflake
     mtime: "{{ .CommitDate }}"
-    
+    version_metadata: "tpo"
+    release: 1
+
 changelog:
   sort: asc
   filters:
