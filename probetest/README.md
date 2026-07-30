@@ -17,7 +17,7 @@ Snowflake clients it can connect to. It works by adjusting the interactive conne
 candidates sent in the WebRTC offer and answer, as well as relaying the connection through
 a specialized proxy that limits the interactive connectivity of the probe's connection.
 By design, this probe system can classify the client's interactive connectivity type as
-"strict"(restricted), "moderate", "open"(unrestricted).
+"strict" (restricted), "moderate", or "open" (unrestricted).
 
 ### Running your own
 
