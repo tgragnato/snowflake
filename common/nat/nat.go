@@ -16,11 +16,12 @@ package nat
 import (
 	"errors"
 	"fmt"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 	"log"
 	"net"
 	"net/url"
 	"time"
+
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/proxy"
 
 	"github.com/pion/stun/v3"
 )
@@ -28,9 +29,14 @@ import (
 var ErrTimedOut = errors.New("timed out waiting for response")
 
 const (
-	NATUnknown      = "unknown"
-	NATRestricted   = "restricted"
+	NATUnknown = "unknown"
+	// NATRestricted : Deprecated, use NAT3Moderate / NAT3Strict instead
+	NATRestricted = "restricted"
+	// NATUnrestricted : Deprecated, use NAT3Open instead
 	NATUnrestricted = "unrestricted"
+	NAT3Open        = "open"
+	NAT3Moderate    = "moderate"
+	NAT3Strict      = "strict"
 )
 
 // Deprecated: Use CheckIfRestrictedNATWithProxy Instead.
@@ -45,6 +51,24 @@ func CheckIfRestrictedNAT(server string) (bool, error) {
 // will work with most other NATs),
 func CheckIfRestrictedNATWithProxy(server string, proxy *url.URL) (bool, error) {
 	return isRestrictedMapping(server, proxy)
+}
+
+func Detect3KindNATType(server string, proxy *url.URL) (string, error) {
+	restrictedMapping, err := isRestrictedMapping(server, proxy)
+	if err != nil {
+		return NATUnknown, err
+	}
+	if restrictedMapping {
+		return NAT3Strict, nil
+	}
+	restrictedFiltering, err := isRestrictedFiltering(server, proxy)
+	if err != nil {
+		return NATUnknown, err
+	}
+	if restrictedFiltering {
+		return NAT3Moderate, nil
+	}
+	return NAT3Open, nil
 }
 
 // Performs two tests from RFC 5780 to determine whether the mapping type
@@ -102,9 +126,7 @@ func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 // Performs two tests from RFC 5780 to determine whether the filtering type
 // of the client's NAT is port-dependent.
 // Returns true if the filtering is port-dependent and false otherwise
-// Note: This function is no longer used because a client's NAT type is
-// determined only by their mapping type, but the functionality might
-// be useful in the future and remains here.
+// Detect3KindNATType uses this after confirming address-independent mapping.
 func isRestrictedFiltering(addrStr string, proxy *url.URL) (bool, error) {
 	var xorAddr stun.XORMappedAddress
 
@@ -135,8 +157,9 @@ func isRestrictedFiltering(addrStr string, proxy *url.URL) (bool, error) {
 		return false, err
 	}
 
-	// Test III: Request port change
-	message.Add(stun.AttrChangeRequest, []byte{0x00, 0x00, 0x00, 0x02})
+	// Test II: Request addr + port change
+	message = stun.MustBuild(stun.TransactionID, stun.BindingRequest)
+	message.Add(stun.AttrChangeRequest, []byte{0x00, 0x00, 0x00, 0x06})
 
 	_, err = mapTestConn.RoundTrip(message, mapTestConn.PrimaryAddr)
 	if err != ErrTimedOut && err != nil {

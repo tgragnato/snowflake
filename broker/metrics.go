@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safeprom"
+
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink/sinkcluster"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/messages"
 )
@@ -107,6 +108,12 @@ func (m *Metrics) UpdateProxyStats(addr string, proxyType string, natType string
 			m.IncrementCounter("proxy-nat-restricted")
 		case NATUnrestricted:
 			m.IncrementCounter("proxy-nat-unrestricted")
+		case NAT3Strict:
+			m.IncrementCounter("proxy-nat-strict")
+		case NAT3Moderate:
+			m.IncrementCounter("proxy-nat-moderate")
+		case NAT3Open:
+			m.IncrementCounter("proxy-nat-open")
 		default:
 			m.IncrementCounter("proxy-nat-unknown")
 		}
@@ -133,10 +140,19 @@ func (m *Metrics) UpdateClientStats(addr string, rendezvousMethod messages.Rende
 	switch status {
 	case "denied":
 		m.IncrementCounter("client-denied")
-		if natType == NATUnrestricted {
-			m.IncrementCounter("client-unrestricted-denied")
-		} else {
+		switch natType {
+		case NATRestricted:
 			m.IncrementCounter("client-restricted-denied")
+		case NATUnrestricted:
+			m.IncrementCounter("client-unrestricted-denied")
+		case NAT3Strict:
+			m.IncrementCounter("client-nat-strict-denied")
+		case NAT3Moderate:
+			m.IncrementCounter("client-nat-moderate-denied")
+		case NAT3Open:
+			m.IncrementCounter("client-nat-open-denied")
+		default:
+			m.IncrementCounter("client-nat-unknown-denied")
 		}
 	case "matched":
 		m.IncrementCounter("client-match")
@@ -258,6 +274,11 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("client-denied-count", binCount(m.loadAndZero("client-denied")))
 	m.logger.Println("client-restricted-denied-count", binCount(m.loadAndZero("client-restricted-denied")))
 	m.logger.Println("client-unrestricted-denied-count", binCount(m.loadAndZero("client-unrestricted-denied")))
+	m.logger.Println("client-nat-strict-denied-count", binCount(m.loadAndZero("client-nat-strict-denied")))
+	m.logger.Println("client-nat-moderate-denied-count", binCount(m.loadAndZero("client-nat-moderate-denied")))
+	m.logger.Println("client-nat-open-denied-count", binCount(m.loadAndZero("client-nat-open-denied")))
+	m.logger.Println("client-nat-unknown-denied-count", binCount(m.loadAndZero("client-nat-unknown-denied")))
+
 	m.logger.Println("client-snowflake-match-count", binCount(m.loadAndZero("client-match")))
 	m.logger.Println("client-snowflake-timeout-count", binCount(m.loadAndZero("client-timeout")))
 
@@ -271,6 +292,9 @@ func (m *Metrics) printMetrics() {
 	m.logger.Println("snowflake-ips-nat-restricted", m.loadAndZero("proxy-nat-restricted"))
 	m.logger.Println("snowflake-ips-nat-unrestricted", m.loadAndZero("proxy-nat-unrestricted"))
 	m.logger.Println("snowflake-ips-nat-unknown", m.loadAndZero("proxy-nat-unknown"))
+	m.logger.Println("snowflake-ips-nat-strict", m.loadAndZero("proxy-nat-strict"))
+	m.logger.Println("snowflake-ips-nat-moderate", m.loadAndZero("proxy-nat-moderate"))
+	m.logger.Println("snowflake-ips-nat-open", m.loadAndZero("proxy-nat-open"))
 
 	m.ips.Clear()
 }
@@ -385,12 +409,21 @@ func initPrometheus() *PromMetrics {
 	return promMetrics
 }
 
-func (m *Metrics) RecordIPAddress(ip string, restricted bool, proxyType string) {
+func (m *Metrics) RecordIPAddress(ip string, natType string, proxyType string) {
 	if m.distinctIPWriter != nil {
-		if restricted {
-			m.distinctIPWriter.AddIPToSet("restricted", ip)
-		} else {
-			m.distinctIPWriter.AddIPToSet("unrestricted", ip)
+		switch natType {
+		case NAT3Open:
+			fallthrough
+		case NATUnrestricted:
+			m.distinctIPWriter.AddIPToSet("open", ip)
+		case NAT3Moderate:
+			m.distinctIPWriter.AddIPToSet("moderate", ip)
+		case NATRestricted:
+			fallthrough
+		case NAT3Strict:
+			fallthrough
+		default:
+			m.distinctIPWriter.AddIPToSet("strict", ip)
 		}
 		switch proxyType {
 		case "standalone":

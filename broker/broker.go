@@ -23,22 +23,22 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink/sinkcluster"
-
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/namematcher"
 	"golang.org/x/crypto/acme/autocert"
+
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/bridgefingerprint"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/ipsetsink/sinkcluster"
+	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/namematcher"
 )
 
 type BrokerContext struct {
-	unrestrictedPool *SnowflakePool
-	restrictedPool   *SnowflakePool
+	openPool     *SnowflakePool
+	moderatePool *SnowflakePool
+	strictPool   *SnowflakePool
 	// Maps keeping track of snowflakeIDs required to match SDP answers from
 	// the second http POST. Restricted snowflakes can only be matched up with
 	// clients behind an unrestricted NAT.
@@ -77,8 +77,9 @@ func NewBrokerContext(
 	bridgeListHolder.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges)))
 
 	return &BrokerContext{
-		unrestrictedPool:    NewSnowflakePool(),
-		restrictedPool:      NewSnowflakePool(),
+		openPool:            NewSnowflakePool(),
+		moderatePool:        NewSnowflakePool(),
+		strictPool:          NewSnowflakePool(),
 		idToSnowflake:       make(map[string]*Snowflake),
 		proxyPolls:          make(chan *ProxyPoll),
 		metrics:             metrics,
@@ -135,10 +136,22 @@ func (ctx *BrokerContext) Broker() {
 }
 
 func (ctx *BrokerContext) GetPool(poll *ProxyPoll) *SnowflakePool {
-	if poll.natType == NATUnrestricted {
-		return ctx.unrestrictedPool
+	switch poll.natType {
+	case NATUnrestricted:
+		fallthrough
+	case NAT3Open:
+		return ctx.openPool
+	case NAT3Moderate:
+		return ctx.moderatePool
+	case NATRestricted:
+		fallthrough
+	case NAT3Strict:
+		fallthrough
+	case NATUnknown:
+		fallthrough
+	default:
+		return ctx.strictPool
 	}
-	return ctx.restrictedPool
 }
 
 func (ctx *BrokerContext) InstallBridgeListProfile(reader io.Reader) error {
@@ -158,8 +171,9 @@ func (ctx *BrokerContext) CheckProxyRelayPattern(pattern *string) bool {
 }
 
 type pollIntervalConfig struct {
-	UnrestrictedPollInterval time.Duration `json:"unrestricted_poll_interval"`
-	RestrictedPollInterval   time.Duration `json:"restricted_poll_interval"`
+	OpenPollInterval     time.Duration `json:"open_poll_interval"`
+	ModeratePollInterval time.Duration `json:"moderate_poll_interval"`
+	StrictPollInterval   time.Duration `json:"strict_poll_interval"`
 }
 
 func (ctx *BrokerContext) LoadPollIntervalFromFile(filename string) error {
@@ -171,10 +185,12 @@ func (ctx *BrokerContext) LoadPollIntervalFromFile(filename string) error {
 	if err := json.Unmarshal(str, &config); err != nil {
 		return err
 	}
-	ctx.unrestrictedPool.SetPollInterval(config.UnrestrictedPollInterval * time.Millisecond)
-	ctx.restrictedPool.SetPollInterval(config.RestrictedPollInterval * time.Millisecond)
-	log.Printf("Loaded unrestricted poll interval: %d ms", config.UnrestrictedPollInterval)
-	log.Printf("Loaded restricted poll interval: %d ms", config.RestrictedPollInterval)
+	ctx.openPool.SetPollInterval(config.OpenPollInterval * time.Millisecond)
+	ctx.moderatePool.SetPollInterval(config.ModeratePollInterval * time.Millisecond)
+	ctx.strictPool.SetPollInterval(config.StrictPollInterval * time.Millisecond)
+	log.Printf("Loaded open poll interval: %d ms", config.OpenPollInterval)
+	log.Printf("Loaded moderate poll interval: %d ms", config.ModeratePollInterval)
+	log.Printf("Loaded strict poll interval: %d ms", config.StrictPollInterval)
 	return nil
 }
 
@@ -272,7 +288,7 @@ func main() {
 	if ipCountPrefix != "" {
 		var err error
 		files := make(map[string]*os.File)
-		for _, name := range []string{"restricted", "unrestricted",
+		for _, name := range []string{"strict", "open", "moderate",
 			"standalone", "browser", "mobile", "unknown"} {
 
 			files[name], err = os.OpenFile(fmt.Sprintf("%s-%s-%s.log", ipCountPrefix,
@@ -288,12 +304,13 @@ func main() {
 		}
 		ctx.metrics.distinctIPWriter = sinkcluster.NewClusterWriter(
 			map[string]sinkcluster.WriteSyncer{
-				"restricted":   files["restricted"],
-				"unrestricted": files["unrestricted"],
-				"standalone":   files["standalone"],
-				"browser":      files["browser"],
-				"mobile":       files["mobile"],
-				"unknown":      files["unknown"],
+				"strict":     files["strict"],
+				"moderate":   files["moderate"],
+				"open":       files["open"],
+				"standalone": files["standalone"],
+				"browser":    files["browser"],
+				"mobile":     files["mobile"],
+				"unknown":    files["unknown"],
 			}, ipCountMaskingKey, ipCountInterval)
 	}
 	if pollIntervalFilepath != "" {

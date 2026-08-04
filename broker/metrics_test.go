@@ -1,11 +1,53 @@
 package main
 
 import (
+	"bytes"
+	"log"
 	"sync"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
+
+func TestDeniedClientNATMetrics(t *testing.T) {
+	Convey("Denied clients are counted by every supported NAT type", t, func() {
+		buf := new(bytes.Buffer)
+		metrics, err := NewMetrics(log.New(buf, "", 0))
+		So(err, ShouldBeNil)
+
+		for _, natType := range []string{
+			NATRestricted,
+			NATUnrestricted,
+			NAT3Strict,
+			NAT3Moderate,
+			NAT3Open,
+			NATUnknown,
+		} {
+			metrics.UpdateClientStats("192.0.2.1", "http", natType, "denied")
+		}
+
+		metrics.printMetrics()
+		So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+client-restricted-denied-count 8
+client-unrestricted-denied-count 8
+client-nat-strict-denied-count 8
+client-nat-moderate-denied-count 8
+client-nat-open-denied-count 8
+client-nat-unknown-denied-count 8
+`)
+
+		buf.Reset()
+		metrics.printMetrics()
+		So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+client-restricted-denied-count 0
+client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
+`)
+	})
+}
 
 func TestFormatAndClearCountryStats(t *testing.T) {
 	Convey("given a mapping of country stats", t, func() {

@@ -8,7 +8,7 @@ The Snowflake broker is used to hand out Snowflake proxies to clients using the 
 
 This document specifies how the Snowflake broker interacts with other parts of the Tor ecosystem, starting with the metrics CollecTor module and to be expanded upon later.
 
-1. Metrics Reporting (version 1.1)
+1. Metrics Reporting (version 1.2)
 
 Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET request to https://[Snowflake broker URL]/metrics and consists of the following items:
 
@@ -65,16 +65,44 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
     "client-restricted-denied-count" NUM NL
         [At most once.]
 
-        A count of the number of times a client with a restricted or
-        unknown NAT type has requested a proxy from the broker but no
-        proxies were available, rounded up to the nearest multiple of 8.
+        A count of the number of times a client with the deprecated
+        "restricted" NAT type has requested a proxy from the broker but
+        no proxies were available, rounded up to the nearest multiple of 8.
 
     "client-unrestricted-denied-count" NUM NL
         [At most once.]
 
-        A count of the number of times a client with an unrestricted NAT
-        type has requested a proxy from the broker but no proxies were
-        available, rounded up to the nearest multiple of 8.
+        A count of the number of times a client with the deprecated
+        "unrestricted" NAT type has requested a proxy from the broker but
+        no proxies were available, rounded up to the nearest multiple of 8.
+
+    "client-nat-strict-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with a strict NAT type has
+        requested a proxy from the broker but no proxies were available,
+        rounded up to the nearest multiple of 8.
+
+    "client-nat-moderate-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with a moderate NAT type has
+        requested a proxy from the broker but no proxies were available,
+        rounded up to the nearest multiple of 8.
+
+    "client-nat-open-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with an open NAT type has
+        requested a proxy from the broker but no proxies were available,
+        rounded up to the nearest multiple of 8.
+
+    "client-nat-unknown-denied-count" NUM NL
+        [At most once.]
+
+        A count of the number of times a client with an unknown NAT type has
+        requested a proxy from the broker but no proxies were available,
+        rounded up to the nearest multiple of 8.
 
     "client-snowflake-match-count" NUM NL
         [At most once.]
@@ -147,19 +175,37 @@ Metrics data from the Snowflake broker can be retrieved by sending an HTTP GET r
         [At most once.]
 
         A count of the total number of unique IP addresses of snowflake
-        proxies that have a restricted NAT type.
+        proxies that have the deprecated "restricted" NAT type.
 
     "snowflake-ips-nat-unrestricted" NUM NL
         [At most once.]
 
         A count of the total number of unique IP addresses of snowflake
-        proxies that have an unrestricted NAT type.
+        proxies that have the deprecated "unrestricted" NAT type.
 
     "snowflake-ips-nat-unknown" NUM NL
         [At most once.]
 
         A count of the total number of unique IP addresses of snowflake
         proxies that have an unknown NAT type.
+
+    "snowflake-ips-nat-strict" NUM NL
+        [At most once.]
+
+        A count of the total number of unique IP addresses of snowflake
+        proxies that have a strict NAT type.
+
+    "snowflake-ips-nat-moderate" NUM NL
+        [At most once.]
+
+        A count of the total number of unique IP addresses of snowflake
+        proxies that have a moderate NAT type.
+
+    "snowflake-ips-nat-open" NUM NL
+        [At most once.]
+
+        A count of the total number of unique IP addresses of snowflake
+        proxies that have an open NAT type.
 
    "snowflake-proxy-poll-with-relay-url-count" NUM NL
         [At most once.]
@@ -258,7 +304,7 @@ POST /proxy HTTP
   Sid: [generated session id of proxy],
   Version: 1.3,
   Type: ["badge"|"webext"|"standalone"|"mobile"],
-  NAT: ["unknown"|"restricted"|"unrestricted"],
+  NAT: ["unknown"|"restricted"(deprecated)|"unrestricted"(deprecated)|"open"|"moderate"|"strict"],
   Clients: [number of current clients, rounded down to multiples of 8],
   AcceptedRelayPattern: [a pattern representing accepted set of relay domains]
 }
@@ -276,6 +322,7 @@ HTTP 200 OK
     type: offer,
     sdp: [WebRTC SDP]
   },
+  NAT: ["unknown"|"restricted"(deprecated)|"unrestricted"(deprecated)|"open"|"moderate"|"strict"],
   RelayURL: [the WebSocket URL proxy should connect to relay Snowflake traffic]
 }
 ```

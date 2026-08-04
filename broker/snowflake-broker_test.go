@@ -92,10 +92,10 @@ func TestBroker(t *testing.T) {
 		i := &IPC{ctx}
 
 		Convey("Adds Snowflake", func() {
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 0)
+			So(ctx.openPool.h.Len(), ShouldEqual, 0)
 			So(len(ctx.idToSnowflake), ShouldEqual, 0)
 			addFakeSnowflake(ctx)
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 1)
+			So(ctx.openPool.h.Len(), ShouldEqual, 1)
 			So(len(ctx.idToSnowflake), ShouldEqual, 1)
 		})
 
@@ -109,13 +109,13 @@ func TestBroker(t *testing.T) {
 				close(ctx.proxyPolls)
 			}(ctx)
 			ctx.Broker()
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 1)
-			snowflake := ctx.unrestrictedPool.Pop()
+			So(ctx.openPool.h.Len(), ShouldEqual, 1)
+			snowflake := ctx.openPool.Pop()
 			snowflake.offerChannel <- &ClientOffer{sdp: []byte("test offer")}
 			offer := <-p.offerChannel
 			So(ctx.idToSnowflake["test"], ShouldNotBeNil)
 			So(offer.sdp, ShouldResemble, []byte("test offer"))
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 0)
+			So(ctx.openPool.h.Len(), ShouldEqual, 0)
 		})
 
 		Convey("Request an offer from the Snowflake Heap", func() {
@@ -147,8 +147,12 @@ func TestBroker(t *testing.T) {
 				// Ensure that denial is correctly recorded in metrics
 				ctx.metrics.printMetrics()
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -180,6 +184,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -252,6 +260,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -283,6 +295,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -343,8 +359,12 @@ client-sqs-ips
 				// Ensure that denial is correctly recorded in metrics
 				ctx.metrics.printMetrics()
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -378,6 +398,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -429,8 +453,12 @@ client-sqs-ips
 
 				ctx.metrics.printMetrics()
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -823,6 +851,10 @@ snowflake-proxy-rejected-for-relay-url-count 0
 client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -834,6 +866,9 @@ client-sqs-ips
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 4
+snowflake-ips-nat-strict 0
+snowflake-ips-nat-moderate 0
+snowflake-ips-nat-open 0
 `)
 		})
 
@@ -850,8 +885,12 @@ snowflake-ips-nat-unknown 4
 
 			ctx.metrics.printMetrics()
 			So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -879,6 +918,10 @@ snowflake-proxy-rejected-for-relay-url-count 0
 client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -890,6 +933,9 @@ client-sqs-ips
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 0
+snowflake-ips-nat-strict 0
+snowflake-ips-nat-moderate 0
+snowflake-ips-nat-open 0
 `)
 		})
 		//Test addition of client matches
@@ -912,7 +958,7 @@ snowflake-ips-nat-unknown 0
 			<-done
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 8")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 8")
 		})
 		//Test rounding boundary
 		Convey("binning boundary", func() {
@@ -981,7 +1027,7 @@ snowflake-ips-nat-unknown 0
 
 			buf.Reset()
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 16\nclient-restricted-denied-count 16\nclient-unrestricted-denied-count 0\n")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 16\nclient-restricted-denied-count 16\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\n")
 		})
 
 		//Test unique ip
@@ -1048,7 +1094,7 @@ snowflake-ips-nat-unknown 0
 			<-done
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 1\nsnowflake-ips-nat-unknown 0")
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 1\nsnowflake-ips-nat-unknown 0\nsnowflake-ips-nat-strict 0\nsnowflake-ips-nat-moderate 0\nsnowflake-ips-nat-open 0")
 		})
 
 		Convey("client failures by NAT type", func() {
@@ -1061,7 +1107,7 @@ snowflake-ips-nat-unknown 0
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0")
 
 			buf.Reset()
 
@@ -1073,7 +1119,7 @@ snowflake-ips-nat-unknown 0
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0")
 
 			buf.Reset()
 
@@ -1085,7 +1131,7 @@ snowflake-ips-nat-unknown 0
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 8\nclient-snowflake-match-count 0")
 		})
 		Convey("that seen IPs map is cleared after each print", func() {
 			w := httptest.NewRecorder()
