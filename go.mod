@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.43.3
-	github.com/aws/aws-sdk-go-v2/config v1.32.33
+	github.com/aws/aws-sdk-go-v2/config v1.32.34
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.46.3
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
