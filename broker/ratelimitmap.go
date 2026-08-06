@@ -61,12 +61,8 @@ func (m *RateLimitMap) Lookup(addr string) (time.Time, bool) {
 }
 
 func (m *RateLimitMap) Add(addr string, noSoonerThan time.Time) {
-	record := &proxyRecord{
-		AddrHash:     hashAddr(m.key, addr),
-		NoSoonerThan: noSoonerThan,
-	}
 	m.lock.Lock()
-	heap.Push(m.inner, record)
+	m.inner.Add(hashAddr(m.key, addr), noSoonerThan)
 	m.lock.Unlock()
 }
 
@@ -84,6 +80,21 @@ func hashAddr(key []byte, addr string) [32]byte {
 type rateLimitMapInner struct {
 	byAge  []*proxyRecord
 	byAddr map[[32]byte]int
+}
+
+func (inner *rateLimitMapInner) Add(haddr [32]byte, noSoonerThan time.Time) {
+	record := &proxyRecord{
+		AddrHash:     haddr,
+		NoSoonerThan: noSoonerThan,
+	}
+	if i, ok := inner.byAddr[record.AddrHash]; ok {
+		// Found one, update its LastSeen.
+		record = inner.byAge[i]
+		record.NoSoonerThan = noSoonerThan
+		heap.Fix(inner, i)
+		return
+	}
+	heap.Push(inner, record)
 }
 
 // removeExpired removes all rate limit map entries whose noSoonerThan
