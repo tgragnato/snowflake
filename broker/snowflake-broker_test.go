@@ -124,6 +124,7 @@ func TestBroker(t *testing.T) {
 				offer := ctx.RequestOffer(&ProxyPoll{
 					id:      "test",
 					natType: NATUnrestricted,
+					addr:    "foo",
 				})
 				done <- offer
 			}()
@@ -509,23 +510,6 @@ client-sqs-ips
 				So(w.Code, ShouldEqual, http.StatusOK)
 			})
 
-			Convey("with accurate next poll.", func() {
-				go func(i *IPC) {
-					proxyPolls(i, w, r)
-					done <- true
-				}(i)
-				// Pass a fake client offer to this proxy
-				p := <-ctx.proxyPolls
-				So(p.id, ShouldEqual, "ymbcCMto7KHNGYlp")
-				p.offerChannel <- &ClientOffer{sdp: []byte("fake offer"), fingerprint: defaultBridge[:]}
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				resp, _ := messages.DecodeProxyPollResponse(w.Body.Bytes())
-				pollInterval := ctx.GetPool(p).GetPollInterval()
-				// Check to make sure that we're within 1 second
-				So(resp.NextPoll, ShouldEqual, pollInterval.Milliseconds())
-			})
-
 			Convey("with incorrect relay pattern if no AcceptedRelayPattern.", func() {
 				data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
 				r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
@@ -646,6 +630,68 @@ client-sqs-ips
 
 			<-proxy_done
 			<-client_done
+
+		})
+
+		Convey("Check proxy poll interval and rate limiting", func() {
+			proxy_done := make(chan bool)
+			client_done := make(chan bool)
+
+			go ctx.Broker()
+
+			// Make proxy poll
+			wp := httptest.NewRecorder()
+			datap := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
+			rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+			rp.RemoteAddr = "foo"
+			So(err, ShouldBeNil)
+
+			go func(i *IPC) {
+				proxyPolls(i, wp, rp)
+				proxy_done <- true
+			}(i)
+
+			// Client offer
+			wc := httptest.NewRecorder()
+			datac, err := createClientOffer(rawOffer, NATUnknown, "")
+			So(err, ShouldBeNil)
+			rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
+			So(err, ShouldBeNil)
+
+			go func() {
+				clientOffers(i, wc, rc)
+				client_done <- true
+			}()
+
+			<-proxy_done
+			So(wp.Code, ShouldEqual, http.StatusOK)
+			resp, _ := messages.DecodeProxyPollResponse(wp.Body.Bytes())
+			So(resp.NextPoll > 0, ShouldBeTrue)
+
+			// Proxy answers
+			wp = httptest.NewRecorder()
+			datap, err = createProxyAnswer(rawAnswer, sid)
+			So(err, ShouldBeNil)
+			rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
+			So(err, ShouldBeNil)
+			go func(i *IPC) {
+				proxyAnswers(i, wp, rp)
+				proxy_done <- true
+			}(i)
+
+			<-proxy_done
+			<-client_done
+
+			wp = httptest.NewRecorder()
+			datap = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp2","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
+			rp, err = http.NewRequest("POST", "snowflake.broker/proxy", datap)
+			rp.RemoteAddr = "foo"
+			So(err, ShouldBeNil)
+			proxyPolls(i, wp, rp)
+			So(wp.Code, ShouldEqual, http.StatusOK)
+			resp, _ = messages.DecodeProxyPollResponse(wp.Body.Bytes())
+			So(resp.Status, ShouldEqual, "polled too soon")
+			So(resp.NextPoll > 0, ShouldBeTrue)
 
 		})
 
@@ -1194,6 +1240,7 @@ func TestConcurrency(t *testing.T) {
 
 				datap := bytes.NewReader([]byte(fmt.Sprintf("{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id)))
 				rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+				rp.RemoteAddr = fmt.Sprintf("1.1.%d.%d", x/256, x%256)
 				So(err, ShouldBeNil)
 
 				go func() {
@@ -1227,7 +1274,8 @@ func TestConcurrency(t *testing.T) {
 				go func() {
 					clientOffers(i, wc, rc)
 					c.So(wc.Code, ShouldEqual, http.StatusOK)
-					c.So(wc.Body.String(), ShouldContainSubstring, "129.97.208.23")
+					respC, _ := messages.DecodeClientPollResponse(wc.Body.Bytes())
+					c.So(respC.Answer, ShouldContainSubstring, "129.97.208.23")
 					wg.Done()
 				}()
 			}
