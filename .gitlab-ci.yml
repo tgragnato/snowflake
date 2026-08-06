@@ -153,8 +153,8 @@ android:
     - go get golang.org/x/mobile/bind
     - gomobile bind -v -target=android $REPRODUCIBLE_FLAGS .
 
-go-1.24:
-  image: ${DOCKER_REGISTRY_URL}/golang:1.24-$DEBIAN_STABLE
+go-1.26:
+  image: ${DOCKER_REGISTRY_URL}/golang:1.26-$DEBIAN_STABLE
   <<: *golang-docker-debian-template
   <<: *test-template
   script:
@@ -414,7 +414,7 @@ mirror-image-to-dockerhub:
 
 binary_build_step:
   stage: binary_build
-  image: ${DOCKER_REGISTRY_URL}/golang:1.24-$DEBIAN_STABLE
+  image: ${DOCKER_REGISTRY_URL}/golang:1.26-$DEBIAN_STABLE
   script:
     - mkdir dist/
     - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/client_linux_amd64 ./client
