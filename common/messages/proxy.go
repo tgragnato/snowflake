@@ -60,7 +60,15 @@ HTTP 200 OK
   NextPoll: [number of milliseconds until the proxy's next poll]
 }
 
-3) If the request is malformed:
+3) If a proxy polled before the rate limit is lifted:
+HTTP 200 OK
+
+{
+  Status: "polled too soon"
+  NextPoll: [number of milliseconds until the proxy's next poll]
+}
+
+4) If the request is malformed:
 HTTP 400 BadRequest
 
 == ProxyAnswerRequest ==
@@ -191,6 +199,7 @@ func DecodeProxyPollRequest(data []byte) (*ProxyPollRequest, error) {
 const (
 	ProxyClientMatch   = "client match"
 	ProxyClientNoMatch = "no match"
+	ProxyClientTooSoon = "polled too soon"
 )
 
 type ProxyPollResponse struct {
@@ -265,7 +274,8 @@ func DecodeProxyPollResponse(data []byte) (*ProxyPollResponse, error) {
 		}
 	} else {
 		message.Offer = ""
-		if message.Status != ProxyClientNoMatch {
+		if message.Status != ProxyClientNoMatch &&
+			message.Status != ProxyClientTooSoon {
 			err = errors.New(message.Status)
 		}
 	}

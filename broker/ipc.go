@@ -143,7 +143,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	nextPoll, ok := pool.CheckAndLimit(remoteIP)
 	if !ok {
 		resp := messages.ProxyPollResponse{
-			Status:   "polled too soon",
+			Status:   messages.ProxyClientTooSoon,
 			NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
 		}
 		b, err := resp.Encode()
