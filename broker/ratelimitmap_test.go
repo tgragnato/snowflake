@@ -12,44 +12,48 @@ func TestRateLimitMap(t *testing.T) {
 		rlm := NewRateLimitMap()
 
 		Convey("adds and stores ProxyPolls", func() {
-			t := time.Now().Add(time.Second)
-			rlm.Add("foo", t)
-			res, _ := rlm.Lookup("foo")
-			So(res, ShouldEqual, t)
+			t := time.Now().Add(5 * time.Second)
+			res, ok := rlm.CheckAndLimit("foo", 5*time.Second)
+			So(res.After(t), ShouldBeTrue)
+			So(ok, ShouldBeTrue)
 
 			t = time.Now().Add(2 * time.Second)
-			rlm.Add("bar", t)
-			res, _ = rlm.Lookup("bar")
-			So(res, ShouldEqual, t)
+			res, ok = rlm.CheckAndLimit("bar", 5*time.Second)
+			So(res.After(t), ShouldBeTrue)
+			So(ok, ShouldBeTrue)
 		})
 	})
 
 	Convey("Snowflake proxy pool", t, func() {
 		pool := NewSnowflakePool()
+		pool.pollInterval = time.Second
 
 		Convey("adds snowflakes to the rate limit map", func() {
-			snowflake := NewSnowflake("foo", "", "", 0)
-			snowflake.addr = "foo"
-			pool.Push(snowflake)
-
+			So(pool.rateLimitMap.inner.Len(), ShouldEqual, 0)
+			_, ok := pool.CheckAndLimit("foo")
+			So(ok, ShouldBeTrue)
 			So(pool.rateLimitMap.inner.Len(), ShouldEqual, 1)
-			_, found := pool.rateLimitMap.Lookup("foo")
-			So(found, ShouldBeTrue)
-
-			pollInterval := pool.CheckAllowedPollTime("foo").Milliseconds()
-			So(pollInterval > 0, ShouldBeTrue)
-
-			snowflake = NewSnowflake("bar", "", "", 0)
-			snowflake.addr = "bar"
-			pool.Push(snowflake)
-
+			_, ok = pool.CheckAndLimit("bar")
+			So(ok, ShouldBeTrue)
 			So(pool.rateLimitMap.inner.Len(), ShouldEqual, 2)
-			_, found = pool.rateLimitMap.Lookup("bar")
-			So(found, ShouldBeTrue)
 
-			pollInterval = pool.CheckAllowedPollTime("bar").Milliseconds()
-			So(pollInterval > 0, ShouldBeTrue)
+		})
 
+		Convey("limits snowflake that polls too soon", func() {
+			_, ok := pool.CheckAndLimit("foo")
+			So(ok, ShouldBeTrue)
+			noSoonerThan, ok := pool.CheckAndLimit("foo")
+			So(ok, ShouldBeFalse)
+			So(time.Now().After(noSoonerThan), ShouldBeFalse)
+		})
+
+		Convey("proxies can poll again when limit has expired", func() {
+			_, ok := pool.CheckAndLimit("foo")
+			So(ok, ShouldBeTrue)
+			<-time.After(time.Second)
+			noSoonerThan, ok := pool.CheckAndLimit("foo")
+			So(ok, ShouldBeTrue)
+			So(time.Now().After(noSoonerThan), ShouldBeFalse)
 		})
 	})
 }

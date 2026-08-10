@@ -140,11 +140,11 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		addr:      remoteIP,
 	}
 	pool := i.ctx.GetPool(poll)
-	pollInterval := pool.CheckAllowedPollTime(remoteIP).Milliseconds()
-	if pollInterval > 0 {
+	nextPoll, ok := pool.CheckAndLimit(remoteIP)
+	if !ok {
 		resp := messages.ProxyPollResponse{
 			Status:   "polled too soon",
-			NextPoll: pollInterval,
+			NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
 		}
 		b, err := resp.Encode()
 		*response = b
@@ -154,7 +154,6 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		return nil
 	}
 	offer := i.ctx.RequestOffer(poll)
-	pollInterval = pool.CheckAllowedPollTime(remoteIP).Milliseconds()
 
 	if offer == nil {
 		i.ctx.metrics.IncrementCounter("proxy-idle")
@@ -162,7 +161,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 
 		resp := messages.ProxyPollResponse{
 			Status:   messages.ProxyClientNoMatch,
-			NextPoll: pollInterval,
+			NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
 		}
 		b, err = resp.Encode()
 		if err != nil {
@@ -189,7 +188,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		Status:   messages.ProxyClientMatch,
 		NAT:      offer.natType,
 		RelayURL: relayURL,
-		NextPoll: pollInterval,
+		NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
 	}
 	b, err = resp.Encode()
 	if err != nil {

@@ -821,6 +821,9 @@ func TestMetrics(t *testing.T) {
 		done := make(chan bool)
 		buf := new(bytes.Buffer)
 		ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
+		ctx.strictPool.pollInterval = time.Second
+		ctx.moderatePool.pollInterval = time.Second
+		ctx.openPool.pollInterval = time.Second
 		i := &IPC{ctx}
 
 		err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
@@ -1081,7 +1084,7 @@ snowflake-ips-nat-open 0
 			w := httptest.NewRecorder()
 			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			r.RemoteAddr = "129.97.208.23:8080" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -1096,7 +1099,8 @@ snowflake-ips-nat-open 0
 			if err != nil {
 				log.Printf("unable to get NewRequest with error: %v", err)
 			}
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			<-time.After(2 * time.Second)       // wait for rate limit to expire
+			r.RemoteAddr = "129.97.208.23:8080" //CA geoip
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
 				done <- true
@@ -1201,7 +1205,7 @@ snowflake-ips-nat-open 0
 			w = httptest.NewRecorder()
 			data = bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23" //CA geoip
+			r.RemoteAddr = "129.97.208.24" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)

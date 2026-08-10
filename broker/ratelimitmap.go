@@ -47,23 +47,18 @@ func NewRateLimitMap() *RateLimitMap {
 	return m
 }
 
-// Lookup checks the RateLimitMap and returns a timestamp if available
-// and a boolean indicating whether or one was found
-func (m *RateLimitMap) Lookup(addr string) (time.Time, bool) {
-	hash := hashAddr(m.key, addr)
+func (m *RateLimitMap) CheckAndLimit(addr string, interval time.Duration) (time.Time, bool) {
+	haddr := hashAddr(m.key, addr)
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	i, ok := m.inner.byAddr[hash]
-	if ok {
-		return m.inner.byAge[i].NoSoonerThan, true
-	}
-	return time.Now(), false
-}
 
-func (m *RateLimitMap) Add(addr string, noSoonerThan time.Time) {
-	m.lock.Lock()
-	m.inner.Add(hashAddr(m.key, addr), noSoonerThan)
-	m.lock.Unlock()
+	noSoonerThan, present := m.inner.Lookup(haddr)
+	if !present || time.Now().After(noSoonerThan) {
+		noSoonerThan = time.Now().Add(interval)
+		m.inner.Add(haddr, noSoonerThan)
+		return noSoonerThan, true
+	}
+	return noSoonerThan, false
 }
 
 func hashAddr(key []byte, addr string) [32]byte {
@@ -80,6 +75,14 @@ func hashAddr(key []byte, addr string) [32]byte {
 type rateLimitMapInner struct {
 	byAge  []*proxyRecord
 	byAddr map[[32]byte]int
+}
+
+func (inner *rateLimitMapInner) Lookup(haddr [32]byte) (time.Time, bool) {
+	i, ok := inner.byAddr[haddr]
+	if ok {
+		return inner.byAge[i].NoSoonerThan, true
+	}
+	return time.Now(), false
 }
 
 func (inner *rateLimitMapInner) Add(haddr [32]byte, noSoonerThan time.Time) {

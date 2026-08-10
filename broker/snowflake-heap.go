@@ -90,7 +90,6 @@ func (sp *SnowflakePool) Push(s *Snowflake) {
 	sp.lock.Lock()
 	defer sp.lock.Unlock()
 	heap.Push(sp.h, s)
-	sp.rateLimitMap.Add(s.addr, time.Now().Add(sp.pollInterval))
 }
 
 func (sp *SnowflakePool) Pop() *Snowflake {
@@ -122,15 +121,6 @@ func (sp *SnowflakePool) SetPollInterval(interval time.Duration) {
 	sp.pollInterval = interval
 }
 
-// CheckAllowedPollTime checks the RateLimitMap to see if this
-// proxy is allowed to poll. If the proxy is present in the map and
-// its noSoonerThan poll time is still in the future, return the
-// duration until the next allowed poll time. If it is not in the map,
-// return 0.
-func (sp *SnowflakePool) CheckAllowedPollTime(addr string) time.Duration {
-	noSoonerThan, present := sp.rateLimitMap.Lookup(addr)
-	if !present {
-		return 0
-	}
-	return noSoonerThan.Sub(time.Now())
+func (sp *SnowflakePool) CheckAndLimit(addr string) (time.Time, bool) {
+	return sp.rateLimitMap.CheckAndLimit(addr, sp.pollInterval)
 }
