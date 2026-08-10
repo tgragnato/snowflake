@@ -105,7 +105,7 @@ func proxyPolls(i *IPC, w http.ResponseWriter, r *http.Request) {
 
 	arg := messages.Arg{
 		Body:       body,
-		RemoteAddr: util.GetClientIp(r),
+		RemoteAddr: util.GetSnowflakeIp(r, i.ctx.trustedHops),
 	}
 
 	var response []byte

@@ -50,6 +50,7 @@ type BrokerContext struct {
 
 	bridgeList          BridgeListHolderFileBased
 	allowedRelayPattern string
+	trustedHops         int
 }
 
 func (ctx *BrokerContext) GetBridgeInfo(fingerprint bridgefingerprint.Fingerprint) (BridgeInfo, error) {
@@ -85,6 +86,7 @@ func NewBrokerContext(
 		metrics:             metrics,
 		bridgeList:          bridgeListHolder,
 		allowedRelayPattern: allowedRelayPattern,
+		trustedHops:         1,
 	}
 }
 
@@ -220,6 +222,7 @@ func main() {
 	var ipCountInterval time.Duration
 	var unsafeLogging bool
 	var pollIntervalFilepath string
+	var trustedHops int
 
 	flag.StringVar(&acmeEmail, "acme-email", "", "optional contact email for Let's Encrypt notifications")
 	flag.StringVar(&acmeHostnamesCommas, "acme-hostnames", "", "comma-separated hostnames for TLS certificate")
@@ -241,6 +244,7 @@ func main() {
 	flag.DurationVar(&ipCountInterval, "ip-count-interval", time.Hour, "time interval between each chunk")
 	flag.BoolVar(&unsafeLogging, "unsafe-logging", false, "prevent logs from being scrubbed")
 	flag.StringVar(&pollIntervalFilepath, "poll-interval-filepath", "", "path to file with a poll interval")
+	flag.IntVar(&trustedHops, "trusted-hops", 1, "number of trusted reverse proxy hops in front of broker, used to determine proxy IP addresses")
 	flag.Parse()
 
 	var metricsFile io.Writer
