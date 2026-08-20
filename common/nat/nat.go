@@ -28,9 +28,14 @@ import (
 var ErrTimedOut = errors.New("timed out waiting for response")
 
 const (
-	NATUnknown      = "unknown"
-	NATRestricted   = "restricted"
+	NATUnknown = "unknown"
+	// NATRestricted : Deprecated, use NAT3Moderate / NAT3Strict instead
+	NATRestricted = "restricted"
+	// NATUnrestricted : Deprecated, use NAT3Open instead
 	NATUnrestricted = "unrestricted"
+	NAT3Open        = "open"
+	NAT3Moderate    = "moderate"
+	NAT3Strict      = "strict"
 )
 
 // Deprecated: Use CheckIfRestrictedNATWithProxy Instead.
@@ -45,6 +50,24 @@ func CheckIfRestrictedNAT(server string) (bool, error) {
 // will work with most other NATs),
 func CheckIfRestrictedNATWithProxy(server string, proxy *url.URL) (bool, error) {
 	return isRestrictedMapping(server, proxy)
+}
+
+func Detect3KindNATType(server string, proxy *url.URL) (string, error) {
+	restrictedMapping, err := isRestrictedMapping(server, proxy)
+	if err != nil {
+		return NATUnknown, err
+	}
+	if restrictedMapping {
+		return NAT3Strict, nil
+	}
+	restrictedFiltering, err := isRestrictedFiltering(server, proxy)
+	if err != nil {
+		return NATUnknown, err
+	}
+	if restrictedFiltering {
+		return NAT3Moderate, nil
+	}
+	return NAT3Open, nil
 }
 
 // Performs two tests from RFC 5780 to determine whether the mapping type
@@ -97,6 +120,54 @@ func isRestrictedMapping(addrStr string, proxy *url.URL) (bool, error) {
 
 	return xorAddr1.String() != xorAddr2.String(), nil
 
+}
+
+// Performs two tests from RFC 5780 to determine whether the filtering type
+// of the client's NAT is port-dependent.
+// Returns true if the filtering is port-dependent and false otherwise
+// Detect3KindNATType uses this after confirming address-independent mapping.
+func isRestrictedFiltering(addrStr string, proxy *url.URL) (bool, error) {
+	var xorAddr stun.XORMappedAddress
+
+	mapTestConn, err := connect(addrStr, proxy)
+	if err != nil {
+		log.Printf("Error creating STUN connection: %s", err.Error())
+		return false, err
+	}
+
+	defer mapTestConn.Close()
+
+	// Test I: Regular binding request
+	message := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
+
+	resp, err := mapTestConn.RoundTrip(message, mapTestConn.PrimaryAddr)
+	if err == ErrTimedOut {
+		log.Printf("Error: no response from server")
+		return false, err
+	}
+	if err != nil {
+		log.Printf("Error: %s", err.Error())
+		return false, err
+	}
+
+	// Decoding XOR-MAPPED-ADDRESS attribute from message.
+	if err = xorAddr.GetFrom(resp); err != nil {
+		log.Printf("Error retrieving XOR-MAPPED-ADDRESS from resonse: %s", err.Error())
+		return false, err
+	}
+
+	// Test II: Request addr + port change
+	message = stun.MustBuild(stun.TransactionID, stun.BindingRequest)
+	message.Add(stun.AttrChangeRequest, []byte{0x00, 0x00, 0x00, 0x06})
+
+	_, err = mapTestConn.RoundTrip(message, mapTestConn.PrimaryAddr)
+	if err != ErrTimedOut && err != nil {
+		// something else went wrong
+		log.Printf("Error reading response from server: %s", err.Error())
+		return false, err
+	}
+
+	return err == ErrTimedOut, nil
 }
 
 // Given an address string, returns a StunServerConn

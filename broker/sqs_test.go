@@ -177,6 +177,10 @@ func TestSQS(t *testing.T) {
 							c.So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 0

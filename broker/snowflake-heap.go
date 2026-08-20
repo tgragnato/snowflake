@@ -21,6 +21,7 @@ type Snowflake struct {
 	offerChannel  chan *ClientOffer
 	answerChannel chan string
 	clients       uint64
+	addr          string
 	index         int
 }
 
@@ -72,6 +73,7 @@ type SnowflakePool struct {
 	h            *SnowflakeHeap
 	lock         sync.Mutex
 	pollInterval time.Duration
+	rateLimitMap *RateLimitMap
 }
 
 func NewSnowflakePool() *SnowflakePool {
@@ -80,6 +82,7 @@ func NewSnowflakePool() *SnowflakePool {
 	return &SnowflakePool{
 		h:            h,
 		pollInterval: 20 * time.Second,
+		rateLimitMap: NewRateLimitMap(),
 	}
 }
 
@@ -116,4 +119,8 @@ func (sp *SnowflakePool) SetPollInterval(interval time.Duration) {
 	sp.lock.Lock()
 	defer sp.lock.Unlock()
 	sp.pollInterval = interval
+}
+
+func (sp *SnowflakePool) CheckAndLimit(addr string) (time.Time, bool) {
+	return sp.rateLimitMap.CheckAndLimit(addr, sp.pollInterval)
 }

@@ -29,7 +29,7 @@ each encoded in JSON format
 <poll request> :=
 {
   offer: <sdp offer>
-  [nat: (unknown|restricted|unrestricted)]
+  [nat: (unknown|restricted(deprecated)|unrestricted(deprecated)|open|moderate|strict)]
   [fingerprint: <fingerprint string>]
 }
 
@@ -119,7 +119,12 @@ func DecodeClientPollRequest(data []byte) (*ClientPollRequest, error) {
 		message.NAT = nat.NATUnknown
 	case nat.NATUnknown:
 	case nat.NATRestricted:
+		// NATRestricted type is deprecated
 	case nat.NATUnrestricted:
+		// NATUnrestricted type is deprecated
+	case nat.NAT3Open:
+	case nat.NAT3Moderate:
+	case nat.NAT3Strict:
 	default:
 		return nil, fmt.Errorf("invalid NAT type")
 	}

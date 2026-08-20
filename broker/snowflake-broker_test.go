@@ -91,10 +91,10 @@ func TestBroker(t *testing.T) {
 		i := &IPC{ctx}
 
 		Convey("Adds Snowflake", func() {
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 0)
+			So(ctx.openPool.h.Len(), ShouldEqual, 0)
 			So(len(ctx.idToSnowflake), ShouldEqual, 0)
 			addFakeSnowflake(ctx)
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 1)
+			So(ctx.openPool.h.Len(), ShouldEqual, 1)
 			So(len(ctx.idToSnowflake), ShouldEqual, 1)
 		})
 
@@ -108,13 +108,13 @@ func TestBroker(t *testing.T) {
 				close(ctx.proxyPolls)
 			}(ctx)
 			ctx.Broker()
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 1)
-			snowflake := ctx.unrestrictedPool.Pop()
+			So(ctx.openPool.h.Len(), ShouldEqual, 1)
+			snowflake := ctx.openPool.Pop()
 			snowflake.offerChannel <- &ClientOffer{sdp: []byte("test offer")}
 			offer := <-p.offerChannel
 			So(ctx.idToSnowflake["test"], ShouldNotBeNil)
 			So(offer.sdp, ShouldResemble, []byte("test offer"))
-			So(ctx.unrestrictedPool.h.Len(), ShouldEqual, 0)
+			So(ctx.openPool.h.Len(), ShouldEqual, 0)
 		})
 
 		Convey("Request an offer from the Snowflake Heap", func() {
@@ -123,6 +123,7 @@ func TestBroker(t *testing.T) {
 				offer := ctx.RequestOffer(&ProxyPoll{
 					id:      "test",
 					natType: NATUnrestricted,
+					addr:    "foo",
 				})
 				done <- offer
 			}()
@@ -146,8 +147,12 @@ func TestBroker(t *testing.T) {
 				// Ensure that denial is correctly recorded in metrics
 				ctx.metrics.printMetrics()
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -179,6 +184,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -251,6 +260,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -282,6 +295,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -342,8 +359,12 @@ client-sqs-ips
 				// Ensure that denial is correctly recorded in metrics
 				ctx.metrics.printMetrics()
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -377,6 +398,10 @@ client-sqs-ips
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 8
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -428,8 +453,12 @@ client-sqs-ips
 
 				ctx.metrics.printMetrics()
 				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -478,23 +507,6 @@ client-sqs-ips
 				So(w.Body.String(), ShouldContainSubstring, `{"Status":"no match","Offer":"","NAT":"","NextPoll"`)
 				So(w.Body.String(), ShouldContainSubstring, `,"RelayURL":""}`)
 				So(w.Code, ShouldEqual, http.StatusOK)
-			})
-
-			Convey("with accurate next poll.", func() {
-				go func(i *IPC) {
-					proxyPolls(i, w, r)
-					done <- true
-				}(i)
-				// Pass a fake client offer to this proxy
-				p := <-ctx.proxyPolls
-				So(p.id, ShouldEqual, "ymbcCMto7KHNGYlp")
-				p.offerChannel <- &ClientOffer{sdp: []byte("fake offer"), fingerprint: defaultBridge[:]}
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				resp, _ := messages.DecodeProxyPollResponse(w.Body.Bytes())
-				pollInterval := ctx.GetPool(p).GetPollInterval()
-				// Check to make sure that we're within 1 second
-				So(resp.NextPoll, ShouldEqual, pollInterval.Milliseconds())
 			})
 
 			Convey("with incorrect relay pattern if no AcceptedRelayPattern.", func() {
@@ -617,6 +629,68 @@ client-sqs-ips
 
 			<-proxy_done
 			<-client_done
+
+		})
+
+		Convey("Check proxy poll interval and rate limiting", func() {
+			proxy_done := make(chan bool)
+			client_done := make(chan bool)
+
+			go ctx.Broker()
+
+			// Make proxy poll
+			wp := httptest.NewRecorder()
+			datap := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
+			rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+			rp.RemoteAddr = "foo"
+			So(err, ShouldBeNil)
+
+			go func(i *IPC) {
+				proxyPolls(i, wp, rp)
+				proxy_done <- true
+			}(i)
+
+			// Client offer
+			wc := httptest.NewRecorder()
+			datac, err := createClientOffer(rawOffer, NATUnknown, "")
+			So(err, ShouldBeNil)
+			rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
+			So(err, ShouldBeNil)
+
+			go func() {
+				clientOffers(i, wc, rc)
+				client_done <- true
+			}()
+
+			<-proxy_done
+			So(wp.Code, ShouldEqual, http.StatusOK)
+			resp, _ := messages.DecodeProxyPollResponse(wp.Body.Bytes())
+			So(resp.NextPoll > 0, ShouldBeTrue)
+
+			// Proxy answers
+			wp = httptest.NewRecorder()
+			datap, err = createProxyAnswer(rawAnswer, sid)
+			So(err, ShouldBeNil)
+			rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
+			So(err, ShouldBeNil)
+			go func(i *IPC) {
+				proxyAnswers(i, wp, rp)
+				proxy_done <- true
+			}(i)
+
+			<-proxy_done
+			<-client_done
+
+			wp = httptest.NewRecorder()
+			datap = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp2","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
+			rp, err = http.NewRequest("POST", "snowflake.broker/proxy", datap)
+			rp.RemoteAddr = "foo"
+			So(err, ShouldBeNil)
+			proxyPolls(i, wp, rp)
+			So(wp.Code, ShouldEqual, http.StatusOK)
+			resp, _ = messages.DecodeProxyPollResponse(wp.Body.Bytes())
+			So(resp.Status, ShouldEqual, "polled too soon")
+			So(resp.NextPoll > 0, ShouldBeTrue)
 
 		})
 
@@ -752,6 +826,9 @@ func TestMetrics(t *testing.T) {
 		done := make(chan bool)
 		buf := new(bytes.Buffer)
 		ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
+		ctx.strictPool.pollInterval = time.Second
+		ctx.moderatePool.pollInterval = time.Second
+		ctx.openPool.pollInterval = time.Second
 		i := &IPC{ctx}
 
 		err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
@@ -828,6 +905,10 @@ snowflake-proxy-rejected-for-relay-url-count 0
 client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -839,6 +920,9 @@ client-sqs-ips
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 4
+snowflake-ips-nat-strict 0
+snowflake-ips-nat-moderate 0
+snowflake-ips-nat-open 0
 `)
 		})
 
@@ -855,8 +939,12 @@ snowflake-ips-nat-unknown 4
 
 			ctx.metrics.printMetrics()
 			So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 8
+client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 8
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 8
@@ -884,6 +972,10 @@ snowflake-proxy-rejected-for-relay-url-count 0
 client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
+client-nat-strict-denied-count 0
+client-nat-moderate-denied-count 0
+client-nat-open-denied-count 0
+client-nat-unknown-denied-count 0
 client-snowflake-match-count 0
 client-snowflake-timeout-count 0
 client-http-count 0
@@ -895,6 +987,9 @@ client-sqs-ips
 snowflake-ips-nat-restricted 0
 snowflake-ips-nat-unrestricted 0
 snowflake-ips-nat-unknown 0
+snowflake-ips-nat-strict 0
+snowflake-ips-nat-moderate 0
+snowflake-ips-nat-open 0
 `)
 		})
 		//Test addition of client matches
@@ -917,7 +1012,7 @@ snowflake-ips-nat-unknown 0
 			<-done
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 8")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 8")
 		})
 		//Test rounding boundary
 		Convey("binning boundary", func() {
@@ -986,7 +1081,7 @@ snowflake-ips-nat-unknown 0
 
 			buf.Reset()
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 16\nclient-restricted-denied-count 16\nclient-unrestricted-denied-count 0\n")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 16\nclient-restricted-denied-count 16\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\n")
 		})
 
 		//Test unique ip
@@ -994,7 +1089,7 @@ snowflake-ips-nat-unknown 0
 			w := httptest.NewRecorder()
 			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
 			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			r.RemoteAddr = "129.97.208.23:8080" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -1009,7 +1104,8 @@ snowflake-ips-nat-unknown 0
 			if err != nil {
 				log.Printf("unable to get NewRequest with error: %v", err)
 			}
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
+			<-time.After(2 * time.Second)       // wait for rate limit to expire
+			r.RemoteAddr = "129.97.208.23:8080" //CA geoip
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
 				done <- true
@@ -1053,7 +1149,7 @@ snowflake-ips-nat-unknown 0
 			<-done
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 1\nsnowflake-ips-nat-unknown 0")
+			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 1\nsnowflake-ips-nat-unknown 0\nsnowflake-ips-nat-strict 0\nsnowflake-ips-nat-moderate 0\nsnowflake-ips-nat-open 0")
 		})
 
 		Convey("client failures by NAT type", func() {
@@ -1066,7 +1162,7 @@ snowflake-ips-nat-unknown 0
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0")
 
 			buf.Reset()
 
@@ -1078,7 +1174,7 @@ snowflake-ips-nat-unknown 0
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0")
 
 			buf.Reset()
 
@@ -1090,7 +1186,7 @@ snowflake-ips-nat-unknown 0
 			clientOffers(i, w, r)
 
 			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-snowflake-match-count 0")
+			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 8\nclient-snowflake-match-count 0")
 		})
 		Convey("that seen IPs map is cleared after each print", func() {
 			w := httptest.NewRecorder()
@@ -1114,7 +1210,7 @@ snowflake-ips-nat-unknown 0
 			w = httptest.NewRecorder()
 			data = bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
 			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23" //CA geoip
+			r.RemoteAddr = "129.97.208.24" //CA geoip
 			So(err, ShouldBeNil)
 			go func(i *IPC) {
 				proxyPolls(i, w, r)
@@ -1153,6 +1249,7 @@ func TestConcurrency(t *testing.T) {
 
 				datap := bytes.NewReader([]byte(fmt.Sprintf("{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id)))
 				rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+				rp.RemoteAddr = fmt.Sprintf("1.1.%d.%d", x/256, x%256)
 				So(err, ShouldBeNil)
 
 				go func() {
@@ -1186,7 +1283,8 @@ func TestConcurrency(t *testing.T) {
 				go func() {
 					clientOffers(i, wc, rc)
 					c.So(wc.Code, ShouldEqual, http.StatusOK)
-					c.So(wc.Body.String(), ShouldContainSubstring, "129.97.208.23")
+					respC, _ := messages.DecodeClientPollResponse(wc.Body.Bytes())
+					c.So(respC.Answer, ShouldContainSubstring, "129.97.208.23")
 					wg.Done()
 				}()
 			}

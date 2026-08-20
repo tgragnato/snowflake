@@ -52,6 +52,7 @@ import (
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/namematcher"
+	"tgragnato.it/snowflake/common/nat"
 	"tgragnato.it/snowflake/common/task"
 	"tgragnato.it/snowflake/common/util"
 )
@@ -69,17 +70,28 @@ const (
 
 const (
 	// NATUnknown is set if the proxy cannot connect to probetest.
-	NATUnknown = "unknown"
-	// NATRestricted is set if the proxy times out when connecting to a symmetric NAT.
-	NATRestricted = "restricted"
-	// NATUnrestricted is set if the proxy successfully connects to a symmetric NAT.
-	NATUnrestricted                   = "unrestricted"
-	bufferedAmountLowThreshold uint64 = 256 * 1024 // 256 KB
+	NATUnknown = nat.NATUnknown
+
+	// NATRestricted
+	// Deprecated: Use NAT3Moderate or NAT3Strict instead.
+	NATRestricted = nat.NATRestricted
+
+	// NATUnrestricted
+	// Deprecated: Use NAT3Open instead.
+	NATUnrestricted = nat.NATUnrestricted
+
+	NAT3Open     = nat.NAT3Open
+	NAT3Moderate = nat.NAT3Moderate
+	NAT3Strict   = nat.NAT3Strict
+)
+
+const (
 	// Amount of time after sending an SDP answer before the proxy assumes the
 	// client is not going to connect
-	dataChannelTimeout = 20 * time.Second
-	readLimit          = 100000
-	sessionIDLength    = 16
+	dataChannelTimeout                = 20 * time.Second
+	readLimit                         = 100000
+	sessionIDLength                   = 16
+	bufferedAmountLowThreshold uint64 = 256 * 1024 // 256 KB
 )
 
 var (
@@ -144,8 +156,12 @@ type GeoIP interface {
 // Snowflake in another Go application.
 // For some more info also see CLI parameter descriptions in README.
 type SnowflakeProxy struct {
-	// How often to ask the broker for a new client
-	PollInterval    time.Duration
+	// PollInterval is a deprecated, fallback value for how often to ask the broker for a new client.
+	// Proxies will dynamically adjust their poll interval based on broker recommendation.
+	PollInterval time.Duration
+	// MinPollInterval Minimum time interval between when the proxy asks the broker for a client.
+	// A proxy will never poll more frequently than the MinPollInterval, regardless of the broker
+	// recommended poll interval value.
 	MinPollInterval time.Duration
 	// Capacity is the maximum number of clients a Snowflake will serve.
 	// Proxies with a capacity of 0 will accept an unlimited number of clients.
@@ -548,14 +564,10 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 			defer conn.lock.Unlock()
 			log.Printf("Data Channel %s-%d close\n", dc.Label(), dc.ID())
 
-			country := ""
+			country := "??"
 			if sf.GeoIP != nil && !reflect.ValueOf(sf.GeoIP).IsNil() && remoteIP != nil {
 				if result, ok := sf.GeoIP.GetCountryByAddr(remoteIP); ok {
 					country = result
-				} else {
-					// GeoIP can return "??", true but it also can return "", false when it fails to find the country for an IP address.
-					// In that case we also want to log "??" as the country.
-					country = "??"
 				}
 			}
 			sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyConnectionOver{Country: country})
@@ -979,9 +991,17 @@ func (sf *SnowflakeProxy) Stop() {
 	close(sf.shutdown)
 }
 
-// checkNATType use probetest to determine NAT compatability by
-// attempting to connect with a known symmetric NAT. If success,
-// it is considered "unrestricted". If timeout it is considered "restricted"
+func probeURLWithInteractiveConnectivity(probeURL, mode string) (string, error) {
+	u, err := url.Parse(probeURL)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("InCoSim", mode)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
 func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL string) error {
 	if sf.NATTypeForceUnrestricted {
 		currentNATTypeAccess.Lock()
@@ -990,15 +1010,59 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 		return nil
 	}
 
+	prevNATType := getCurrentNATType()
+
+	strictProbeHelperURL, err := probeURLWithInteractiveConnectivity(probeURL, "strict")
+	if err != nil {
+		return fmt.Errorf("unable to constuct strict nat probe helper url: %s", err)
+	}
+
+	strictConnectionSuccessful, err := sf.evaluateConnectivityWithHelper(config, strictProbeHelperURL)
+	if err != nil {
+		return fmt.Errorf("an error occurred during connectivity evaluation with strict connectivity helper: %s", err)
+	}
+
+	if strictConnectionSuccessful {
+		setCurrentNATType(NAT3Open)
+		log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
+		return nil
+	}
+
+	moderateProbeHelperURL, err := probeURLWithInteractiveConnectivity(probeURL, "moderate")
+	if err != nil {
+		return fmt.Errorf("unable to construct moderate nat probe helper url: %s", err)
+	}
+
+	moderateConnectionSuccessful, err := sf.evaluateConnectivityWithHelper(config, moderateProbeHelperURL)
+	if err != nil {
+		return fmt.Errorf("an error occurred during connectivity evaluation with moderate connectivity helper: %s", err)
+	}
+
+	if moderateConnectionSuccessful {
+		setCurrentNATType(NAT3Moderate)
+		log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
+		return nil
+	}
+	setCurrentNATType(NAT3Strict)
+	log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
+	return nil
+}
+
+// evaluateConnectivityWithHelper use probetest to determine NAT compatability by
+// attempting to connect with a known NAT type. If success,
+// it determines its network can connect to given nat type.
+func (sf *SnowflakeProxy) evaluateConnectivityWithHelper(config webrtc.Configuration, probeURL string) (bool, error) {
+	log.Printf("Checking our NAT type, contacting NAT check probe server at \"%v\"...", probeURL)
+
 	probe, err := newSignalingServer(probeURL)
 	if err != nil {
-		return fmt.Errorf("error parsing url: %w", err)
+		return false, fmt.Errorf("Error parsing url: %w", err)
 	}
 
 	dataChan := make(chan struct{})
 	pc, err := sf.makeNewPeerConnection(config, dataChan)
 	if err != nil {
-		return fmt.Errorf("error making WebRTC connection: %w", err)
+		return false, fmt.Errorf("Error making WebRTC connection: %w", err)
 	}
 	defer func() {
 		if err := pc.Close(); err != nil {
@@ -1010,7 +1074,7 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	log.Printf("Probetest offer: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 	sdp, err := util.SerializeSessionDescription(offer)
 	if err != nil {
-		return fmt.Errorf("error encoding probe message: %w", err)
+		return false, fmt.Errorf("Error encoding probe message: %w", err)
 	}
 
 	// send offer
@@ -1020,53 +1084,36 @@ func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL str
 	}
 	body, err := pollResp.Encode()
 	if err != nil {
-		return fmt.Errorf("error encoding probe message: %w", err)
+		return false, fmt.Errorf("Error encoding probe message: %w", err)
 	}
 
 	resp, err := probe.Post(probe.url.String(), bytes.NewBuffer(body))
 	if err != nil {
-		return fmt.Errorf("error polling probe: %w", err)
+		return false, fmt.Errorf("Error polling probe: %w", err)
 	}
 
 	req, err := messages.DecodeProxyAnswerRequest(resp)
 	if err != nil {
-		return fmt.Errorf("error reading probe response: %w", err)
+		return false, fmt.Errorf("Error reading probe response: %w", err)
 	}
 
 	answer, err := util.DeserializeSessionDescription(req.Answer)
 	if err != nil {
-		return fmt.Errorf("error setting answer: %w", err)
+		return false, fmt.Errorf("Error setting answer: %w", err)
 	}
 	log.Printf("Probetest answer: \n\t%s", strings.ReplaceAll(answer.SDP, "\n", "\n\t"))
 
 	err = pc.SetRemoteDescription(*answer)
 	if err != nil {
-		return fmt.Errorf("error setting answer: %w", err)
+		return false, fmt.Errorf("Error setting answer: %w", err)
 	}
 
-	prevNATType := getCurrentNATType()
-
-	log.Printf("Waiting for a test WebRTC connection with NAT check probe server to establish...")
 	select {
 	case <-dataChan:
-		log.Printf(
-			"Test WebRTC connection with NAT check probe server established!"+
-				" This means our NAT is %v!",
-			NATUnrestricted,
-		)
-		setCurrentNATType(NATUnrestricted)
+		return true, nil
 	case <-time.After(dataChannelTimeout):
-		log.Printf(
-			"Test WebRTC connection with NAT check probe server timed out."+
-				" This means our NAT is %v.",
-			NATRestricted,
-		)
-		setCurrentNATType(NATRestricted)
+		return false, nil
 	}
-
-	log.Printf("NAT Type measurement: %v -> %v\n", prevNATType, getCurrentNATType())
-
-	return nil
 }
 
 // checkBridgeReachability makes a test connection to DefaultRelayURL to see if the proxy

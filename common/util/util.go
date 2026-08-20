@@ -135,6 +135,27 @@ func GetClientIp(req *http.Request) string {
 	return clientIp
 }
 
+// GetProxyIp attempts to retrieve the IP of the client originating the request.
+// This is meant to be used for snowflake proxy polls, for which we want the most
+// recently seen IP before any load balancers or reverse proxies deployed in front of the
+// broker machine. This requires knowledge of the number of broker reverse proxy hops.
+func GetSnowflakeIp(req *http.Request, hops int) string {
+	// If hops is 0, we use the remote requester address, for hops > 0, we use the
+	// rightmost address in "X-Forwarded-For" or "Fowarded" headers, ignoring the last hops-1
+	var strat realclientip.Strategy
+	if hops <= 0 {
+		strat = realclientip.RemoteAddrStrategy{}
+	} else {
+		strat = realclientip.NewChainStrategy(
+			realclientip.Must(realclientip.NewRightmostTrustedCountStrategy("Forwarded", hops)),
+			realclientip.Must(realclientip.NewRightmostTrustedCountStrategy("X-Forwarded-For", hops)),
+			realclientip.RemoteAddrStrategy{},
+		)
+	}
+	clientIp := strat.ClientIP(req.Header, req.RemoteAddr)
+	return clientIp
+}
+
 // Returns a list of IP addresses of ICE candidates, roughly in descending order for accuracy for geolocation
 func GetCandidateAddrs(sdpStr string) []net.IP {
 	var desc sdp.SessionDescription

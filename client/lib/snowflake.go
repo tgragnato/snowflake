@@ -284,20 +284,15 @@ func (conn *SnowflakeConn) Close() error {
 // loop through all provided STUN servers until we exhaust the list or find
 // one that is compatible with RFC 5780
 func updateNATType(servers []webrtc.ICEServer, broker *BrokerChannel, proxy *url.URL) {
-	var restrictedNAT bool
+	var NATType string
 	var err error
 	for _, server := range servers {
 		addr := strings.TrimPrefix(server.URLs[0], "stun:")
-		restrictedNAT, err = nat.CheckIfRestrictedNATWithProxy(addr, proxy)
-
+		NATType, err = nat.Detect3KindNATType(addr, proxy)
 		if err != nil {
 			log.Printf("Warning: NAT checking failed for server at %s: %s", addr, err)
 		} else {
-			if restrictedNAT {
-				broker.SetNATType(nat.NATRestricted)
-			} else {
-				broker.SetNATType(nat.NATUnrestricted)
-			}
+			broker.SetNATType(NATType)
 			break
 		}
 	}

@@ -23,7 +23,7 @@ const minPollInterval = 2 * time.Second
 
 func main() {
 	pollInterval := flag.Duration("poll-interval", sf.DefaultPollInterval,
-		fmt.Sprint("how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
+		fmt.Sprint("a deprecated fallback value for often to ask the broker for a new client. Proxies will dynamically change their poll interval based on broker recommendation. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
 	capacity := flag.Uint("capacity", 0, "maximum concurrent clients (default is to accept an unlimited number of clients)")
 	stunURL := flag.String("stun", sf.DefaultSTUNURL, "Comma-separated STUN server `URL`s that this proxy will use will use to, among some other things, determine its public IP address")
 	logFilename := flag.String("log", "", "log `filename`. If not specified, logs will be output to stderr (console).")
@@ -33,7 +33,7 @@ func main() {
 	keepLocalAddresses := flag.Bool("keep-local-addresses", false, "keep local LAN address ICE candidates.\nThis is usually pointless because Snowflake clients don't usually reside on the same local network as the proxy.")
 	defaultRelayURL := flag.String("relay", sf.DefaultRelayURL, "The default `URL` of the server (relay) that this proxy will forward client connections to, in case the broker itself did not specify the said URL")
 	probeURL := flag.String("nat-probe-server", sf.DefaultNATProbeURL, "The `URL` of the server that this proxy will use to check its network NAT type.\nDetermining NAT type helps to understand whether this proxy is compatible with certain clients' NAT")
-	outboundAddress := flag.String("outbound-address", "", "prefer the given `address` as outbound address for client connections")
+	outboundAddress := flag.String("outbound-address", "", "Prefer the given `address` as the outbound address for peer connections with clients.\nFor bridges and relays running snowflake-proxy on the same device, an alternate IP address should be set for snowflake-proxy to mitigate its IP being censored when the bridge or relay IP is censored.")
 	allowedRelayHostNamePattern := flag.String("allowed-relay-hostname-pattern", "snowflake.torproject.net$", "this proxy will only be allowed to forward client connections to relays (servers) whose URL matches this pattern.\nNote that a pattern \"example.com$\" will match \"subdomain.example.com\" as well as \"other-domain-example.com\".\nIn order to only match \"example.com\", prefix the pattern with \"^\": \"^example.com$\"")
 	allowProxyingToPrivateAddresses := flag.Bool("allow-proxying-to-private-addresses", false, "allow forwarding client connections to private IP addresses.\nUseful when a Snowflake server (relay) is hosted on the same private network as this proxy.")
 	allowNonTLSRelay := flag.Bool("allow-non-tls-relay", false, "allow this proxy to pass client's data to the relay in an unencrypted form.\nThis is only useful if the relay doesn't support encryption, e.g. for testing / development purposes.")
