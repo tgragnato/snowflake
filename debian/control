@@ -17,6 +17,7 @@ Package: snowflake-proxy
 Section: net
 Priority: optional
 Architecture: any
+Recommends: tor-geoipdb
 Homepage: https://snowflake.torproject.org/
 Description: WebRTC pluggable transport for Tor (proxy)
  Snowflake helps users circumvent censorship by making a WebRTC

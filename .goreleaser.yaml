@@ -63,6 +63,8 @@ nfpms:
       .
       This package provides the proxy.
     section: net
+    recommends:
+      - tor-geoipdb
     contents:
       # TODO: this would be nice to be compressed
       - src: doc/snowflake-proxy.1
