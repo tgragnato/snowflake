@@ -102,7 +102,7 @@ variables:
 # -- jobs ------------------------------------------------------------
 
 android:
-  image: ${DOCKER_REGISTRY_URL}/golang:1.25-$DEBIAN_STABLE
+  image: ${DOCKER_REGISTRY_URL}/golang:1.26-$DEBIAN_STABLE
   variables:
     ANDROID_HOME: /usr/lib/android-sdk
     LANG: C.UTF-8
