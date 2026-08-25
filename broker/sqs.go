@@ -190,7 +190,7 @@ func (r *sqsHandler) deleteMessage(context context.Context, message *types.Messa
 	})
 }
 
-func newSQSHandler(context context.Context, client sqsclient.SQSClient, sqsQueueName string, region string, i *IPC) (*sqsHandler, error) {
+func newSQSHandler(context context.Context, client sqsclient.SQSClient, sqsQueueName string, i *IPC) (*sqsHandler, error) {
 	// Creates the queue if a queue with the same name doesn't exist. If a queue with the same name and attributes
 	// already exists, then nothing will happen. If a queue with the same name, but different attributes exists, then
 	// an error will be returned

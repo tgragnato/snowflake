@@ -1247,7 +1247,7 @@ func TestConcurrency(t *testing.T) {
 				_, err := rand.Read(buf)
 				id := strings.TrimRight(base64.StdEncoding.EncodeToString(buf), "=")
 
-				datap := bytes.NewReader([]byte(fmt.Sprintf("{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id)))
+				datap := bytes.NewReader(fmt.Appendf(nil, "{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id))
 				rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
 				rp.RemoteAddr = fmt.Sprintf("1.1.%d.%d", x/256, x%256)
 				So(err, ShouldBeNil)

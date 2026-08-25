@@ -138,7 +138,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 	if !ok {
 		resp := messages.ProxyPollResponse{
 			Status:   messages.ProxyClientTooSoon,
-			NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
+			NextPoll: time.Until(nextPoll).Milliseconds(),
 		}
 		b, err := resp.Encode()
 		*response = b
@@ -155,7 +155,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 
 		resp := messages.ProxyPollResponse{
 			Status:   messages.ProxyClientNoMatch,
-			NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
+			NextPoll: time.Until(nextPoll).Milliseconds(),
 		}
 		b, err = resp.Encode()
 		if err != nil {
@@ -182,7 +182,7 @@ func (i *IPC) ProxyPolls(arg messages.Arg, response *[]byte) error {
 		Status:   messages.ProxyClientMatch,
 		NAT:      offer.natType,
 		RelayURL: relayURL,
-		NextPoll: nextPoll.Sub(time.Now()).Milliseconds(),
+		NextPoll: time.Until(nextPoll).Milliseconds(),
 	}
 	b, err = resp.Encode()
 	if err != nil {

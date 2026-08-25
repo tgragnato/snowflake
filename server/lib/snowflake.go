@@ -134,9 +134,6 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 	case <-time.After(listenAndServeErrorTimeout):
 		break
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	listener.server = server
 
@@ -154,9 +151,7 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 		go func() {
 			defer ln.Close()
 			err := listener.acceptSessions(ln)
-			if err != nil {
-				log.Printf("acceptSessions %d: %v", i, err)
-			}
+			log.Printf("acceptSessions %d: %v", i, err)
 		}()
 		listener.ln = append(listener.ln, ln)
 	}
@@ -259,7 +254,7 @@ func (l *SnowflakeListener) acceptSessions(ln *kcp.Listener) error {
 		go func() {
 			defer conn.Close()
 			err := l.acceptStreams(conn)
-			if err != nil && !errors.Is(err, io.ErrClosedPipe) {
+			if !errors.Is(err, io.ErrClosedPipe) {
 				log.Printf("acceptStreams: %v", err)
 			}
 		}()

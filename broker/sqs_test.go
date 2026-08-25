@@ -45,7 +45,7 @@ func TestSQS(t *testing.T) {
 				}).Return(&sqs.CreateQueueOutput{
 					QueueUrl: responseQueueURL,
 				}, nil).Times(1)
-				sqsHandler, err := newSQSHandler(sqsHandlerContext, mockSQSClient, brokerSQSQueueName, "example-region", i)
+				sqsHandler, err := newSQSHandler(sqsHandlerContext, mockSQSClient, brokerSQSQueueName, i)
 				So(err, ShouldBeNil)
 				go sqsHandler.PollAndHandleMessages(sqsHandlerContext)
 			}
@@ -225,7 +225,7 @@ client-sqs-ips ??=8
 					}, nil,
 				)
 
-				sqsHandler, err := newSQSHandler(sqsHandlerContext, mockSQSClient, brokerSQSQueueName, "example-region", i)
+				sqsHandler, err := newSQSHandler(sqsHandlerContext, mockSQSClient, brokerSQSQueueName, i)
 				So(err, ShouldBeNil)
 				// Set the cleanup interval to 1 ns so we can immediately test the cleanup logic
 				sqsHandler.cleanupInterval = time.Nanosecond

@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"crypto/hmac"
 	"crypto/rand"
-	"hash"
 	"sync"
 	"time"
 
@@ -62,9 +61,7 @@ func (m *RateLimitMap) CheckAndLimit(addr string, interval time.Duration) (time.
 }
 
 func hashAddr(key []byte, addr string) [32]byte {
-	hmacIPMasker := hmac.New(func() hash.Hash {
-		return sha3.New256()
-	}, key)
+	hmacIPMasker := hmac.New(sha3.New256, key)
 	hmacIPMasker.Write([]byte(addr))
 	return [32]byte(hmacIPMasker.Sum(nil))
 }

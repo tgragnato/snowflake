@@ -249,18 +249,16 @@ func main() {
 	}
 	if ptInfo.ProxyURL != nil {
 		if err := proxy.CheckProxyProtocolSupport(ptInfo.ProxyURL); err != nil {
-			if proxyErr := pt.ProxyError("proxy is not supported:" + err.Error()); proxyErr != nil {
-				log.Printf("proxy error: %s\n", proxyErr.Error())
-			}
+			proxyErr := pt.ProxyError("proxy is not supported:" + err.Error())
+			log.Printf("proxy error: %s\n", proxyErr.Error())
 			os.Exit(1)
 		} else {
 			config.CommunicationProxy = ptInfo.ProxyURL
 			client := proxy.NewSocks5UDPClient(config.CommunicationProxy)
 			conn, err := client.ListenPacket("udp", nil)
 			if err != nil {
-				if proxyErr := pt.ProxyError("proxy test failure:" + err.Error()); proxyErr != nil {
-					log.Printf("proxy error: %s\n", proxyErr.Error())
-				}
+				proxyErr := pt.ProxyError("proxy test failure:" + err.Error())
+				log.Printf("proxy error: %s\n", proxyErr.Error())
 				os.Exit(1)
 			}
 			conn.Close()
@@ -277,9 +275,8 @@ func main() {
 			// TODO: Be able to recover when SOCKS dies.
 			ln, err := pt.ListenSocks("tcp", "127.0.0.1:0")
 			if err != nil {
-				if cmethodError := pt.CmethodError(methodName, err.Error()); cmethodError != nil {
-					log.Printf("pt.CmethodError error: %s\n", cmethodError.Error())
-				}
+				cmethodError := pt.CmethodError(methodName, err.Error())
+				log.Printf("pt.CmethodError error: %s\n", cmethodError.Error())
 				break
 			}
 			log.Printf("Started SOCKS listener at %v.", ln.Addr())
@@ -287,9 +284,8 @@ func main() {
 			pt.Cmethod(methodName, ln.Version(), ln.Addr())
 			listeners = append(listeners, ln)
 		default:
-			if cmethodError := pt.CmethodError(methodName, "no such method"); cmethodError != nil {
-				log.Printf("pt.CmethodError error: %s\n", cmethodError.Error())
-			}
+			cmethodError := pt.CmethodError(methodName, "no such method")
+			log.Printf("pt.CmethodError error: %s\n", cmethodError.Error())
 		}
 	}
 	pt.CmethodsDone()

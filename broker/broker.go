@@ -346,12 +346,12 @@ func main() {
 
 	// Run SQS Handler to continuously poll and process messages from SQS
 	if brokerSQSQueueName != "" && brokerSQSQueueRegion != "" {
-		log.Printf("Loading SQSHandler using SQS Queue %s in region %s\n", brokerSQSQueueName, brokerSQSQueueRegion)
+		log.Printf("Loading SQSHandler using SQS Queue %s\n", brokerSQSQueueName)
 		sqsHandlerContext := context.Background()
 
 		startSQS := func(cfg aws.Config) {
 			client := sqs.NewFromConfig(cfg)
-			sqsHandler, err := newSQSHandler(sqsHandlerContext, client, brokerSQSQueueName, brokerSQSQueueRegion, i)
+			sqsHandler, err := newSQSHandler(sqsHandlerContext, client, brokerSQSQueueName, i)
 			if err != nil {
 				log.Fatal(err)
 			}

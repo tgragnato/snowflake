@@ -101,11 +101,15 @@ var (
 	tokens               uint64
 	config               webrtc.Configuration
 	customtransport      = &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Minute,
-			KeepAlive: time.Millisecond,
-			DualStack: true,
-		}).DialContext,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			d := &net.Dialer{
+				Timeout:       5 * time.Minute,
+				KeepAlive:     time.Millisecond,
+				FallbackDelay: time.Second,
+			}
+			d.SetMultipathTCP(true)
+			return d.DialContext(ctx, network, addr)
+		},
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS13,
 			MaxVersion: tls.VersionTLS13,
@@ -120,19 +124,6 @@ var (
 		ResponseHeaderTimeout: 30 * time.Second,
 		DisableKeepAlives:     false,
 		DisableCompression:    false,
-		Dial: func(network, addr string) (net.Conn, error) {
-			d := &net.Dialer{
-				Timeout:   5 * time.Minute,
-				KeepAlive: time.Millisecond,
-				DualStack: true,
-			}
-			d.SetMultipathTCP(true)
-			conn, err := d.Dial(network, addr)
-			if err != nil {
-				return nil, err
-			}
-			return conn, nil
-		},
 	}
 )
 
@@ -922,34 +913,38 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 	tokens = 0
 
-	err = sf.checkNATType(config, sf.NATProbeURL)
-	if err != nil {
-		// non-fatal error. Log it and continue
-		log.Printf("Error checking NAT type: %s", err.Error())
-		setCurrentNATType(NATUnknown)
-	}
-	sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
+	if sf.NATTypeForceUnrestricted {
+		setCurrentNATType(NATUnrestricted)
+	} else {
+		err = sf.checkNATType(config, sf.NATProbeURL)
+		if err != nil {
+			// non-fatal error. Log it and continue
+			log.Printf("Error checking NAT type: %s", err.Error())
+			setCurrentNATType(NATUnknown)
+		}
+		sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
 
-	NatRetestTask := task.Periodic{
-		Interval: sf.NATTypeMeasurementInterval,
-		Execute: func() error {
-			prevNATType := getCurrentNATType()
-			if err := sf.checkNATType(config, sf.NATProbeURL); err != nil {
-				return err
-			}
-			if prevNATType != getCurrentNATType() {
-				sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
-			}
-			return nil
-		},
-		// Not setting OnError would shut down the periodic task on error by default.
-		OnError: func(err error) {
-			log.Printf("Periodic probetest failed: %s, retaining current NAT type: %s", err.Error(), getCurrentNATType())
-		},
-	}
-	if sf.NATTypeMeasurementInterval != 0 {
-		NatRetestTask.WaitThenStart()
-		defer NatRetestTask.Close()
+		NatRetestTask := task.Periodic{
+			Interval: sf.NATTypeMeasurementInterval,
+			Execute: func() error {
+				prevNATType := getCurrentNATType()
+				if err := sf.checkNATType(config, sf.NATProbeURL); err != nil {
+					return err
+				}
+				if prevNATType != getCurrentNATType() {
+					sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnCurrentNATTypeDetermined{CurNATType: getCurrentNATType()})
+				}
+				return nil
+			},
+			// Not setting OnError would shut down the periodic task on error by default.
+			OnError: func(err error) {
+				log.Printf("Periodic probetest failed: %s, retaining current NAT type: %s", err.Error(), getCurrentNATType())
+			},
+		}
+		if sf.NATTypeMeasurementInterval != 0 {
+			NatRetestTask.WaitThenStart()
+			defer NatRetestTask.Close()
+		}
 	}
 
 	BridgeProbeRetestTask := task.ExpBackoff{
@@ -1004,9 +999,6 @@ func probeURLWithInteractiveConnectivity(probeURL, mode string) (string, error) 
 
 func (sf *SnowflakeProxy) checkNATType(config webrtc.Configuration, probeURL string) error {
 	if sf.NATTypeForceUnrestricted {
-		currentNATTypeAccess.Lock()
-		currentNATType = NATUnrestricted
-		currentNATTypeAccess.Unlock()
 		return nil
 	}
 
@@ -1056,13 +1048,13 @@ func (sf *SnowflakeProxy) evaluateConnectivityWithHelper(config webrtc.Configura
 
 	probe, err := newSignalingServer(probeURL)
 	if err != nil {
-		return false, fmt.Errorf("Error parsing url: %w", err)
+		return false, fmt.Errorf("error parsing url: %w", err)
 	}
 
 	dataChan := make(chan struct{})
 	pc, err := sf.makeNewPeerConnection(config, dataChan)
 	if err != nil {
-		return false, fmt.Errorf("Error making WebRTC connection: %w", err)
+		return false, fmt.Errorf("error making WebRTC connection: %w", err)
 	}
 	defer func() {
 		if err := pc.Close(); err != nil {
@@ -1074,7 +1066,7 @@ func (sf *SnowflakeProxy) evaluateConnectivityWithHelper(config webrtc.Configura
 	log.Printf("Probetest offer: \n\t%s", strings.ReplaceAll(offer.SDP, "\n", "\n\t"))
 	sdp, err := util.SerializeSessionDescription(offer)
 	if err != nil {
-		return false, fmt.Errorf("Error encoding probe message: %w", err)
+		return false, fmt.Errorf("error encoding probe message: %w", err)
 	}
 
 	// send offer
@@ -1084,28 +1076,28 @@ func (sf *SnowflakeProxy) evaluateConnectivityWithHelper(config webrtc.Configura
 	}
 	body, err := pollResp.Encode()
 	if err != nil {
-		return false, fmt.Errorf("Error encoding probe message: %w", err)
+		return false, fmt.Errorf("error encoding probe message: %w", err)
 	}
 
 	resp, err := probe.Post(probe.url.String(), bytes.NewBuffer(body))
 	if err != nil {
-		return false, fmt.Errorf("Error polling probe: %w", err)
+		return false, fmt.Errorf("error polling probe: %w", err)
 	}
 
 	req, err := messages.DecodeProxyAnswerRequest(resp)
 	if err != nil {
-		return false, fmt.Errorf("Error reading probe response: %w", err)
+		return false, fmt.Errorf("error reading probe response: %w", err)
 	}
 
 	answer, err := util.DeserializeSessionDescription(req.Answer)
 	if err != nil {
-		return false, fmt.Errorf("Error setting answer: %w", err)
+		return false, fmt.Errorf("error setting answer: %w", err)
 	}
 	log.Printf("Probetest answer: \n\t%s", strings.ReplaceAll(answer.SDP, "\n", "\n\t"))
 
 	err = pc.SetRemoteDescription(*answer)
 	if err != nil {
-		return false, fmt.Errorf("Error setting answer: %w", err)
+		return false, fmt.Errorf("error setting answer: %w", err)
 	}
 
 	select {
