@@ -135,7 +135,7 @@ func GetClientIp(req *http.Request) string {
 	return clientIp
 }
 
-// GetProxyIp attempts to retrieve the IP of the client originating the request.
+// GetSnowflakeIp attempts to retrieve the IP of the client originating the request.
 // This is meant to be used for snowflake proxy polls, for which we want the most
 // recently seen IP before any load balancers or reverse proxies deployed in front of the
 // broker machine. This requires knowledge of the number of broker reverse proxy hops.
