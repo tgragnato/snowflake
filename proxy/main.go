@@ -13,7 +13,6 @@ import (
 
 	"gitlab.torproject.org/tpo/anti-censorship/geoip"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
-	"tgragnato.it/snowflake/common/covertdtls"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/version"
 	sf "tgragnato.it/snowflake/proxy/lib"
@@ -103,8 +102,6 @@ func main() {
 		log.Println("Error loading geoip db for country based metrics:", err)
 	}
 
-	var cDTLSconfig covertdtls.CovertDTLSConfig
-
 	proxy := sf.SnowflakeProxy{
 		PollInterval:       *pollInterval,
 		Capacity:           uint(*capacity),
@@ -127,8 +124,6 @@ func main() {
 
 		SummaryInterval: *summaryInterval,
 		GeoIP:           gip,
-
-		CovertDTLSConfig: cDTLSconfig,
 	}
 
 	var logOutput = io.Discard

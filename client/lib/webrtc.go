@@ -15,7 +15,6 @@ import (
 	"github.com/pion/transport/v4"
 	"github.com/pion/transport/v4/stdnet"
 	"github.com/pion/webrtc/v4"
-	"tgragnato.it/snowflake/common/covertdtls"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/proxy"
 	"tgragnato.it/snowflake/common/util"
@@ -83,13 +82,6 @@ func NewWebRTCPeerWithEventsAndProxy(
 func NewWebRTCPeerWithNatPolicyAndEventsAndProxy(
 	config *webrtc.Configuration, broker *BrokerChannel, natPolicy *NATPolicy,
 	eventsLogger event.SnowflakeEventReceiver, proxy *url.URL,
-) (*WebRTCPeer, error) {
-	return NewCovertWebRTCPeerWithNatPolicyAndEventsAndProxy(config, broker, natPolicy, eventsLogger, proxy, nil)
-}
-
-func NewCovertWebRTCPeerWithNatPolicyAndEventsAndProxy(
-	config *webrtc.Configuration, broker *BrokerChannel, natPolicy *NATPolicy,
-	eventsLogger event.SnowflakeEventReceiver, proxy *url.URL, covertDTLSconfig *covertdtls.CovertDTLSConfig,
 ) (*WebRTCPeer, error) {
 	if eventsLogger == nil {
 		eventsLogger = event.NewSnowflakeEventDispatcher()

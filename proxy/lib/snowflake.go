@@ -48,7 +48,6 @@ import (
 	"github.com/pion/transport/v4/stdnet"
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/constants"
-	"tgragnato.it/snowflake/common/covertdtls"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/namematcher"
@@ -206,9 +205,6 @@ type SnowflakeProxy struct {
 
 	// GeoIP will be used to detect the country of the clients if provided
 	GeoIP GeoIP
-
-	// CovertDTLSConfig is used for configuration for randomization or mimicking (Firefox/Chrome browser) of DTLS Client Hello messages.
-	CovertDTLSConfig covertdtls.CovertDTLSConfig
 
 	periodicProxyStats *periodicProxyStats
 	bytesLogger        bytesLogger
@@ -487,13 +483,6 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 
 	settingsEngine.SetDTLSInsecureSkipHelloVerify(true)
-
-	if sf.CovertDTLSConfig.Mimic || sf.CovertDTLSConfig.Randomize || len(sf.CovertDTLSConfig.Fingerprint) > 0 {
-		err := covertdtls.SetCovertDTLSSettings(&sf.CovertDTLSConfig, &settingsEngine)
-		if err != nil {
-			log.Fatalf("CovertDTLS ERROR: %s", err)
-		}
-	}
 
 	return webrtc.NewAPI(webrtc.WithSettingEngine(settingsEngine))
 }
