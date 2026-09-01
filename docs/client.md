@@ -1,12 +1,8 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
 - [Dependencies](#dependencies)
 - [Building the Snowflake client](#building-the-snowflake-client)
 - [Running the Snowflake client with Tor](#running-the-snowflake-client-with-tor)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 This is the Tor client component of Snowflake.
 
@@ -29,7 +25,7 @@ go build
 
 ### Running the Snowflake client with Tor
 
-The Snowflake client can be configured with SOCKS options. We have a few example `torrc` files in this directory. We recommend the following `torrc` options by default:
+The Snowflake client can be configured with SOCKS options. We have a few example `torrc` files in the `client/` directory (`torrc` and `torrc.localhost`). We recommend the following `torrc` options by default:
 ```
 UseBridges 1
 

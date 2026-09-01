@@ -160,6 +160,6 @@ func main() {
 
 At the moment we do not have the ability to share Snowfake infrastructure between different types of applications. If you are planning on using Snowflake as a transport for your application, you will need to:
 
-- Run a Snowflake broker. See our [broker documentation](../broker/) and [installation guide](https://gitlab.torproject.org/tpo/anti-censorship/team/-/wikis/Survival-Guides/Snowflake-Broker-Installation-Guide) for more information
+- Run a Snowflake broker. See our [broker documentation](broker.md) and [installation guide](https://gitlab.torproject.org/tpo/anti-censorship/team/-/wikis/Survival-Guides/Snowflake-Broker-Installation-Guide) for more information
 
-- Run Snowflake proxies. These can be run as [standalone Go proxies](../proxy/) or [browser-based proxies](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake-webext).
+- Run Snowflake proxies. These can be run as [standalone Go proxies](proxy.md) or [browser-based proxies](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake-webext).

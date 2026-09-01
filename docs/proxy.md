@@ -1,12 +1,8 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
 - [Dependencies](#dependencies)
 - [Building the standalone Snowflake proxy](#building-the-standalone-snowflake-proxy)
 - [Running a standalone Snowflake proxy](#running-a-standalone-snowflake-proxy)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 This is a standalone (not browser-based) version of the Snowflake proxy. For browser-based versions of the Snowflake proxy, see https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake-webext.
 
@@ -75,14 +71,17 @@ Usage of ./proxy:
         Determining NAT type helps to understand whether this proxy is compatible with certain clients' NAT (default "https://snowflake-broker.torproject.net:8443/probe")
   -nat-retest-interval duration
         the time interval between NAT type is retests (see "nat-probe-server"). 0s disables retest. Valid time units are "s", "m", "h". (default 24h0m0s)
+  -nat-type-force-unrestricted
+        force the NAT type as unrestricted
   -outbound-address address
-        prefer the given address as outbound address for client connections
+        Prefer the given address as the outbound address for peer connections with clients.
+        For bridges and relays running snowflake-proxy on the same device, an alternate IP address should be set for snowflake-proxy to mitigate its IP being censored when the bridge or relay IP is censored.
   -poll-interval duration
-        how often to ask the broker for a new client. Keep in mind that asking for a client will not always result in getting one. Minumum value is 2s. Valid time units are "ms", "s", "m", "h". (default 5s)
+        a deprecated fallback value for often to ask the broker for a new client. Proxies will dynamically change their poll interval based on broker recommendation. Minumum value is 2s. Valid time units are "ms", "s", "m", "h". (default 5s)
   -relay URL
         The default URL of the server (relay) that this proxy will forward client connections to, in case the broker itself did not specify the said URL (default "wss://snowflake.torproject.net/")
   -stun URL
-        Comma-separated STUN server URLs that this proxy will use will use to, among some other things, determine its public IP address (default "stun:stun.l.google.com:19302,stun:stun.voip.blackberry.com:3478")
+        Comma-separated STUN server URLs that this proxy will use will use to, among some other things, determine its public IP address (default "stun:stun.tgragnato.it:3478,stun:stun.l.google.com:19302")
   -summary-interval duration
         the time interval between summary log outputs, 0s disables summaries. Valid time units are "s", "m", "h". (default 1h0m0s)
   -unsafe-logging

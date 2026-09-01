@@ -28,18 +28,20 @@ Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by 
   - [Using Snowflake with Tor](#using-snowflake-with-tor)
   - [Running a Snowflake Proxy](#running-a-snowflake-proxy)
   - [Using the Snowflake Library with Other Applications](#using-the-snowflake-library-with-other-applications)
-- [Test Environment](#test-environment)
+- [Development](#development)
 - [FAQ](#faq)
 - [More info and links](#more-info-and-links)
 
 ### Structure of this Repository
 
 - `broker/` contains code for the Snowflake broker
-- `doc/` contains Snowflake documentation and manpages
 - `client/` contains the Tor pluggable transport client and client library code
 - `common/` contains generic libraries used by multiple pieces of Snowflake
-- `proxy/` contains code for the Go standalone Snowflake proxy
+- `distinctcounter/` contains the cardinality counting used for broker metrics
+- `docs/` contains Snowflake documentation and manpages
+- `dtls/` contains the forked DTLS stack carrying this fork's custom handshake fingerprint
 - `probetest/` contains code for a NAT probetesting service
+- `proxy/` contains code for the Go standalone Snowflake proxy
 - `server/` contains the Tor pluggable transport server and server library code
 
 ### Usage
@@ -56,7 +58,14 @@ You can contribute to Snowflake by running a Snowflake proxy. We have the option
 
 #### Using the Snowflake Library with Other Applications
 
-Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports specification](). For more information on using the Snowflake Go library, see the [Snowflake library documentation](docs/using-the-snowflake-library.md).
+Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports specification](https://github.com/Pluggable-Transports/Pluggable-Transports-spec/blob/master/releases/PTSpecV2.1/Pluggable%20Transport%20Specification%20v2.1%20-%20Go%20Transport%20API.pdf). For more information on using the Snowflake Go library, see the [Snowflake library documentation](docs/using-the-snowflake-library.md).
+
+### Development
+
+Build with `go build -v ./...` and test with `CGO_ENABLED=1 go test -race ./...`. See the
+[development documentation](docs/development.md) for the repository layout, the lint and
+commit conventions, and the invariants (privacy, fingerprinting resistance, wire
+compatibility) that changes must preserve.
 
 ### FAQ
 
