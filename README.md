@@ -9,7 +9,7 @@ Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by 
 
 ### Custom fork
 
-![Schematic](/schematic.png)
+![Schematic](docs/schematic.png)
 
 - golang 1.26+ & bumped dependencies
 - custom transport for broker negotiation (TLS 1.3 with selected ciphersuites & groups, MultiPath TCP)
@@ -48,7 +48,7 @@ Snowflake is currently deployed as a pluggable transport for Tor.
 
 #### Using Snowflake with Tor
 
-To use the Snowflake client with Tor, you will need to add the appropriate `Bridge` and `ClientTransportPlugin` lines to your [torrc](https://2019.www.torproject.org/docs/tor-manual.html.en) file. See the [client README](client) for more information on building and running the Snowflake client.
+To use the Snowflake client with Tor, you will need to add the appropriate `Bridge` and `ClientTransportPlugin` lines to your [torrc](https://2019.www.torproject.org/docs/tor-manual.html.en) file. See the [client README](docs/client.md) for more information on building and running the Snowflake client.
 
 #### Running a Snowflake Proxy
 
@@ -56,7 +56,7 @@ You can contribute to Snowflake by running a Snowflake proxy. We have the option
 
 #### Using the Snowflake Library with Other Applications
 
-Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports specification](). For more information on using the Snowflake Go library, see the [Snowflake library documentation](doc/using-the-snowflake-library.md).
+Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports specification](). For more information on using the Snowflake Go library, see the [Snowflake library documentation](docs/using-the-snowflake-library.md).
 
 ### FAQ
 
