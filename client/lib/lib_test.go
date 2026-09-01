@@ -83,7 +83,7 @@ func TestPeersCollectUntilCapacity(t *testing.T) {
 	p := newTestPeers(t, c)
 
 	// Fill up to capacity.
-	for i := 0; i < c; i++ {
+	for i := range c {
 		if _, err := p.Collect(); err != nil {
 			t.Fatalf("Collect %d: %v", i, err)
 		}
@@ -122,7 +122,7 @@ func TestPeersCountPurgesClosedPeers(t *testing.T) {
 	t.Parallel()
 
 	p := newTestPeers(t, 5)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if _, err := p.Collect(); err != nil {
 			t.Fatalf("Collect %d: %v", i, err)
 		}
@@ -145,7 +145,7 @@ func TestPeersEndClosesAllPeers(t *testing.T) {
 
 	const cnt = 5
 	p := newTestPeers(t, cnt)
-	for i := 0; i < cnt; i++ {
+	for range cnt {
 		p.activePeers.PushBack(&WebRTCPeer{closed: make(chan struct{})})
 	}
 	if got := p.Count(); got != cnt {

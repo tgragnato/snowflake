@@ -26,9 +26,8 @@ func BenchmarkQueueIncoming(b *testing.B) {
 	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, 500)
 	defer conn.Close()
 
-	b.ResetTimer()
 	var p [500]byte
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		conn.QueueIncoming(p[:], emptyAddr{})
 	}
 	b.StopTimer()
@@ -39,9 +38,8 @@ func BenchmarkWriteTo(b *testing.B) {
 	conn := NewQueuePacketConn(emptyAddr{}, 1*time.Hour, 500)
 	defer conn.Close()
 
-	b.ResetTimer()
 	var p [500]byte
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		conn.WriteTo(p[:], emptyAddr{})
 	}
 	b.StopTimer()
@@ -214,7 +212,7 @@ func TestQueuePacketConnWriteToKCP(t *testing.T) {
 	// Once the "XXXX" goroutine is started, repeatedly send a packet, wait,
 	// then retrieve it and check whether it has changed since being sent.
 	<-ready
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		transcript := NewTranscriptPacketConn(pconn)
 		conn, err := kcp.NewConn2(addr1, nil, 0, 0, transcript)
 		if err != nil {

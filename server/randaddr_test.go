@@ -32,7 +32,7 @@ outer:
 			Mask: net.IPMask{0x00, 0x07, 0xff, 0xff},
 		},
 	} {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ip, err := randIPAddr(ipnet)
 			if err != nil {
 				t.Errorf("%v returned error %v", ipnet, err)

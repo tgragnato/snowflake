@@ -50,6 +50,12 @@ removed; do not reintroduce assertion or mocking frameworks. Tests that exercise
 rendezvous must synchronise explicitly (wait for the expected registrations) rather than
 sleeping, otherwise they are flaky under `-race`.
 
+Do not add dependencies, in production or test code. Every dependency is code that ships in a
+circumvention tool without having been reviewed here, so the precautionary choice is to keep
+the surface small: less code means fewer bugs and fewer ways to be compromised. Prefer the
+standard library and in-module packages, and treat any change to `go.mod` or `go.sum` as
+something to justify rather than a side effect.
+
 When you change code, check the coverage of the package you touched and write the tests
 needed to bring it to at least 80%:
 

@@ -207,7 +207,7 @@ func TestArmorRoundTrip(t *testing.T) {
 
 	lengths := make([]int, 0)
 	// Test short strings and lengths around elementSizeLimit thresholds.
-	for i := 0; i < bytesPerChunk*2; i++ {
+	for i := range bytesPerChunk * 2 {
 		lengths = append(lengths, i)
 	}
 	for i := -10; i < +10; i++ {

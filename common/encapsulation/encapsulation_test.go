@@ -13,7 +13,7 @@ func pseudorandomBuffer(n int) []byte {
 	p := make([]byte, n)
 	_, err := rand.Read(p)
 	if err != nil {
-		for i := 0; i < len(p); i++ {
+		for i := range p {
 			p[i] = byte(mrand.Int64() & 0xff)
 		}
 	}
@@ -421,14 +421,14 @@ func BenchmarkReadData(b *testing.B) {
 	pr, pw := io.Pipe()
 	go func() {
 		for {
-			for length := 0; length < 128; length++ {
+			for length := range 128 {
 				WriteData(pw, paddingBuffer[:length])
 			}
 		}
 	}()
 
 	var p [128]byte
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := ReadData(pr, p[:])
 		if err != nil {
 			b.Fatal(err)

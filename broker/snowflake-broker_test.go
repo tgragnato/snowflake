@@ -1200,7 +1200,7 @@ func TestMetricsBinningBoundary(t *testing.T) {
 	t.Parallel()
 
 	f := newMetricsFixture(t)
-	for i := 0; i < 9; i++ {
+	for range 9 {
 		clientOffers(f.ipc, httptest.NewRecorder(), newClientOfferRequest(t, NATRestricted))
 	}
 
@@ -1278,7 +1278,7 @@ func TestConcurrency(t *testing.T) {
 
 	const numProxies = 1000
 	// Multiple proxy polls
-	for x := 0; x < numProxies; x++ {
+	for x := range numProxies {
 		buf := make([]byte, 16)
 		if _, err := rand.Read(buf); err != nil {
 			t.Fatalf("rand.Read: %v", err)
@@ -1332,7 +1332,7 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	// Multiple client offers
-	for x := 0; x < 500; x++ {
+	for range 500 {
 		wg.Add(1)
 		wc := httptest.NewRecorder()
 		datac, err := createClientOffer(rawOffer, NATUnrestricted, "")

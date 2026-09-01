@@ -43,7 +43,7 @@ func (i *IPC) Debug(_ any, response *string) error {
 
 	i.ctx.snowflakeLock.Lock()
 	var s strings.Builder
-	s.WriteString(fmt.Sprintf("current snowflakes available: %d\n", len(i.ctx.idToSnowflake)))
+	fmt.Fprintf(&s, "current snowflakes available: %d\n", len(i.ctx.idToSnowflake))
 	for _, snowflake := range i.ctx.idToSnowflake {
 		if messages.KnownProxyTypes[snowflake.proxyType] {
 			proxyTypes[snowflake.proxyType]++
@@ -70,18 +70,18 @@ func (i *IPC) Debug(_ any, response *string) error {
 	i.ctx.snowflakeLock.Unlock()
 
 	for pType, num := range proxyTypes {
-		s.WriteString(fmt.Sprintf("\t%s proxies: %d\n", pType, num))
+		fmt.Fprintf(&s, "\t%s proxies: %d\n", pType, num)
 	}
-	s.WriteString(fmt.Sprintf("\tunknown proxies: %d", unknowns))
+	fmt.Fprintf(&s, "\tunknown proxies: %d", unknowns)
 
 	s.WriteString("\nNAT Types available:")
-	s.WriteString(fmt.Sprintf("\n\trestricted: %d", natRestricted))
-	s.WriteString(fmt.Sprintf("\n\tunrestricted: %d", natUnrestricted))
-	s.WriteString(fmt.Sprintf("\n\tstrict: %d", natStrict))
-	s.WriteString(fmt.Sprintf("\n\tmoderate: %d", natModerate))
-	s.WriteString(fmt.Sprintf("\n\topen: %d", natOpen))
+	fmt.Fprintf(&s, "\n\trestricted: %d", natRestricted)
+	fmt.Fprintf(&s, "\n\tunrestricted: %d", natUnrestricted)
+	fmt.Fprintf(&s, "\n\tstrict: %d", natStrict)
+	fmt.Fprintf(&s, "\n\tmoderate: %d", natModerate)
+	fmt.Fprintf(&s, "\n\topen: %d", natOpen)
 
-	s.WriteString(fmt.Sprintf("\n\tunknown: %d", natUnknown))
+	fmt.Fprintf(&s, "\n\tunknown: %d", natUnknown)
 
 	*response = s.String()
 	return nil
