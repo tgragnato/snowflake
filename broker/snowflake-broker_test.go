@@ -1274,12 +1274,11 @@ func TestConcurrency(t *testing.T) {
 	i := &IPC{ctx}
 	go ctx.Broker()
 
-	var proxies sync.WaitGroup
 	var wg sync.WaitGroup
 
-	proxies.Add(1000)
+	const numProxies = 1000
 	// Multiple proxy polls
-	for x := 0; x < 1000; x++ {
+	for x := 0; x < numProxies; x++ {
 		buf := make([]byte, 16)
 		if _, err := rand.Read(buf); err != nil {
 			t.Fatalf("rand.Read: %v", err)
@@ -1295,7 +1294,6 @@ func TestConcurrency(t *testing.T) {
 		rp.RemoteAddr = fmt.Sprintf("1.1.%d.%d", x/256, x%256)
 
 		go func() {
-			proxies.Done()
 			proxyPolls(i, wp, rp)
 			if wp.Code != http.StatusOK {
 				t.Errorf("proxy poll status = %d, want %d", wp.Code, http.StatusOK)
@@ -1316,8 +1314,22 @@ func TestConcurrency(t *testing.T) {
 			go proxyAnswers(i, wa, ra)
 		}()
 	}
-	// Wait for all proxies to poll before sending client offers
-	proxies.Wait()
+	// Wait for all proxies to be registered by the broker goroutine before
+	// sending client offers: a client that arrives before its proxy has been
+	// pushed onto a pool is answered with "no snowflake proxies available".
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		ctx.snowflakeLock.Lock()
+		registered := len(ctx.idToSnowflake)
+		ctx.snowflakeLock.Unlock()
+		if registered == numProxies {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d of %d proxies registered", registered, numProxies)
+		}
+		time.Sleep(time.Millisecond)
+	}
 
 	// Multiple client offers
 	for x := 0; x < 500; x++ {
