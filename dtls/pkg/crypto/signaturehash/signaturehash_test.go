@@ -105,19 +105,29 @@ func TestParseSignatureSchemes(t *testing.T) {
 			insecureHashes: false,
 			err:            nil,
 		},
+		// A PSS scheme is a full uint16 on the wire while ECDSA is the
+		// byte-split TLS 1.2 form, so this checks both encodings are parsed
+		// from the same list. RSA PKCS#1 is not part of the mix: this fork
+		// does not implement it.
 		"MixedPSSAndNonPSS": {
 			input: []tls.SignatureScheme{
-				tls.PSSWithSHA256,          // PSS (RSAE)
-				tls.PKCS1WithSHA256,        // Non-PSS RSA
-				tls.ECDSAWithP256AndSHA256, // ECDSA
+				tls.PSSWithSHA256,          // PSS (RSAE), full uint16
+				tls.ECDSAWithP256AndSHA256, // ECDSA, byte-split
 			},
 			expected: []Algorithm{
 				{hash.SHA256, signature.RSA_PSS_RSAE_SHA256},
-				{hash.SHA256, signature.RSA_PSS_RSAE_SHA512},
 				{hash.SHA256, signature.ECDSA},
 			},
 			insecureHashes: false,
 			err:            nil,
+		},
+		"PKCS1IsRejected": {
+			input: []tls.SignatureScheme{
+				tls.PKCS1WithSHA256, // rsa_pkcs1_sha256, not implemented here
+			},
+			expected:       nil,
+			insecureHashes: false,
+			err:            dtlserrors.ErrSignatureHashInvalidSignatureAlgorithm,
 		},
 		"PSSPSSSchemes": {
 			input: []tls.SignatureScheme{
@@ -190,13 +200,13 @@ func TestSelectSignatureScheme13_VersionAware(t *testing.T) {
 	// Generate test keys
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-			t.Fatal(err)
-							}
+		t.Fatal(err)
+	}
 
 	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-			t.Fatal(err)
-							}
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name           string
@@ -207,18 +217,21 @@ func TestSelectSignatureScheme13_VersionAware(t *testing.T) {
 		expectedError  error
 	}{
 		{
-			name: "DTLS 1.3 with RSA key selects PSS",
+			// RSA-PSS is offered so that a peer can authenticate with an
+			// RSA certificate, but this fork never signs with an RSA key
+			// of its own, so no scheme is compatible with one.
+			name: "DTLS 1.3 with RSA key selects nothing",
 			schemes: []Algorithm{
 				{hash.SHA256, signature.RSA_PSS_RSAE_SHA256},
 				{hash.SHA256, signature.RSA_PSS_RSAE_SHA512},
 			},
 			privateKey:     rsaKey,
 			is13:           true,
-			expectedSigAlg: signature.RSA_PSS_RSAE_SHA256,
-			expectedError:  nil,
+			expectedSigAlg: 0,
+			expectedError:  dtlserrors.ErrSignatureHashNoAvailableSignatureSchemes,
 		},
 		{
-			name: "DTLS 1.2 with ECDSA key skips PSS, selects PKCS#1 v1.5",
+			name: "DTLS 1.2 with ECDSA key skips PSS, selects ECDSA",
 			schemes: []Algorithm{
 				{hash.SHA256, signature.RSA_PSS_RSAE_SHA256},
 				{hash.SHA256, signature.ECDSA},
@@ -250,15 +263,17 @@ func TestSelectSignatureScheme13_VersionAware(t *testing.T) {
 			expectedError:  nil,
 		},
 		{
-			name: "DTLS 1.3 with RSA key skips RSA_PSS_PSS, selects RSA_PSS_RSAE",
+			// An ECDSA key picks the ECDSA scheme even when RSA-PSS
+			// schemes are listed ahead of it.
+			name: "DTLS 1.3 with ECDSA key skips the RSA-PSS schemes",
 			schemes: []Algorithm{
 				{hash.SHA256, signature.RSA_PSS_PSS_SHA256},
 				{hash.SHA256, signature.RSA_PSS_RSAE_SHA256},
 				{hash.SHA256, signature.ECDSA},
 			},
-			privateKey:     rsaKey,
+			privateKey:     ecdsaKey,
 			is13:           true,
-			expectedSigAlg: signature.RSA_PSS_RSAE_SHA256,
+			expectedSigAlg: signature.ECDSA,
 			expectedError:  nil,
 		},
 		{
@@ -292,18 +307,18 @@ func TestSelectSignatureScheme13_VersionAware(t *testing.T) {
 			result, err := selectSignatureScheme13(tt.schemes, tt.privateKey, tt.is13)
 			if tt.expectedError != nil {
 				if err == nil {
-			t.Error("expected error")
-							}
+					t.Error("expected error")
+				}
 				if !errors.Is(err, tt.expectedError) {
-			t.Errorf("expected error %v, got %v", tt.expectedError, err)
-							}
+					t.Errorf("expected error %v, got %v", tt.expectedError, err)
+				}
 			} else {
 				if err != nil {
-			t.Error(err)
-							}
+					t.Error(err)
+				}
 				if tt.expectedSigAlg != result.Signature {
-			t.Errorf("expected %v, got %v", tt.expectedSigAlg, result.Signature)
-							}
+					t.Errorf("expected %v, got %v", tt.expectedSigAlg, result.Signature)
+				}
 			}
 		})
 	}
@@ -389,18 +404,18 @@ func TestFromCertificate(t *testing.T) {
 			result, err := FromCertificate(&x509.Certificate{SignatureAlgorithm: tt.sigAlg})
 			if tt.wantErr {
 				if err == nil {
-			t.Error("expected error")
-							}
+					t.Error("expected error")
+				}
 				if !errors.Is(err, dtlserrors.ErrSignatureHashInvalidSignatureAlgorithm) {
-			t.Errorf("expected error %v, got %v", dtlserrors.ErrSignatureHashInvalidSignatureAlgorithm, err)
-							}
+					t.Errorf("expected error %v, got %v", dtlserrors.ErrSignatureHashInvalidSignatureAlgorithm, err)
+				}
 			} else {
 				if err != nil {
-			t.Error(err)
-							}
+					t.Error(err)
+				}
 				if tt.expected != result {
-			t.Errorf("expected %v, got %v", tt.expected, result)
-							}
+					t.Errorf("expected %v, got %v", tt.expected, result)
+				}
 			}
 		})
 	}

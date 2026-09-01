@@ -184,13 +184,13 @@ func TestFlight13_1GenerateClientHelloUsesSupportedVersionsVector(t *testing.T) 
 	}
 	expectedSlice := []protocol.Version{protocol.Version1_3}
 	if !reflect.DeepEqual(expectedSlice, supportedVersions.Versions) {
-		// The condition now correctly evaluates to a boolean
 		t.Errorf("Expected version list to match standard supported versions.\nExpected: %#v\nGot: %#v", expectedSlice, supportedVersions.Versions)
 	}
 
-	selected := supportedVersions.IsSelectedVersion()
-	if !selected {
-		t.Error("expected true")
+	// A ClientHello carries the preference-ordered versions vector, not the
+	// ServerHello/HelloRetryRequest selected_version form.
+	if supportedVersions.IsSelectedVersion() {
+		t.Error("expected the versions vector form, got selected_version")
 	}
 }
 
@@ -697,9 +697,8 @@ func TestPickVersionFromServerResponseRejectsServerHelloWithClientHelloSupported
 func TestFlight13_3GenerateRejectsWithoutCommonVersion(t *testing.T) {
 	cfg := testHandshakeConfig13(t)
 	state := &dtlsstate.State{}
-	result := state.LocalRandom.Populate()
-	if result == nil { // Check if the returned value is nil
-		t.Fatal("state.LocalRandom.Populate() returned nil")
+	if err := state.LocalRandom.Populate(); err != nil {
+		t.Fatal(err)
 	}
 
 	pkts, dtlsAlert, err := flight13GenerateForTest(t, dtlsflight13.Flight3, &handshakeContext13{
@@ -724,9 +723,8 @@ func TestFlight13_3GenerateIncludesCookieAndSupportedVersions(t *testing.T) {
 		Cookie:         []byte{0x01, 0x02, 0x03, 0x04},
 		RemoteVersions: []protocol.Version{protocol.Version1_3},
 	}
-	result := state.LocalRandom.Populate()
-	if result == nil { // Check if the returned value is nil
-		t.Fatal("state.LocalRandom.Populate() returned nil")
+	if err := state.LocalRandom.Populate(); err != nil {
+		t.Fatal(err)
 	}
 
 	pkts, dtlsAlert, err := flight13GenerateForTest(t, dtlsflight13.Flight3, &handshakeContext13{
@@ -827,12 +825,9 @@ func TestFlight13_3GeneratePrioritizesHelloRetryRequestSelectedGroup(t *testing.
 		RemoteKeyEntries: &[]extension.KeyShareEntry{{Group: selectedGroup}},
 	}
 	if err := state.LocalRandom.Populate(); err != nil {
-		t.Fatal(err) // Correctly passes the single error object to t.Fatal
+		t.Fatal(err)
 	}
 
-	if cfg.LocalCipherSuites[0].ID() != state.CipherSuite.ID() { // FIX APPLIED HERE
-		t.Errorf("expected %v, got %v", cfg.LocalCipherSuites[0].ID(), state.CipherSuite.ID())
-	}
 	pkts, dtlsAlert, err := flight13GenerateForTest(t, dtlsflight13.Flight3, &handshakeContext13{
 		state: state,
 		cfg:   cfg,
@@ -1244,11 +1239,8 @@ func TestFlight13ClientParseAppendsHRRTranscriptOrder(t *testing.T) {
 		t.Fatal("expected true")
 	}
 	clientHello2Handshake.Header.MessageSequence = 1
-	if clientHello2 == nil {
-		t.Fatal("ClientHello 2 packet list cannot be nil for this test case")
-	}
-	if appendOutboundHandshakeFlight13(transcript, true, state.CipherSuite, clientHello2) == nil {
-		t.Fatal("Expected an error, but appendOutboundHandshakeFlight13 returned nil")
+	if err := appendOutboundHandshakeFlight13(transcript, true, state.CipherSuite, clientHello2); err != nil {
+		t.Fatal(err)
 	}
 	clientHello2Canonical := canonicalPacketHandshake13(t, clientHello2[0])
 

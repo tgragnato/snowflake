@@ -311,16 +311,14 @@ func TestListenerConcurrent(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if conn, _, lErr := listener.Accept(); !errors.Is(lErr, ErrClosedListener) {
 			t.Errorf("Connection exceeding backlog limit must be discarded: %v", lErr)
 			if lErr == nil {
 				_ = conn.Close()
 			}
 		}
-	}()
+	})
 
 	time.Sleep(100 * time.Millisecond) // Last Accept should be discarded
 	err = listener.Close()
@@ -548,9 +546,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 	var clientMapMu sync.Mutex
 	// Start servers.
 	for range serverCount {
-		serverWg.Add(1)
-		go func() {
-			defer serverWg.Done()
+		serverWg.Go(func() {
 			// The first payload from the accepted connection should inform
 			// which connection this server is.
 			conn, _, err := listener.Accept()
@@ -634,7 +630,7 @@ func TestListenerCustomConnIDs(t *testing.T) {
 			if err := conn.Close(); err != nil {
 				t.Error(err)
 			}
-		}()
+		})
 	}
 
 	// Start a client per server to send initial "hello" message and receive a

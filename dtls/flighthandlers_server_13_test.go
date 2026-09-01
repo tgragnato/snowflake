@@ -838,8 +838,10 @@ func TestFlight13_2Generate(t *testing.T) {
 		if serverHello.CompressionMethod == nil {
 			t.Fatal("expected non-nil")
 		}
-		if defaultCompressionMethods()[0] != serverHello.CompressionMethod {
-			t.Errorf("expected %v, got %v", defaultCompressionMethods()[0], serverHello.CompressionMethod)
+		// Both are *protocol.CompressionMethod, so compare the values they
+		// point at rather than the pointers themselves.
+		if want, got := *defaultCompressionMethods()[0], *serverHello.CompressionMethod; want != got {
+			t.Errorf("expected %v, got %v", want, got)
 		}
 
 		raw, err := (&handshake.Handshake{Message: serverHello}).Marshal()

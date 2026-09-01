@@ -28,8 +28,7 @@ func (e *invalidCipherSuiteError) Error() string {
 }
 
 func (e *invalidCipherSuiteError) Is(err error) bool {
-	var other *invalidCipherSuiteError
-	if errors.As(err, &other) {
+	if other, ok := errors.AsType[*invalidCipherSuiteError](err); ok {
 		return e.id == other.id
 	}
 
@@ -50,8 +49,7 @@ func (e *alertError) IsFatalOrCloseNotify() bool {
 }
 
 func (e *alertError) Is(err error) bool {
-	var other *alertError
-	if errors.As(err, &other) {
+	if other, ok := errors.AsType[*alertError](err); ok {
 		return e.Level == other.Level && e.Description == other.Description
 	}
 
@@ -91,8 +89,7 @@ func (e temporaryNetworkError) Error() string { return e.err.Error() }
 func (e temporaryNetworkError) Unwrap() error { return e.err }
 
 func (e temporaryNetworkError) Timeout() bool {
-	var netErr net.Error
-	if errors.As(e.err, &netErr) {
+	if netErr, ok := errors.AsType[net.Error](e.err); ok {
 		return netErr.Timeout()
 	}
 

@@ -4,7 +4,6 @@
 package elliptic
 
 import (
-	"crypto/rand"
 	"errors"
 	"testing"
 
@@ -88,23 +87,12 @@ func TestGenerateKeypairForPeer_X25519MLKEM768RejectsBadPeerShareLength(t *testi
 }
 
 // create a fake reader that is guaranteed to fail to trigger a failure in generate keypair.
-type failingReader struct{}
-
-func (failingReader) Read(p []byte) (int, error) {
-	return 0, errors.ErrUnsupported // any error is fine here.
-}
-
-func TestGenerateKeypair_RandFailure(t *testing.T) {
-	// replace crypto/rand.Reader to force ecdh.GenerateKey to fail.
-	orig := rand.Reader
-	rand.Reader = failingReader{}
-	defer func() { rand.Reader = orig }()
-
-	_, err := GenerateKeypair(P384)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-}
+// The randomness failure path of generateECDHKeypair is not covered: since
+// Go 1.24 crypto/ecdh draws from the FIPS-140 internal DRBG and ignores the
+// io.Reader it is handed, so replacing crypto/rand.Reader no longer makes
+// GenerateKey fail. The same holds for mlkem.GenerateKey768, which takes no
+// reader at all. The only reachable error is an unsupported curve, covered by
+// TestToECDH_InvalidCurve.
 
 func TestToECDH_InvalidCurve(t *testing.T) {
 	var invalid Curve = 0xFFFF

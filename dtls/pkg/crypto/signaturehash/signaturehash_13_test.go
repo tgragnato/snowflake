@@ -14,10 +14,12 @@ import (
 func TestAlgorithms13(t *testing.T) {
 	algos := Algorithms13()
 
-	// Verify we got expected number of algorithms
-	// ECDSA (3) + Ed25519 (1) + RSA-PSS (3) + RSA PKCS#1 (3) = 10
-	if len(algos) != 10 {
-		t.Errorf("Algorithms13 should return 10 signature schemes wrong length: got %d, want %d", len(algos), 10)
+	// Verify we got expected number of algorithms.
+	// ECDSA (3) + Ed25519 (1) + RSA-PSS RSAE (3) = 7. RSA PKCS#1 is not
+	// offered: this fork does not implement it. RSA_PSS_PSS is parsed for
+	// wire compatibility but never negotiated, so it is not offered either.
+	if len(algos) != 7 {
+		t.Errorf("Algorithms13 should return 7 signature schemes wrong length: got %d, want %d", len(algos), 7)
 	}
 	if !reflect.DeepEqual(Algorithm{hash.SHA256, signature.ECDSA}, algos[0]) {
 		t.Errorf("expected %v, got %v", Algorithm{hash.SHA256, signature.ECDSA}, algos[0])
@@ -63,27 +65,7 @@ func TestAlgorithms13_IncludesRSAPSS(t *testing.T) {
 	}
 }
 
-func TestAlgorithms13_RSAPSSBeforePKCS1(t *testing.T) {
-	algos := Algorithms13()
-
-	// Find positions of first RSA-PSS and first RSA PKCS#1 schemes
-	firstRSAPSS := -1
-	firstRSA := -1
-
-	for i, algo := range algos {
-		if firstRSAPSS == -1 && algo.Signature.IsPSS() {
-			firstRSAPSS = i
-		}
-	}
-
-	// In TLS 1.3, RSA-PSS should be preferred over RSA PKCS#1 v1.5
-	if -1 == firstRSAPSS {
-		t.Errorf("should not equal %v", -1)
-	}
-	if -1 == firstRSA {
-		t.Errorf("should not equal %v", -1)
-	}
-	if !(firstRSAPSS < firstRSA) {
-		t.Errorf("RSA-PSS schemes should come before RSA PKCS#1 in Algorithms13() for TLS 1.3 preference expected %v < %v", firstRSAPSS, firstRSA)
-	}
-}
+// There is no test that RSA-PSS is preferred over RSA PKCS#1 v1.5: PKCS#1 is
+// not among the offered schemes at all, so the ordering has nothing to compare
+// against. TestAlgorithms13 covers the schemes that are offered, and their
+// order.

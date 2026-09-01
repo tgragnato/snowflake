@@ -4,22 +4,13 @@
 package handshake
 
 import (
+	"bytes"
 	"crypto/x509"
 	"reflect"
 	"testing"
 )
 
 func TestHandshakeMessageCertificate(t *testing.T) {
-	// Not easy to mock out these members, just copy for now (since everything else matches)
-	copyCertificatePrivateMembers := func(src, dst *x509.Certificate) {
-		dst.PublicKey = src.PublicKey
-		dst.SerialNumber = src.SerialNumber
-		dst.Issuer = src.Issuer
-		dst.Subject = src.Subject
-		dst.NotBefore = src.NotBefore
-		dst.NotAfter = src.NotAfter
-	}
-
 	rawCertificate := []byte{
 		0x00, 0x01, 0x8c, 0x00, 0x01, 0x89, 0x30, 0x82, 0x01, 0x85, 0x30, 0x82, 0x01, 0x2b, 0x02, 0x14,
 		0x7d, 0x00, 0xcf, 0x07, 0xfc, 0xe2, 0xb6, 0xb8, 0x3f, 0x72, 0xeb, 0x11, 0x36, 0x1b, 0xf6, 0x39,
@@ -68,9 +59,37 @@ func TestHandshakeMessageCertificate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		copyCertificatePrivateMembers(certificate, parsedCertificate)
-		if !reflect.DeepEqual(certificate, parsedCertificate) {
-			t.Errorf("handshakeMessageCertificate unmarshal: got %#v, want %#v", certMessage, parsedCertificate)
+		// Compare the fields this test is about rather than the whole
+		// struct: x509.Certificate gains fields across Go releases (for
+		// instance RawSignatureAlgorithm, populated from Go 1.27 on), and
+		// a DeepEqual against a partially built literal breaks whenever
+		// that happens.
+		for _, field := range []struct {
+			name      string
+			got, want []byte
+		}{
+			{"Raw", certificate.Raw, parsedCertificate.Raw},
+			{"RawTBSCertificate", certificate.RawTBSCertificate, parsedCertificate.RawTBSCertificate},
+			{"RawSubjectPublicKeyInfo", certificate.RawSubjectPublicKeyInfo, parsedCertificate.RawSubjectPublicKeyInfo},
+			{"RawSubject", certificate.RawSubject, parsedCertificate.RawSubject},
+			{"RawIssuer", certificate.RawIssuer, parsedCertificate.RawIssuer},
+			{"Signature", certificate.Signature, parsedCertificate.Signature},
+		} {
+			if !bytes.Equal(field.got, field.want) {
+				t.Errorf("handshakeMessageCertificate unmarshal: %s: got %#v, want %#v",
+					field.name, field.got, field.want)
+			}
+		}
+		if certificate.SignatureAlgorithm != parsedCertificate.SignatureAlgorithm {
+			t.Errorf("SignatureAlgorithm: got %v, want %v",
+				certificate.SignatureAlgorithm, parsedCertificate.SignatureAlgorithm)
+		}
+		if certificate.PublicKeyAlgorithm != parsedCertificate.PublicKeyAlgorithm {
+			t.Errorf("PublicKeyAlgorithm: got %v, want %v",
+				certificate.PublicKeyAlgorithm, parsedCertificate.PublicKeyAlgorithm)
+		}
+		if certificate.Version != parsedCertificate.Version {
+			t.Errorf("Version: got %v, want %v", certificate.Version, parsedCertificate.Version)
 		}
 	}
 

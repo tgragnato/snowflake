@@ -29,11 +29,16 @@ func TestEarlyDataIndication_NewSessionTicket(t *testing.T) {
 
 	newExtension := EarlyDataIndication{}
 
-	if newExtension.Unmarshal(expect) != nil {
-		t.Error(newExtension.Unmarshal(expect))
+	if err := newExtension.Unmarshal(expect); err != nil {
+		t.Error(err)
 	}
-	if extension.MaxEarlyData != newExtension.MaxEarlyData {
-		t.Errorf("expected %v, got %v", extension.MaxEarlyData, newExtension.MaxEarlyData)
+	// MaxEarlyData is a *uint32, so compare the values it points at rather
+	// than the pointers.
+	if newExtension.MaxEarlyData == nil {
+		t.Fatal("expected MaxEarlyData to be set")
+	}
+	if *extension.MaxEarlyData != *newExtension.MaxEarlyData {
+		t.Errorf("expected %v, got %v", *extension.MaxEarlyData, *newExtension.MaxEarlyData)
 	}
 }
 

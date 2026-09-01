@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -169,13 +170,7 @@ func TestParseCipherSuitesForVersions(t *testing.T) {
 			t.Fatalf("expected more than %d suites, got %d", len(defaultCipherSuites13()), len(suites))
 		}
 		ids := configCipherSuiteIDs(suites)
-		found := false
-		for _, id := range ids {
-			if id == uint16(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384) {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(ids, uint16(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384))
 		if !found {
 			t.Errorf("expected suites to contain TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384")
 		}
@@ -216,8 +211,10 @@ func TestParseCipherSuitesForVersions(t *testing.T) {
 	})
 
 	t.Run("TLS 1.3 suites are authentication neutral", func(t *testing.T) {
+		// A nil selection means "use the defaults for these versions"; an
+		// empty slice would instead select nothing.
 		suites, err := parseCipherSuitesForVersions(
-			[]CipherSuiteID{},
+			nil,
 			nil,
 			false,
 			true,

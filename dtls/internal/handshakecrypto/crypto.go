@@ -176,23 +176,20 @@ func VerifyKeySignature(
 
 		return nil
 	case *rsa.PublicKey:
-		hashed := hashAlgorithm.Digest(message)
-
-		// Use RSA-PSS verification if the signature algorithm is PSS
-		if signatureAlgorithm.IsPSS() {
-			pssOpts := &rsa.PSSOptions{
-				SaltLength: rsa.PSSSaltLengthEqualsHash,
-				Hash:       hashAlgorithm.CryptoHash(),
-			}
-			if err := rsa.VerifyPSS(pubKey, hashAlgorithm.CryptoHash(), hashed, remoteKeySignature, pssOpts); err != nil {
-				return dtlserrors.ErrKeySignatureMismatch
-			}
-
-			return nil
+		// Only RSA-PSS is accepted. PKCS#1 v1.5 is not verified at all, so
+		// an RSA certificate presented alongside a non-PSS signature
+		// algorithm fails closed rather than falling back to the weaker
+		// padding.
+		if !signatureAlgorithm.IsPSS() {
+			return dtlserrors.ErrKeySignatureVerifyUnimplemented
 		}
 
-		// Otherwise use PKCS#1 v1.5
-		if rsa.VerifyPKCS1v15(pubKey, hashAlgorithm.CryptoHash(), hashed, remoteKeySignature) != nil {
+		hashed := hashAlgorithm.Digest(message)
+		pssOpts := &rsa.PSSOptions{
+			SaltLength: rsa.PSSSaltLengthEqualsHash,
+			Hash:       hashAlgorithm.CryptoHash(),
+		}
+		if err := rsa.VerifyPSS(pubKey, hashAlgorithm.CryptoHash(), hashed, remoteKeySignature, pssOpts); err != nil {
 			return dtlserrors.ErrKeySignatureMismatch
 		}
 
@@ -289,23 +286,20 @@ func VerifyCertificateVerify(
 
 		return nil
 	case *rsa.PublicKey:
-		hash := hashAlgorithm.Digest(handshakeBodies)
-
-		// Use RSA-PSS verification if the signature algorithm is PSS
-		if signatureAlgorithm.IsPSS() {
-			pssOpts := &rsa.PSSOptions{
-				SaltLength: rsa.PSSSaltLengthEqualsHash,
-				Hash:       hashAlgorithm.CryptoHash(),
-			}
-			if err := rsa.VerifyPSS(pubKey, hashAlgorithm.CryptoHash(), hash, remoteKeySignature, pssOpts); err != nil {
-				return dtlserrors.ErrKeySignatureMismatch
-			}
-
-			return nil
+		// Only RSA-PSS is accepted. PKCS#1 v1.5 is not verified at all, so
+		// an RSA certificate presented alongside a non-PSS signature
+		// algorithm fails closed rather than falling back to the weaker
+		// padding.
+		if !signatureAlgorithm.IsPSS() {
+			return dtlserrors.ErrKeySignatureVerifyUnimplemented
 		}
 
-		// Otherwise use PKCS#1 v1.5
-		if rsa.VerifyPKCS1v15(pubKey, hashAlgorithm.CryptoHash(), hash, remoteKeySignature) != nil {
+		hash := hashAlgorithm.Digest(handshakeBodies)
+		pssOpts := &rsa.PSSOptions{
+			SaltLength: rsa.PSSSaltLengthEqualsHash,
+			Hash:       hashAlgorithm.CryptoHash(),
+		}
+		if err := rsa.VerifyPSS(pubKey, hashAlgorithm.CryptoHash(), hash, remoteKeySignature, pssOpts); err != nil {
 			return dtlserrors.ErrKeySignatureMismatch
 		}
 

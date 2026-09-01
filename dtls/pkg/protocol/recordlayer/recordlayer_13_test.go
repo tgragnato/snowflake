@@ -367,17 +367,19 @@ func TestCiphertextRecord13RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedBytes := []byte{
+	// The unified header, followed by the encrypted record itself.
+	expectedHeader := []byte{
 		0x2f, 0xaa, 0xbb,
 		0x00, 0x10,
 	}
-	if !bytes.Equal(expectedBytes, encryptedRecord) {
-		t.Fatalf("expected %v, got %v", expectedBytes, encryptedRecord)
+	expectedBytes := append(append([]byte(nil), expectedHeader...), encryptedRecord...)
+	if !bytes.Equal(expectedBytes, raw) {
+		t.Fatalf("expected %v, got %v", expectedBytes, raw)
 	}
 
 	var roundTrip CiphertextRecord13
-	if roundTrip.Unmarshal(raw) != nil {
-		t.Fatal(roundTrip.Unmarshal(raw))
+	if err := roundTrip.Unmarshal(raw); err != nil {
+		t.Fatal(err)
 	}
 	if uint8(3) != roundTrip.Header.EpochLow {
 		t.Fatalf("expected %v, got %v", uint8(3), roundTrip.Header.EpochLow)
@@ -413,7 +415,10 @@ func TestCiphertextRecord13MarshalRefreshesLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedBytes := []byte{0x2c, 0x00, 0x01, 0x00, 0x10}
+	// Marshal overwrites the stale Length of 4 with the real payload length,
+	// and the payload follows the header.
+	expectedHeader := []byte{0x2c, 0x00, 0x01, 0x00, 0x10}
+	expectedBytes := append(append([]byte(nil), expectedHeader...), encryptedRecord...)
 	if !bytes.Equal(expectedBytes, raw) {
 		t.Fatalf("expected %v, got %v", expectedBytes, raw)
 	}
@@ -711,12 +716,12 @@ func TestUnpackDatagram13RejectsLegacyPlaintextWhenCiphertextHeadersEnabled(t *t
 
 func TestRecordLayer13Interface(t *testing.T) {
 	var plaintext RecordLayer13 = &PlaintextRecord13{}
-	if reflect.TypeOf(plaintext.RecordHeader()) != reflect.TypeOf(&Header{}) {
+	if reflect.TypeOf(plaintext.RecordHeader()) != reflect.TypeFor[*Header]() {
 		t.Fatalf("expected type %T, got %T", &Header{}, plaintext.RecordHeader())
 	}
 
 	var ciphertext RecordLayer13 = &CiphertextRecord13{}
-	if reflect.TypeOf(ciphertext.RecordHeader()) != reflect.TypeOf(&UnifiedHeader{}) {
+	if reflect.TypeOf(ciphertext.RecordHeader()) != reflect.TypeFor[*UnifiedHeader]() {
 		t.Fatalf("expected type %T, got %T", &UnifiedHeader{}, ciphertext.RecordHeader())
 	}
 }

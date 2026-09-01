@@ -91,7 +91,7 @@ func TestHandshakeMessageCertificateRequest_SkipsUnknownAlgorithms(t *testing.T)
 		0x01, 0x40, // RSASign, ECDSASign
 		0x00, 0x0C, // sig algs length: 12 bytes (6 pairs)
 		0x04, 0x03, // SHA256+ECDSA  (valid)
-		0x04, 0x01, // SHA256+RSA    (valid)
+		0x04, 0x01, // SHA256+RSA    (unknown, skip) — PKCS#1 is not implemented
 		0x04, 0x02, // SHA256+DSA    (unknown, skip) — Firefox 0x0402
 		0x05, 0x02, // SHA384+DSA    (unknown, skip) — Firefox 0x0502
 		0x06, 0x02, // SHA512+DSA    (unknown, skip) — Firefox 0x0602
@@ -100,17 +100,14 @@ func TestHandshakeMessageCertificateRequest_SkipsUnknownAlgorithms(t *testing.T)
 	}
 
 	c := &MessageCertificateRequest{}
-	if c.Unmarshal(raw) != nil {
-		t.Error(c.Unmarshal(raw))
+	if err := c.Unmarshal(raw); err != nil {
+		t.Error(err)
 	}
-	if !reflect.DeepEqual([]signaturehash.Algorithm{
+	want := []signaturehash.Algorithm{
 		{Hash: hash.SHA256, Signature: signature.ECDSA},
-		{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
-	}, c.SignatureHashAlgorithms) {
-		t.Errorf("expected %v, got %v", []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.ECDSA},
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
-		}, c.SignatureHashAlgorithms)
+	}
+	if !reflect.DeepEqual(want, c.SignatureHashAlgorithms) {
+		t.Errorf("expected %v, got %v", want, c.SignatureHashAlgorithms)
 	}
 }
 

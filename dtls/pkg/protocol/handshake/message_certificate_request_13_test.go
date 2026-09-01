@@ -42,15 +42,18 @@ func TestHandshakeMessageCertificateRequest13(t *testing.T) {
 			},
 		},
 		"valid - with context, multiple signature algorithms": {
+			// This case round trips, so every pair has to be one that is
+			// both parsed and re-marshalled. RSA-PKCS1-SHA256 is not
+			// implemented here, and is covered by the skipping test in
+			// message_certificate_request_test.go instead.
 			rawCertificateRequest: []byte{
 				0x04,                   // context length = 4
 				0x01, 0x02, 0x03, 0x04, // context data
-				0x00, 0x0C, // extensions length = 12
+				0x00, 0x0A, // extensions length = 10
 				0x00, 0x0D, // extension type = signature_algorithms (13)
-				0x00, 0x08, // extension length = 8
-				0x00, 0x06, // signature_algorithms length = 6
+				0x00, 0x06, // extension length = 6
+				0x00, 0x04, // signature_algorithms length = 4
 				0x04, 0x03, // ECDSA-SHA256
-				0x04, 0x01, // RSA-PKCS1-SHA256
 				0x05, 0x03, // ECDSA-SHA384
 			},
 			parsedCertificateRequest: &MessageCertificateRequest13{
@@ -59,7 +62,6 @@ func TestHandshakeMessageCertificateRequest13(t *testing.T) {
 					&extension.SupportedSignatureAlgorithms{
 						SignatureHashAlgorithms: []signaturehash.Algorithm{
 							{Hash: hash.SHA256, Signature: signature.ECDSA},
-							{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
 							{Hash: hash.SHA384, Signature: signature.ECDSA},
 						},
 					},
@@ -126,7 +128,9 @@ func TestMessageCertificateRequest13_MinimalValid(t *testing.T) {
 			&extension.SupportedSignatureAlgorithms{
 				SignatureHashAlgorithms: []signaturehash.Algorithm{
 					{Hash: hash.SHA256, Signature: signature.ECDSA},
-					{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+					// A PSS scheme travels as a full uint16, so its hash
+					// has to be the one the scheme itself names.
+					{Hash: hash.SHA512, Signature: signature.RSA_PSS_RSAE_SHA512},
 				},
 			},
 		},

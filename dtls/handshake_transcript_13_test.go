@@ -107,24 +107,28 @@ func TestHandshakeTranscript13DeferredHashSelection(t *testing.T) {
 	expectedClientHello := append([]byte(nil), clientHello...)
 
 	transcript := newHandshakeTranscript13()
-	if transcript.appendCanonical(transcriptMessageID13{sender: transcriptClient13}, clientHello) != nil {
-		t.Error(transcript.appendCanonical(transcriptMessageID13{sender: transcriptClient13}, clientHello))
+	if err := transcript.appendCanonical(transcriptMessageID13{sender: transcriptClient13}, clientHello); err != nil {
+		t.Fatal(err)
 	}
+	// appendCanonical must copy what it is given: mutating the caller's
+	// buffer afterwards must not alter the buffered transcript.
 	clientHello[len(clientHello)-1] = 0xff
-	if transcript.appendCanonical(transcriptMessageID13{sender: transcriptServer13}, serverHello) != nil {
-		t.Error(transcript.appendCanonical(transcriptMessageID13{sender: transcriptServer13}, serverHello))
+	if err := transcript.appendCanonical(transcriptMessageID13{sender: transcriptServer13}, serverHello); err != nil {
+		t.Fatal(err)
 	}
 
-	if transcript.selectHash(sha256.New) != nil {
-		t.Error(transcript.selectHash(sha256.New))
+	// The hash is only chosen after both messages have been buffered, which
+	// is what "deferred" refers to.
+	if err := transcript.selectHash(sha256.New); err != nil {
+		t.Fatal(err)
 	}
 
-	_, err := transcript.sum()
+	sum, err := transcript.sum()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(hashTranscript13(expectedClientHello), serverHello) {
-		t.Errorf("expected %v, got %v", hashTranscript13(expectedClientHello), serverHello)
+	if want := hashTranscript13(expectedClientHello, serverHello); !bytes.Equal(want, sum) {
+		t.Errorf("expected %v, got %v", want, sum)
 	}
 }
 
@@ -559,7 +563,8 @@ func TestFinishedVerifyData13(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(verifyData, changedKeyVerifyData) {
+	// A different base key must produce different verify data.
+	if reflect.DeepEqual(verifyData, changedKeyVerifyData) {
 		t.Errorf("should not equal %v", verifyData)
 	}
 

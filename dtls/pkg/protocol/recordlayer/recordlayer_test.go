@@ -85,7 +85,7 @@ func TestRecordLayerRoundTrip(t *testing.T) {
 		if err := r.Unmarshal(test.Data); !errors.Is(err, test.WantUnmarshalError) {
 			t.Errorf("Unexpected Error %q: exp: %v got: %v", test.Name, test.WantUnmarshalError, err)
 		} else if !reflect.DeepEqual(test.Want, r) {
-			t.Errorf("%q recordLayer.unmarshal: got %q, want %q", test.Name, r, test.Want)
+			t.Errorf("%q recordLayer.unmarshal: got %+v, want %+v", test.Name, r, test.Want)
 		}
 
 		data, marshalErr := r.Marshal()

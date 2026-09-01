@@ -56,6 +56,10 @@ func TestConfigOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TestConfigOptions: self signed certificate not generated: %v", err)
 	}
+	secondCert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatalf("TestConfigOptions: second self signed certificate not generated: %v", err)
+	}
 	dsaPrivateKey := &dsa.PrivateKey{}
 	err = dsa.GenerateParameters(&dsaPrivateKey.Parameters, rand.Reader, dsa.L1024N160)
 	if err != nil {
@@ -131,6 +135,19 @@ func TestConfigOptions(t *testing.T) {
 			},
 			expErr: dtlserrors.ErrInvalidPrivateKey,
 		},
+		// Only ECDSA and Ed25519 keys are accepted: this fork never signs
+		// with RSA, even though it still verifies RSA-PSS from a peer.
+		"RSA private key": {
+			validate: func(t *testing.T) error {
+				t.Helper()
+
+				return clientConfigError(t,
+					WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+					WithCertificates(tls.Certificate{Certificate: cert.Certificate, PrivateKey: rsaPrivateKey}),
+				)
+			},
+			expErr: dtlserrors.ErrInvalidPrivateKey,
+		},
 		"PrivateKey without Certificate": {
 			validate: func(t *testing.T) error {
 				t.Helper()
@@ -156,7 +173,7 @@ func TestConfigOptions(t *testing.T) {
 
 				return clientConfigError(t,
 					WithCipherSuites(TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
-					WithCertificates(cert, tls.Certificate{Certificate: cert.Certificate, PrivateKey: rsaPrivateKey}),
+					WithCertificates(cert, secondCert),
 				)
 			},
 		},
@@ -191,14 +208,14 @@ func TestConfigOptions(t *testing.T) {
 			err := testCase.validate(t)
 			if testCase.expErr != nil || testCase.wantAnyErr {
 				if testCase.expErr != nil && !errors.Is(err, testCase.expErr) {
-			t.Errorf("TestConfigOptions: expected error %v, got %v", testCase.expErr, err)
+					t.Errorf("TestConfigOptions: expected error %v, got %v", testCase.expErr, err)
 				}
 				if err == nil {
-			t.Error("TestConfigOptions: validation expected an error")
+					t.Error("TestConfigOptions: validation expected an error")
 				}
 			} else {
 				if err != nil {
-			t.Errorf("TestConfigOptions: unexpected error: %v", err)
+					t.Errorf("TestConfigOptions: unexpected error: %v", err)
 				}
 			}
 		})

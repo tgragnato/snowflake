@@ -134,9 +134,10 @@ func TestFlight4_CertificateRequestHook(t *testing.T) {
 	report := test.CheckRoutines(t)
 	defer report()
 
-	localKeypair, err := elliptic.GenerateKeypair(elliptic.P256)
+	// P-256 is not among the curves this fork generates keypairs for.
+	localKeypair, err := elliptic.GenerateKeypair(elliptic.P384)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	mockConn := &flight4TestMockFlightConn{}

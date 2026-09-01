@@ -5,6 +5,10 @@ package dtls
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	stdelliptic "crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
@@ -84,9 +88,17 @@ JPhfPySIPG4UmwE4gW8t79vfOKxnUu2fDD1ZXUYopan6EckACNH/
 -----END RSA PRIVATE KEY-----
 `
 
+// TestGenerateKeySignature checks that a generated signature verifies, for each
+// key type the fork still signs with. It cannot assert a fixed expected
+// signature: RSA-PSS is randomised, and RSA signing is refused by config
+// validation anyway, so a golden vector is only possible for algorithms this
+// fork no longer uses.
 func TestGenerateKeySignature(t *testing.T) {
-	block, _ := pem.Decode([]byte(rawPrivateKey))
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	ecdsaKey, err := ecdsa.GenerateKey(stdelliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ed25519Key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,31 +115,51 @@ func TestGenerateKeySignature(t *testing.T) {
 		0x20, 0x9f, 0xd7, 0xad, 0x6d, 0xcf, 0xf4, 0x29, 0x8d, 0xd3, 0xf9, 0x6d, 0x5b, 0x1b, 0x2a, 0xf9, 0x10,
 		0xa0, 0x53, 0x5b, 0x14, 0x88, 0xd7, 0xf8, 0xfa, 0xbb, 0x34, 0x9a, 0x98, 0x28, 0x80, 0xb6, 0x15,
 	}
-	expectedSignature := []byte{
-		0x6f, 0x47, 0x97, 0x85, 0xcc, 0x76, 0x50, 0x93, 0xbd, 0xe2, 0x6a, 0x69, 0x0b, 0xc3, 0x03, 0xd1, 0xb7, 0xe4,
-		0xab, 0x88, 0x7b, 0xa6, 0x52, 0x80, 0xdf, 0xaa, 0x25, 0x7a, 0xdb, 0x29, 0x32, 0xe4, 0xd8, 0x28, 0x28, 0xb3,
-		0xe8, 0x04, 0x3c, 0x38, 0x16, 0xfc, 0x78, 0xe9, 0x15, 0x7b, 0xc5, 0xbd, 0x7d, 0xfc, 0xcd, 0x83, 0x00, 0x57,
-		0x4a, 0x3c, 0x23, 0x85, 0x75, 0x6b, 0x37, 0xd5, 0x89, 0x72, 0x73, 0xf0, 0x44, 0x8c, 0x00, 0x70, 0x1f, 0x6e,
-		0xa2, 0x81, 0xd0, 0x09, 0xc5, 0x20, 0x36, 0xab, 0x23, 0x09, 0x40, 0x1f, 0x4d, 0x45, 0x96, 0x62, 0xbb, 0x81,
-		0xb0, 0x30, 0x72, 0xad, 0x3a, 0x0a, 0xac, 0x31, 0x63, 0x40, 0x52, 0x0a, 0x27, 0xf3, 0x34, 0xde, 0x27, 0x7d,
-		0xb7, 0x54, 0xff, 0x0f, 0x9f, 0x5a, 0xfe, 0x07, 0x0f, 0x4e, 0x9f, 0x53, 0x04, 0x34, 0x62, 0xf4, 0x30, 0x74,
-		0x83, 0x35, 0xfc, 0xe4, 0x7e, 0xbf, 0x5a, 0xc4, 0x52, 0xd0, 0xea, 0xf9, 0x61, 0x4e, 0xf5, 0x1c, 0x0e, 0x58,
-		0x02, 0x71, 0xfb, 0x1f, 0x34, 0x55, 0xe8, 0x36, 0x70, 0x3c, 0xc1, 0xcb, 0xc9, 0xb7, 0xbb, 0xb5, 0x1c, 0x44,
-		0x9a, 0x6d, 0x88, 0x78, 0x98, 0xd4, 0x91, 0x2e, 0xeb, 0x98, 0x81, 0x23, 0x30, 0x73, 0x39, 0x43, 0xd5, 0xbb,
-		0x70, 0x39, 0xba, 0x1f, 0xdb, 0x70, 0x9f, 0x91, 0x83, 0x56, 0xc2, 0xde, 0xed, 0x17, 0x6d, 0x2c, 0x3e, 0x21,
-		0xea, 0x36, 0xb4, 0x91, 0xd8, 0x31, 0x05, 0x60, 0x90, 0xfd, 0xc6, 0x74, 0xa9, 0x7b, 0x18, 0xfc, 0x1c, 0x6a,
-		0x1c, 0x6e, 0xec, 0xd3, 0xc1, 0xc0, 0x0d, 0x11, 0x25, 0x48, 0x37, 0x3d, 0x45, 0x11, 0xa2, 0x31, 0x14, 0x0a,
-		0x66, 0x9f, 0xd8, 0xac, 0x74, 0xa2, 0xcd, 0xc8, 0x79, 0xb3, 0x9e, 0xc6, 0x66, 0x25, 0xcf, 0x2c, 0x87, 0x5e,
-		0x5c, 0x36, 0x75, 0x86,
-	}
+	for _, test := range []struct {
+		name    string
+		key     crypto.Signer
+		hashAlg hash.Algorithm
+		sigAlg  signature.Algorithm
+	}{
+		{"ECDSA P-256", ecdsaKey, hash.SHA256, signature.ECDSA},
+		{"Ed25519", ed25519Key, hash.Ed25519, signature.Ed25519},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			template := &x509.Certificate{SerialNumber: big.NewInt(1)}
+			rawCert, err := x509.CreateCertificate(
+				rand.Reader, template, template, test.key.Public(), test.key,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	sig, err := dtlscrypto.GenerateKeySignature(clientRandom, serverRandom, publicKey, elliptic.X25519,
-		key, hash.SHA256, signature.RSA_PSS_RSAE_SHA512)
-	if err != nil {
-		t.Error("error: ", err)
-	}
-	if !bytes.Equal(expectedSignature, sig) {
-		t.Errorf("expected %v, got %v", expectedSignature, sig)
+			sig, err := dtlscrypto.GenerateKeySignature(
+				clientRandom, serverRandom, publicKey, elliptic.X25519,
+				test.key, test.hashAlg, test.sigAlg,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(sig) == 0 {
+				t.Fatal("expected a non-empty signature")
+			}
+
+			message := dtlscrypto.ValueKeyMessage(clientRandom, serverRandom, publicKey, elliptic.X25519)
+			if err := dtlscrypto.VerifyKeySignature(
+				message, sig, test.hashAlg, test.sigAlg, [][]byte{rawCert},
+			); err != nil {
+				t.Fatalf("the generated signature did not verify: %v", err)
+			}
+
+			// The signature must be bound to the message it was made over.
+			tampered := append([]byte(nil), message...)
+			tampered[0] ^= 0xff
+			if err := dtlscrypto.VerifyKeySignature(
+				tampered, sig, test.hashAlg, test.sigAlg, [][]byte{rawCert},
+			); err == nil {
+				t.Error("a tampered message verified")
+			}
+		})
 	}
 }
 
@@ -201,70 +233,12 @@ func TestRSAPSSSignatureVerification(t *testing.T) {
 		t.Error("error: ", err)
 	}
 
-	// Verify that PKCS#1 v1.5 verification fails for PSS signature
-	err = dtlscrypto.VerifyKeySignature(expectedMsg, sig, hash.SHA256, signature.RSA_PSS_RSAE_SHA512, [][]byte{rawCert})
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
-func TestRSAPSSVsPKCS1v15(t *testing.T) {
-	clientRandom := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
-	serverRandom := []byte{0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
-	publicKey := []byte{0x10, 0x11, 0x12, 0x13}
-
-	// Parse the private key
-	block, _ := pem.Decode([]byte(rawPrivateKey))
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		t.Error("error: ", err)
-	}
-
-	// Generate certificate
-	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		PublicKey:    &key.PublicKey,
-	}
-	rawCert, err := x509.CreateCertificate(rand.Reader, cert, cert, &key.PublicKey, key)
-	if err != nil {
-		t.Error("error: ", err)
-	}
-
-	expectedMsg := dtlscrypto.ValueKeyMessage(clientRandom, serverRandom, publicKey, elliptic.X25519)
-
-	// Generate and verify PKCS#1 v1.5 signature
-	pkcs1Sig, err := dtlscrypto.GenerateKeySignature(clientRandom, serverRandom, publicKey, elliptic.X25519,
-		key, hash.SHA256, signature.RSA_PSS_RSAE_SHA512)
-	if err != nil {
-		t.Error("error: ", err)
-	}
-	err = dtlscrypto.VerifyKeySignature(expectedMsg, pkcs1Sig, hash.SHA256, signature.RSA_PSS_RSAE_SHA512, [][]byte{rawCert})
-	if err != nil {
-		t.Error("error: ", err)
-	}
-
-	// Generate and verify PSS signature
-	pssSig, err := dtlscrypto.GenerateKeySignature(clientRandom, serverRandom, publicKey, elliptic.X25519,
-		key, hash.SHA256, signature.RSA_PSS_RSAE_SHA256)
-	if err != nil {
-		t.Error("error: ", err)
-	}
-	err = dtlscrypto.VerifyKeySignature(expectedMsg, pssSig, hash.SHA256, signature.RSA_PSS_RSAE_SHA256, [][]byte{rawCert})
-	if err != nil {
-		t.Error("error: ", err)
-	}
-
-	// Verify cross-verification fails
-	err = dtlscrypto.VerifyKeySignature(
-		expectedMsg, pkcs1Sig, hash.SHA256, signature.RSA_PSS_RSAE_SHA256, [][]byte{rawCert},
-	)
-	if err == nil {
-		t.Error("PKCS#1 v1.5 signature should not verify as PSS")
-	}
-
-	err = dtlscrypto.VerifyKeySignature(expectedMsg, pssSig, hash.SHA256, signature.RSA_PSS_RSAE_SHA512, [][]byte{rawCert})
-	if err == nil {
-		t.Error("PSS signature should not verify as PKCS#1 v1.5")
+	// An RSA certificate paired with a non-PSS signature algorithm must be
+	// refused rather than falling back to PKCS#1 v1.5, which this fork does
+	// not verify at all.
+	err = dtlscrypto.VerifyKeySignature(expectedMsg, sig, hash.SHA256, signature.ECDSA, [][]byte{rawCert})
+	if !errors.Is(err, dtlserrors.ErrKeySignatureVerifyUnimplemented) {
+		t.Errorf("expected %v, got %v", dtlserrors.ErrKeySignatureVerifyUnimplemented, err)
 	}
 }
 
@@ -449,7 +423,7 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 
 	t.Run("Empty allowed list passes", func(t *testing.T) {
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, false),
+			createTestCert(x509.ECDSAWithSHA256, false),
 		}
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, nil)
 		if err != nil {
@@ -459,11 +433,11 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 
 	t.Run("Single cert with allowed algorithm passes", func(t *testing.T) {
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, false),
-			createTestCert(x509.SHA256WithRSA, true), // Root
+			createTestCert(x509.ECDSAWithSHA256, false),
+			createTestCert(x509.ECDSAWithSHA256, true), // Root
 		}
 		allowed := []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+			{Hash: hash.SHA256, Signature: signature.ECDSA},
 		}
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, allowed)
 		if err != nil {
@@ -473,8 +447,8 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 
 	t.Run("Single cert with disallowed algorithm fails", func(t *testing.T) {
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, false),
-			createTestCert(x509.SHA256WithRSA, true), // Root
+			createTestCert(x509.ECDSAWithSHA256, false),
+			createTestCert(x509.ECDSAWithSHA256, true), // Root
 		}
 		allowed := []signaturehash.Algorithm{
 			{Hash: hash.SHA384, Signature: signature.ECDSA}, // Different algorithm
@@ -487,11 +461,11 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 
 	t.Run("Root certificate is not validated", func(t *testing.T) {
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, false), // Leaf - validated
-			createTestCert(x509.SHA384WithRSA, true),  // Root - NOT validated
+			createTestCert(x509.ECDSAWithSHA256, false), // Leaf - validated
+			createTestCert(x509.ECDSAWithSHA384, true),  // Root - NOT validated
 		}
 		allowed := []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512}, // Only allows SHA256
+			{Hash: hash.SHA256, Signature: signature.ECDSA}, // Only allows SHA256
 		}
 		// Should pass because root (SHA384) is not validated
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, allowed)
@@ -502,13 +476,13 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 
 	t.Run("Multi-cert chain with all allowed algorithms passes", func(t *testing.T) {
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, false), // Leaf
-			createTestCert(x509.SHA384WithRSA, false), // Intermediate
-			createTestCert(x509.SHA512WithRSA, true),  // Root (not validated)
+			createTestCert(x509.ECDSAWithSHA256, false), // Leaf
+			createTestCert(x509.ECDSAWithSHA384, false), // Intermediate
+			createTestCert(x509.ECDSAWithSHA512, true),  // Root (not validated)
 		}
 		allowed := []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
-			{Hash: hash.SHA384, Signature: signature.RSA_PSS_RSAE_SHA512},
+			{Hash: hash.SHA256, Signature: signature.ECDSA},
+			{Hash: hash.SHA384, Signature: signature.ECDSA},
 			// SHA512 not needed since root is not validated
 		}
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, allowed)
@@ -519,12 +493,12 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 
 	t.Run("Multi-cert chain with one disallowed intermediate fails", func(t *testing.T) {
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, false), // Leaf - allowed
-			createTestCert(x509.SHA384WithRSA, false), // Intermediate - NOT allowed
-			createTestCert(x509.SHA512WithRSA, true),  // Root
+			createTestCert(x509.ECDSAWithSHA256, false), // Leaf - allowed
+			createTestCert(x509.ECDSAWithSHA384, false), // Intermediate - NOT allowed
+			createTestCert(x509.ECDSAWithSHA512, true),  // Root
 		}
 		allowed := []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512}, // Only allows SHA256
+			{Hash: hash.SHA256, Signature: signature.ECDSA}, // Only allows SHA256
 		}
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, allowed)
 		if !errors.Is(err, dtlserrors.ErrInvalidCertificateSignatureAlgorithm) {
@@ -553,8 +527,11 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 			createTestCert(x509.SHA256WithRSAPSS, false),
 			createTestCert(x509.SHA384WithRSAPSS, true), // Root
 		}
+		// FromCertificate maps every x509 RSA-PSS algorithm to the
+		// RSA_PSS_PSS_* scheme, so the allowed entry has to name that
+		// variant rather than RSA_PSS_RSAE_* to match.
 		allowed := []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+			{Hash: hash.SHA256, Signature: signature.RSA_PSS_PSS_SHA256},
 		}
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, allowed)
 		if err != nil {
@@ -579,10 +556,10 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 	t.Run("Unsupported certificate algorithm", func(t *testing.T) {
 		certs := []*x509.Certificate{
 			createTestCert(x509.MD5WithRSA, false), // MD5 not supported
-			createTestCert(x509.SHA256WithRSA, true),
+			createTestCert(x509.ECDSAWithSHA256, true),
 		}
 		allowed := []signaturehash.Algorithm{
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+			{Hash: hash.SHA256, Signature: signature.ECDSA},
 		}
 		err := dtlscrypto.ValidateCertificateSignatureAlgorithms(certs, allowed)
 		if err == nil {
@@ -594,7 +571,7 @@ func TestValidateCertificateSignatureAlgorithms(t *testing.T) {
 	t.Run("Single cert chain does not validate", func(t *testing.T) {
 		// Single cert is treated as self-signed root, which is not validated
 		certs := []*x509.Certificate{
-			createTestCert(x509.SHA256WithRSA, true), // Root
+			createTestCert(x509.ECDSAWithSHA256, true), // Root
 		}
 		allowed := []signaturehash.Algorithm{
 			{Hash: hash.SHA384, Signature: signature.ECDSA}, // Different algorithm

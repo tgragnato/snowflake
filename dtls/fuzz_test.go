@@ -8,17 +8,16 @@ import (
 )
 
 func FuzzUnmarshalBinary(f *testing.F) {
-	TestResumeClient, err := os.ReadFile("testdata/seed/TestResumeClient.raw")
-	if err != nil {
-		return
+	// The seed corpus is a head start, not a requirement: when it is absent
+	// the target still runs against the cached corpus and generated inputs.
+	for _, seed := range []string{
+		"testdata/seed/TestResumeClient.raw",
+		"testdata/seed/TestResumeServer.raw",
+	} {
+		if data, err := os.ReadFile(seed); err == nil {
+			f.Add(data)
+		}
 	}
-	f.Add(TestResumeClient)
-
-	TestResumeServer, err := os.ReadFile("testdata/seed/TestResumeServer.raw")
-	if err != nil {
-		return
-	}
-	f.Add(TestResumeServer)
 
 	f.Fuzz(func(_ *testing.T, data []byte) {
 		deserialized := &State{}

@@ -12,3 +12,4 @@ Read the following files before suggesting or generating any code:
 8. [`docs/server.md`](docs/server.md) — the WebSocket server transport plugin: `torrc` setup, TLS/ACME, KCP and source-address options.
 9. [`docs/using-the-snowflake-library.md`](docs/using-the-snowflake-library.md) — using Snowflake as a Go library under the PT v2.1 API.
 10. [`docs/development.md`](docs/development.md) — build, test, lint and commit conventions, plus the invariants (privacy, fingerprinting, wire compatibility) any change must preserve.
+11. [`docs/dtls.md`](docs/dtls.md) — the forked DTLS stack: how to work with the nested module, which algorithms it removes and which it must keep, its fingerprinting invariants, and how to tell a broken test from a deliberate divergence.

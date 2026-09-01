@@ -34,8 +34,8 @@ type flight1TestMockCipherSuite struct {
 
 func (f *flight1TestMockCipherSuite) IsInitialized() bool {
 	{
-								f.t.Error("IsInitialized called with Certificate but not CertificateVerify")
-							}
+		f.t.Error("IsInitialized called with Certificate but not CertificateVerify")
+	}
 
 	return true
 }
@@ -74,7 +74,10 @@ func TestFlight1_Process_ServerHelloLateArrival(t *testing.T) {
 		0xb3, 0x36, 0x77, 0x73, 0x8a, 0x62, 0x75, 0xb2, 0x64, 0xbe,
 		0xf6, 0x2a, 0xb1, 0x6e, 0x7b, 0xf6, 0x00, 0xd6, 0x24, 0xd5,
 		0xb1, 0x1e, 0x54, 0xa3, 0x76, 0xb3, 0xac, 0x76, 0x8f, 0xc0,
-		0x2f, 0x00, 0x00, 0x1a, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00,
+		// 0xc02c: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, the suite this
+		// test configures. The previous 0xc02f selected an ECDHE_RSA suite
+		// that this fork no longer offers.
+		0x2c, 0x00, 0x00, 0x1a, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00,
 		0x0b, 0x00, 0x04, 0x03, 0x00, 0x01, 0x02, 0x00, 0x0e, 0x00,
 		0x05, 0x00, 0x02, 0x00, 0x07, 0x00, 0x00, 0x17, 0x00, 0x00,
 	}
@@ -274,19 +277,19 @@ func TestFlight1_Process_ServerHelloLateArrival(t *testing.T) {
 
 	_, alt, err := parseForTest(t, Flight1, context.TODO(), mockConn, state, cache, cfg)
 	if err != nil {
-			t.Error(err)
-							}
+		t.Error(err)
+	}
 	if alt != nil {
-			t.Errorf("expected nil, got %v", alt)
-							}
+		t.Errorf("expected nil, got %v", alt)
+	}
 
 	cache.Push(serverHello, 0, 0, handshake.TypeServerHello, false)
 	cache.Push(certificate1, 0, 1, handshake.TypeCertificate, false)
 	_, alt, err = parseForTest(t, Flight1, context.TODO(), mockConn, state, cache, cfg)
 	if err != nil {
-			t.Error(err)
-							}
+		t.Error(err)
+	}
 	if alt != nil {
-			t.Errorf("expected nil, got %v", alt)
-							}
+		t.Errorf("expected nil, got %v", alt)
+	}
 }

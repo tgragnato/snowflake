@@ -103,14 +103,14 @@ func TestSignatureAlgorithmsCertMixedPSSAndNonPSS(t *testing.T) {
 		0x00, 0x0a, // Extension length (10 bytes)
 		0x00, 0x08, // Algorithms length (8 bytes = 4 schemes)
 		0x08, 0x04, // RSA_PSS_RSAE_SHA256 (0x0804) - PSS
-		0x04, 0x01, // RSA PKCS#1 with SHA256 - Non-PSS
+		0x08, 0x06, // RSA_PSS_RSAE_SHA512 (0x0806) - PSS
 		0x04, 0x03, // ECDSA with SHA256 - Non-PSS
 		0x08, 0x07, // Ed25519 (0x0807) - Not PSS despite being in 0x08xx range
 	}
 	parsedExtensionMixed := &SignatureAlgorithmsCert{
 		SignatureHashAlgorithms: []signaturehash.Algorithm{
 			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA256},
-			{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+			{Hash: hash.SHA512, Signature: signature.RSA_PSS_RSAE_SHA512},
 			{Hash: hash.SHA256, Signature: signature.ECDSA},
 			{Hash: hash.Ed25519, Signature: signature.Ed25519},
 		},
@@ -150,7 +150,7 @@ func TestSignatureAlgorithmsCertRoundTrip(t *testing.T) {
 			name: "Single algorithm",
 			ext: &SignatureAlgorithmsCert{
 				SignatureHashAlgorithms: []signaturehash.Algorithm{
-					{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+					{Hash: hash.SHA512, Signature: signature.RSA_PSS_RSAE_SHA512},
 				},
 			},
 		},
@@ -158,7 +158,7 @@ func TestSignatureAlgorithmsCertRoundTrip(t *testing.T) {
 			name: "Multiple algorithms",
 			ext: &SignatureAlgorithmsCert{
 				SignatureHashAlgorithms: []signaturehash.Algorithm{
-					{Hash: hash.SHA256, Signature: signature.RSA_PSS_RSAE_SHA512},
+					{Hash: hash.SHA512, Signature: signature.RSA_PSS_RSAE_SHA512},
 					{Hash: hash.SHA384, Signature: signature.ECDSA},
 					{Hash: hash.SHA512, Signature: signature.Ed25519},
 				},
