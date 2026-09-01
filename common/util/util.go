@@ -24,7 +24,7 @@ func SerializeSessionDescription(desc *webrtc.SessionDescription) (string, error
 }
 
 func DeserializeSessionDescription(msg string) (*webrtc.SessionDescription, error) {
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err := json.Unmarshal([]byte(msg), &parsed)
 	if err != nil {
 		return nil, err

@@ -122,7 +122,7 @@ func (inner *clientMapInner) Swap(i, j int) {
 	inner.byAddr[inner.byAge[j].Addr] = j
 }
 
-func (inner *clientMapInner) Push(x interface{}) {
+func (inner *clientMapInner) Push(x any) {
 	record := x.(*clientRecord)
 	if _, ok := inner.byAddr[record.Addr]; ok {
 		panic("duplicate address in clientMap")
@@ -133,7 +133,7 @@ func (inner *clientMapInner) Push(x interface{}) {
 	inner.byAge = append(inner.byAge, record)
 }
 
-func (inner *clientMapInner) Pop() interface{} {
+func (inner *clientMapInner) Pop() any {
 	n := len(inner.byAddr)
 	// Remove from byAge slice.
 	record := inner.byAge[n-1]

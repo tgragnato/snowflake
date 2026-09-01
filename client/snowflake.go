@@ -69,9 +69,7 @@ func socksAcceptLoop(ln *pt.SocksListener, baseConfig sf.ClientConfig,
 			break
 		}
 		log.Printf("SOCKS accepted: %v", conn.Req)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer conn.Close()
 
 			config := baseConfig
@@ -156,7 +154,7 @@ func socksAcceptLoop(ln *pt.SocksListener, baseConfig sf.ClientConfig,
 			case <-handler:
 				log.Println("Handler ended")
 			}
-		}()
+		})
 	}
 }
 

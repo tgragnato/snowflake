@@ -359,8 +359,8 @@ func main() {
 		}
 
 		if sqsProfiles != "" {
-			profiles := strings.Split(sqsProfiles, ",")
-			for _, profile := range profiles {
+			profiles := strings.SplitSeq(sqsProfiles, ",")
+			for profile := range profiles {
 				cfg, err := config.LoadDefaultConfig(sqsHandlerContext,
 					config.WithSharedConfigProfile(profile))
 				if err != nil {

@@ -34,6 +34,7 @@ import (
 	mrand "math/rand/v2"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -179,8 +180,8 @@ func (t *Transport) Dial() (net.Conn, error) {
 	var cleanup []func()
 	defer func() {
 		// Run cleanup in reverse order, as defer does.
-		for i := len(cleanup) - 1; i >= 0; i-- {
-			cleanup[i]()
+		for _, c := range slices.Backward(cleanup) {
+			c()
 		}
 	}()
 

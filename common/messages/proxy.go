@@ -177,7 +177,7 @@ func DecodeProxyPollRequest(data []byte) (*ProxyPollRequest, error) {
 		AcceptedRelayPattern: aux.AcceptedRelayPattern,
 	}
 
-	majorVersion := strings.Split(message.Version, ".")[0]
+	majorVersion, _, _ := strings.Cut(message.Version, ".")
 	if majorVersion != "1" {
 		return nil, fmt.Errorf("using unknown version")
 	}
@@ -337,7 +337,7 @@ func DecodeProxyAnswerRequest(data []byte) (*ProxyAnswerRequest, error) {
 		return nil, err
 	}
 
-	majorVersion := strings.Split(message.Version, ".")[0]
+	majorVersion, _, _ := strings.Cut(message.Version, ".")
 	if majorVersion != "1" {
 		return nil, fmt.Errorf("using unknown version")
 	}

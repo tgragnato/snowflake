@@ -67,7 +67,7 @@ type httpHandler struct {
 // over incoming WebSocket connections.
 func newHTTPHandler(localAddr net.Addr, numInstances int, mtu int) *httpHandler {
 	pconns := make([]*turbotunnel.QueuePacketConn, 0, numInstances)
-	for i := 0; i < numInstances; i++ {
+	for range numInstances {
 		pconns = append(pconns, turbotunnel.NewQueuePacketConn(localAddr, clientMapTimeout, mtu))
 	}
 

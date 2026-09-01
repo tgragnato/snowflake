@@ -160,10 +160,7 @@ func WritePadding(w io.Writer, n int) (int, error) {
 	}
 	total := 0
 	for n > 0 {
-		p := len(paddingBuffer)
-		if p > n {
-			p = n
-		}
+		p := min(len(paddingBuffer), n)
 		n -= p
 		var prefix []byte
 		switch {

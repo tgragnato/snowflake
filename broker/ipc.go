@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,14 +35,15 @@ type IPC struct {
 	ctx *BrokerContext
 }
 
-func (i *IPC) Debug(_ interface{}, response *string) error {
+func (i *IPC) Debug(_ any, response *string) error {
 	var unknowns int
 	var natRestricted, natUnrestricted, natUnknown int
 	var natOpen, natModerate, natStrict int
 	proxyTypes := make(map[string]int)
 
 	i.ctx.snowflakeLock.Lock()
-	s := fmt.Sprintf("current snowflakes available: %d\n", len(i.ctx.idToSnowflake))
+	var s strings.Builder
+	s.WriteString(fmt.Sprintf("current snowflakes available: %d\n", len(i.ctx.idToSnowflake)))
 	for _, snowflake := range i.ctx.idToSnowflake {
 		if messages.KnownProxyTypes[snowflake.proxyType] {
 			proxyTypes[snowflake.proxyType]++
@@ -68,20 +70,20 @@ func (i *IPC) Debug(_ interface{}, response *string) error {
 	i.ctx.snowflakeLock.Unlock()
 
 	for pType, num := range proxyTypes {
-		s += fmt.Sprintf("\t%s proxies: %d\n", pType, num)
+		s.WriteString(fmt.Sprintf("\t%s proxies: %d\n", pType, num))
 	}
-	s += fmt.Sprintf("\tunknown proxies: %d", unknowns)
+	s.WriteString(fmt.Sprintf("\tunknown proxies: %d", unknowns))
 
-	s += "\nNAT Types available:"
-	s += fmt.Sprintf("\n\trestricted: %d", natRestricted)
-	s += fmt.Sprintf("\n\tunrestricted: %d", natUnrestricted)
-	s += fmt.Sprintf("\n\tstrict: %d", natStrict)
-	s += fmt.Sprintf("\n\tmoderate: %d", natModerate)
-	s += fmt.Sprintf("\n\topen: %d", natOpen)
+	s.WriteString("\nNAT Types available:")
+	s.WriteString(fmt.Sprintf("\n\trestricted: %d", natRestricted))
+	s.WriteString(fmt.Sprintf("\n\tunrestricted: %d", natUnrestricted))
+	s.WriteString(fmt.Sprintf("\n\tstrict: %d", natStrict))
+	s.WriteString(fmt.Sprintf("\n\tmoderate: %d", natModerate))
+	s.WriteString(fmt.Sprintf("\n\topen: %d", natOpen))
 
-	s += fmt.Sprintf("\n\tunknown: %d", natUnknown)
+	s.WriteString(fmt.Sprintf("\n\tunknown: %d", natUnknown))
 
-	*response = s
+	*response = s.String()
 	return nil
 }
 

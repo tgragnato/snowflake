@@ -80,7 +80,7 @@ func metricsHandler(metricsFilename string, w http.ResponseWriter, r *http.Reque
 func debugHandler(i *IPC, w http.ResponseWriter, r *http.Request) {
 	var response string
 
-	err := i.Debug(new(interface{}), &response)
+	err := i.Debug(new(any), &response)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)

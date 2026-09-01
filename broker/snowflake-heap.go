@@ -52,7 +52,7 @@ func (sh SnowflakeHeap) Swap(i, j int) {
 	sh[j].index = j
 }
 
-func (sh *SnowflakeHeap) Push(s interface{}) {
+func (sh *SnowflakeHeap) Push(s any) {
 	n := len(*sh)
 	snowflake := s.(*Snowflake)
 	snowflake.index = n
@@ -60,7 +60,7 @@ func (sh *SnowflakeHeap) Push(s interface{}) {
 }
 
 // Only valid when Len() > 0.
-func (sh *SnowflakeHeap) Pop() interface{} {
+func (sh *SnowflakeHeap) Pop() any {
 	flakes := *sh
 	n := len(flakes)
 	snowflake := flakes[n-1]

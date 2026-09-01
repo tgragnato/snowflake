@@ -129,10 +129,7 @@ func (enc *elementEncoder) Write(p []byte) (n int, err error) {
 			}
 		}
 
-		n := bytesPerChunk - enc.chunkCounter
-		if n > len(p) {
-			n = len(p)
-		}
+		n := min(bytesPerChunk-enc.chunkCounter, len(p))
 		nn, err := enc.w.Write(p[:n])
 		if err != nil {
 			return total, err

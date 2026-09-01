@@ -43,7 +43,7 @@ func NewQueuePacketConn(localAddr net.Addr, timeout time.Duration, mtu int) *Que
 		recvQueue: make(chan taggedPacket, queueSize),
 		closed:    make(chan struct{}),
 		mtu:       mtu,
-		bufPool:   sync.Pool{New: func() interface{} { return make([]byte, mtu) }},
+		bufPool:   sync.Pool{New: func() any { return make([]byte, mtu) }},
 	}
 }
 
