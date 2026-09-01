@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"testing"
 
-	. "github.com/smartystreets/goconvey/convey"
 	"tgragnato.it/snowflake/common/bridgefingerprint"
 )
 
@@ -28,40 +27,57 @@ const ImaginaryBridges = `{"displayName":"default", "webSocketAddress":"wss://sn
 func TestBridgeLoad(t *testing.T) {
 	t.Parallel()
 
-	Convey("load default list", t, func() {
-		bridgeList := NewBridgeListHolder()
-		So(bridgeList.LoadBridgeInfo(bytes.NewReader([]byte(DefaultBridges))), ShouldBeNil)
+	for _, tc := range []struct {
+		name             string
+		list             string
+		fingerprint      string
+		wantDisplayName  string
+		wantWebSocketURL string
+	}{
 		{
-			bridgeFingerprint := [20]byte{}
-			{
-				n, err := hex.Decode(bridgeFingerprint[:], []byte("2B280B23E1107BB62ABFC40DDCC8824814F80A72"))
-				So(n, ShouldEqual, 20)
-				So(err, ShouldBeNil)
-			}
-			Fingerprint, err := bridgefingerprint.FingerprintFromBytes(bridgeFingerprint[:])
-			So(err, ShouldBeNil)
-			bridgeInfo, err := bridgeList.GetBridgeInfo(Fingerprint)
-			So(err, ShouldBeNil)
-			So(bridgeInfo.DisplayName, ShouldEqual, "default")
-			So(bridgeInfo.WebSocketAddress, ShouldEqual, "wss://snowflake.torproject.org")
-		}
-	})
-	Convey("load imaginary list", t, func() {
-		bridgeList := NewBridgeListHolder()
-		So(bridgeList.LoadBridgeInfo(bytes.NewReader([]byte(ImaginaryBridges))), ShouldBeNil)
+			name:             "default list",
+			list:             DefaultBridges,
+			fingerprint:      "2B280B23E1107BB62ABFC40DDCC8824814F80A72",
+			wantDisplayName:  "default",
+			wantWebSocketURL: "wss://snowflake.torproject.org",
+		},
 		{
-			bridgeFingerprint := [20]byte{}
-			{
-				n, err := hex.Decode(bridgeFingerprint[:], []byte("2B280B23E1107BB62ABFC40DDCC8824814F80B07"))
-				So(n, ShouldEqual, 20)
-				So(err, ShouldBeNil)
+			name:             "imaginary list",
+			list:             ImaginaryBridges,
+			fingerprint:      "2B280B23E1107BB62ABFC40DDCC8824814F80B07",
+			wantDisplayName:  "imaginary-8",
+			wantWebSocketURL: "wss://imaginary-8-snowflake.torproject.org",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bridgeList := NewBridgeListHolder()
+			if err := bridgeList.LoadBridgeInfo(bytes.NewReader([]byte(tc.list))); err != nil {
+				t.Fatalf("LoadBridgeInfo: %v", err)
 			}
-			Fingerprint, err := bridgefingerprint.FingerprintFromBytes(bridgeFingerprint[:])
-			So(err, ShouldBeNil)
-			bridgeInfo, err := bridgeList.GetBridgeInfo(Fingerprint)
-			So(err, ShouldBeNil)
-			So(bridgeInfo.DisplayName, ShouldEqual, "imaginary-8")
-			So(bridgeInfo.WebSocketAddress, ShouldEqual, "wss://imaginary-8-snowflake.torproject.org")
-		}
-	})
+
+			bridgeFingerprint := [20]byte{}
+			n, err := hex.Decode(bridgeFingerprint[:], []byte(tc.fingerprint))
+			if err != nil {
+				t.Fatalf("hex.Decode: %v", err)
+			}
+			if n != 20 {
+				t.Fatalf("hex.Decode wrote %d bytes, want 20", n)
+			}
+
+			fingerprint, err := bridgefingerprint.FingerprintFromBytes(bridgeFingerprint[:])
+			if err != nil {
+				t.Fatalf("FingerprintFromBytes: %v", err)
+			}
+			bridgeInfo, err := bridgeList.GetBridgeInfo(fingerprint)
+			if err != nil {
+				t.Fatalf("GetBridgeInfo: %v", err)
+			}
+			if bridgeInfo.DisplayName != tc.wantDisplayName {
+				t.Errorf("DisplayName = %q, want %q", bridgeInfo.DisplayName, tc.wantDisplayName)
+			}
+			if bridgeInfo.WebSocketAddress != tc.wantWebSocketURL {
+				t.Errorf("WebSocketAddress = %q, want %q", bridgeInfo.WebSocketAddress, tc.wantWebSocketURL)
+			}
+		})
+	}
 }

@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/smartystreets/goconvey/convey"
 	"tgragnato.it/snowflake/common/amp"
 	"tgragnato.it/snowflake/common/messages"
 )
@@ -78,75 +77,65 @@ func decodeAMPArmorToString(r io.Reader) (string, error) {
 	return string(p), err
 }
 
-func TestBroker(t *testing.T) {
-	t.Parallel()
+// brokerFixture is the per-test broker state. Every test builds its own so
+// that metrics and captured log output never leak between cases.
+type brokerFixture struct {
+	buf *bytes.Buffer
+	ctx *BrokerContext
+	ipc *IPC
+}
 
-	defaultBridgeValue, _ := hex.DecodeString("2B280B23E1107BB62ABFC40DDCC8824814F80A72")
-	var defaultBridge [20]byte
-	copy(defaultBridge[:], defaultBridgeValue)
+func newBrokerFixture() *brokerFixture {
+	buf := new(bytes.Buffer)
+	ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
+	return &brokerFixture{buf: buf, ctx: ctx, ipc: &IPC{ctx}}
+}
 
-	Convey("Context", t, func() {
-		buf := new(bytes.Buffer)
-		ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
-		i := &IPC{ctx}
+// checkMetrics dumps the broker metrics and asserts they contain want.
+func (f *brokerFixture) checkMetrics(t *testing.T, want string) {
+	t.Helper()
+	f.ctx.metrics.printMetrics()
+	if !strings.Contains(f.buf.String(), want) {
+		t.Errorf("metrics output does not contain\n%s\ngot:\n%s", want, f.buf.String())
+	}
+}
 
-		Convey("Adds Snowflake", func() {
-			So(ctx.openPool.h.Len(), ShouldEqual, 0)
-			So(len(ctx.idToSnowflake), ShouldEqual, 0)
-			addFakeSnowflake(ctx)
-			So(ctx.openPool.h.Len(), ShouldEqual, 1)
-			So(len(ctx.idToSnowflake), ShouldEqual, 1)
-		})
+// newClientOfferRequest builds a POST to the client endpoint carrying an offer.
+func newClientOfferRequest(t *testing.T, natType string) *http.Request {
+	t.Helper()
+	data, err := createClientOffer(rawOffer, natType, "")
+	if err != nil {
+		t.Fatalf("createClientOffer: %v", err)
+	}
+	r, err := http.NewRequest("POST", "snowflake.broker/client", data)
+	if err != nil {
+		t.Fatalf("http.NewRequest: %v", err)
+	}
+	return r
+}
 
-		Convey("Broker goroutine matches clients with proxies", func() {
-			p := new(ProxyPoll)
-			p.id = "test"
-			p.natType = "unrestricted"
-			p.offerChannel = make(chan *ClientOffer)
-			go func(ctx *BrokerContext) {
-				ctx.proxyPolls <- p
-				close(ctx.proxyPolls)
-			}(ctx)
-			ctx.Broker()
-			So(ctx.openPool.h.Len(), ShouldEqual, 1)
-			snowflake := ctx.openPool.Pop()
-			snowflake.offerChannel <- &ClientOffer{sdp: []byte("test offer")}
-			offer := <-p.offerChannel
-			So(ctx.idToSnowflake["test"], ShouldNotBeNil)
-			So(offer.sdp, ShouldResemble, []byte("test offer"))
-			So(ctx.openPool.h.Len(), ShouldEqual, 0)
-		})
+func checkBody(t *testing.T, w *httptest.ResponseRecorder, wantCode int, wantBody string) {
+	t.Helper()
+	if w.Code != wantCode {
+		t.Errorf("status = %d, want %d", w.Code, wantCode)
+	}
+	if got := w.Body.String(); got != wantBody {
+		t.Errorf("body = %q, want %q", got, wantBody)
+	}
+}
 
-		Convey("Request an offer from the Snowflake Heap", func() {
-			done := make(chan *ClientOffer)
-			go func() {
-				offer := ctx.RequestOffer(&ProxyPoll{
-					id:      "test",
-					natType: NATUnrestricted,
-					addr:    "foo",
-				})
-				done <- offer
-			}()
-			request := <-ctx.proxyPolls
-			request.offerChannel <- &ClientOffer{sdp: []byte("test offer")}
-			offer := <-done
-			So(offer.sdp, ShouldResemble, []byte("test offer"))
-		})
+// checkOfferSDP asserts that the offer forwarded to a proxy is the raw offer.
+func checkOfferSDP(t *testing.T, offer *ClientOffer) {
+	t.Helper()
+	if !bytes.Equal(offer.sdp, []byte(rawOffer)) {
+		t.Errorf("offer sdp = %q, want %q", offer.sdp, rawOffer)
+	}
+}
 
-		Convey("Responds to HTTP client offers...", func() {
-			w := httptest.NewRecorder()
-			data, err := createClientOffer(rawOffer, NATUnknown, "")
-			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-
-			Convey("with error when no snowflakes are available.", func() {
-				clientOffers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusOK)
-				So(w.Body.String(), ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
-
-				// Ensure that denial is correctly recorded in metrics
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+// Expected metrics output blocks. The trailing spaces on the *-ips lines are
+// what the broker actually emits.
+const (
+	M_HTTP_DENIED = `client-denied-count 8
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-nat-strict-denied-count 0
@@ -161,27 +150,9 @@ client-ampcache-count 0
 client-ampcache-ips 
 client-sqs-count 0
 client-sqs-ips 
-`)
-			})
+`
 
-			Convey("with a proxy answer if available.", func() {
-				done := make(chan bool)
-				// Prepare a fake proxy to respond with.
-				snowflake := addFakeSnowflake(ctx)
-				go func() {
-					clientOffers(i, w, r)
-					done <- true
-				}()
-				offer := <-snowflake.offerChannel
-				So(offer.sdp, ShouldResemble, []byte(rawOffer))
-				snowflake.answerChannel <- "test answer"
-				<-done
-				So(w.Body.String(), ShouldEqual, `{"answer":"test answer"}`)
-				So(w.Code, ShouldEqual, http.StatusOK)
-
-				// Ensure that match is correctly recorded in metrics
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+	M_HTTP_MATCH = `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-nat-strict-denied-count 0
@@ -196,68 +167,9 @@ client-ampcache-count 0
 client-ampcache-ips 
 client-sqs-count 0
 client-sqs-ips 
-`)
-			})
+`
 
-			Convey("with unrestricted proxy to unrestricted client if there are no restricted proxies", func() {
-				snowflake := addFakeSnowflake(ctx)
-				offerData, err := createClientOffer(rawOffer, NATUnrestricted, "")
-				So(err, ShouldBeNil)
-				r, err := http.NewRequest("POST", "snowflake.broker/client", offerData)
-
-				done := make(chan bool)
-				go func() {
-					clientOffers(i, w, r)
-					done <- true
-				}()
-
-				select {
-				case <-snowflake.offerChannel:
-				case <-time.After(250 * time.Millisecond):
-					So(false, ShouldBeTrue)
-					return
-				}
-				snowflake.answerChannel <- "test answer"
-
-				<-done
-				So(w.Body.String(), ShouldEqual, `{"answer":"test answer"}`)
-			})
-
-			Convey("Times out when no proxy responds.", func() {
-				if testing.Short() {
-					return
-				}
-				done := make(chan bool)
-				snowflake := addFakeSnowflake(ctx)
-				go func() {
-					clientOffers(i, w, r)
-					// Takes a few seconds here...
-					done <- true
-				}()
-				offer := <-snowflake.offerChannel
-				So(offer.sdp, ShouldResemble, []byte(rawOffer))
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				So(w.Body.String(), ShouldEqual, `{"error":"timed out waiting for answer!"}`)
-			})
-		})
-
-		Convey("Responds to HTTP legacy client offers...", func() {
-			w := httptest.NewRecorder()
-			// legacy offer starts with {
-			offer := bytes.NewReader([]byte(rawOffer))
-			r, err := http.NewRequest("POST", "snowflake.broker/client", offer)
-			So(err, ShouldBeNil)
-			r.Header.Set("Snowflake-NAT-TYPE", "restricted")
-
-			Convey("with 503 when no snowflakes are available.", func() {
-				clientOffers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusServiceUnavailable)
-				So(w.Body.String(), ShouldEqual, "")
-
-				// Ensure that denial is correctly recorded in metrics
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+	M_LEGACY_DENIED = `client-denied-count 8
 client-restricted-denied-count 8
 client-unrestricted-denied-count 0
 client-nat-strict-denied-count 0
@@ -272,93 +184,9 @@ client-ampcache-count 0
 client-ampcache-ips 
 client-sqs-count 0
 client-sqs-ips 
-`)
-			})
+`
 
-			Convey("with a proxy answer if available.", func() {
-				done := make(chan bool)
-				// Prepare a fake proxy to respond with.
-				snowflake := addFakeSnowflake(ctx)
-				go func() {
-					clientOffers(i, w, r)
-					done <- true
-				}()
-				offer := <-snowflake.offerChannel
-				So(offer.sdp, ShouldResemble, []byte(rawOffer))
-				snowflake.answerChannel <- "fake answer"
-				<-done
-				So(w.Body.String(), ShouldEqual, "fake answer")
-				So(w.Code, ShouldEqual, http.StatusOK)
-
-				// Ensure that match is correctly recorded in metrics
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
-client-restricted-denied-count 0
-client-unrestricted-denied-count 0
-client-nat-strict-denied-count 0
-client-nat-moderate-denied-count 0
-client-nat-open-denied-count 0
-client-nat-unknown-denied-count 0
-client-snowflake-match-count 8
-client-snowflake-timeout-count 0
-client-http-count 8
-client-http-ips ??=8
-client-ampcache-count 0
-client-ampcache-ips 
-client-sqs-count 0
-client-sqs-ips 
-`)
-			})
-
-			Convey("Times out when no proxy responds.", func() {
-				if testing.Short() {
-					return
-				}
-				done := make(chan bool)
-				snowflake := addFakeSnowflake(ctx)
-				go func() {
-					clientOffers(i, w, r)
-					// Takes a few seconds here...
-					done <- true
-				}()
-				offer := <-snowflake.offerChannel
-				So(offer.sdp, ShouldResemble, []byte(rawOffer))
-				<-done
-				So(w.Code, ShouldEqual, http.StatusGatewayTimeout)
-			})
-
-		})
-
-		Convey("Responds to AMP client offers...", func() {
-			w := httptest.NewRecorder()
-			clientRequest := &messages.ClientPollRequest{
-				Offer: rawOffer,
-				NAT:   "unknown",
-			}
-			encOffer, err := clientRequest.EncodeClientPollRequest()
-			So(err, ShouldBeNil)
-			r, err := http.NewRequest("GET", "/amp/client/"+amp.EncodePath(encOffer), nil)
-			So(err, ShouldBeNil)
-
-			Convey("with status 200 when request is badly formatted.", func() {
-				r, err := http.NewRequest("GET", "/amp/client/bad", nil)
-				So(err, ShouldBeNil)
-				ampClientOffers(i, w, r)
-				body, err := decodeAMPArmorToString(w.Body)
-				So(err, ShouldBeNil)
-				So(body, ShouldEqual, `{"error":"cannot decode URL path"}`)
-			})
-
-			Convey("with error when no snowflakes are available.", func() {
-				ampClientOffers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusOK)
-				body, err := decodeAMPArmorToString(w.Body)
-				So(err, ShouldBeNil)
-				So(body, ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
-
-				// Ensure that denial is correctly recorded in metrics
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+	M_AMP_DENIED = `client-denied-count 8
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-nat-strict-denied-count 0
@@ -373,29 +201,9 @@ client-ampcache-count 8
 client-ampcache-ips ??=8
 client-sqs-count 0
 client-sqs-ips 
-`)
-			})
+`
 
-			Convey("with a proxy answer if available.", func() {
-				done := make(chan bool)
-				// Prepare a fake proxy to respond with.
-				snowflake := addFakeSnowflake(ctx)
-				go func() {
-					ampClientOffers(i, w, r)
-					done <- true
-				}()
-				offer := <-snowflake.offerChannel
-				So(offer.sdp, ShouldResemble, []byte(rawOffer))
-				snowflake.answerChannel <- "fake answer"
-				<-done
-				body, err := decodeAMPArmorToString(w.Body)
-				So(err, ShouldBeNil)
-				So(body, ShouldEqual, "{\"answer\":\"fake answer\"}")
-				So(w.Code, ShouldEqual, http.StatusOK)
-
-				// Ensure that match is correctly recorded in metrics
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 0
+	M_AMP_MATCH = `client-denied-count 0
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-nat-strict-denied-count 0
@@ -410,494 +218,9 @@ client-ampcache-count 8
 client-ampcache-ips ??=8
 client-sqs-count 0
 client-sqs-ips 
-`)
-			})
+`
 
-			Convey("Times out when no proxy responds.", func() {
-				if testing.Short() {
-					return
-				}
-				done := make(chan bool)
-				snowflake := addFakeSnowflake(ctx)
-				go func() {
-					ampClientOffers(i, w, r)
-					// Takes a few seconds here...
-					done <- true
-				}()
-				offer := <-snowflake.offerChannel
-				So(offer.sdp, ShouldResemble, []byte(rawOffer))
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				body, err := decodeAMPArmorToString(w.Body)
-				So(err, ShouldBeNil)
-				So(body, ShouldEqual, `{"error":"timed out waiting for answer!"}`)
-			})
-
-			Convey("and correctly geolocates remote addr.", func() {
-				err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
-				So(err, ShouldBeNil)
-				clientRequest := &messages.ClientPollRequest{
-					Offer:       rawOffer,
-					NAT:         NATUnknown,
-					Fingerprint: "",
-				}
-				encOffer, err := clientRequest.EncodeClientPollRequest()
-				So(err, ShouldBeNil)
-				r, err = http.NewRequest("GET", "/amp/client/"+amp.EncodePath(encOffer), nil)
-				So(err, ShouldBeNil)
-				ampClientOffers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusOK)
-				body, err := decodeAMPArmorToString(w.Body)
-				So(err, ShouldBeNil)
-				So(body, ShouldEqual, `{"error":"no snowflake proxies currently available"}`)
-
-				ctx.metrics.printMetrics()
-				So(buf.String(), ShouldContainSubstring, `client-denied-count 8
-client-restricted-denied-count 0
-client-unrestricted-denied-count 0
-client-nat-strict-denied-count 0
-client-nat-moderate-denied-count 0
-client-nat-open-denied-count 0
-client-nat-unknown-denied-count 8
-client-snowflake-match-count 0
-client-snowflake-timeout-count 0
-client-http-count 0
-client-http-ips 
-client-ampcache-count 8
-client-ampcache-ips ??=8
-client-sqs-count 0
-client-sqs-ips 
-`)
-			})
-
-		})
-
-		Convey("Responds to proxy polls...", func() {
-			done := make(chan bool)
-			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0", "AcceptedRelayPattern": "snowflake.torproject.net"}`))
-			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			So(err, ShouldBeNil)
-
-			Convey("with a client offer if available.", func() {
-				go func(i *IPC) {
-					proxyPolls(i, w, r)
-					done <- true
-				}(i)
-				// Pass a fake client offer to this proxy
-				p := <-ctx.proxyPolls
-				So(p.id, ShouldEqual, "ymbcCMto7KHNGYlp")
-				p.offerChannel <- &ClientOffer{sdp: []byte("fake offer"), fingerprint: defaultBridge[:]}
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				So(w.Body.String(), ShouldContainSubstring, `"Status":"client match","Offer":"fake offer","NAT":"",`)
-				So(w.Body.String(), ShouldContainSubstring, `,"RelayURL":"wss://snowflake.torproject.net/"`)
-			})
-
-			Convey("return empty 200 OK when no client offer is available.", func() {
-				go func(i *IPC) {
-					proxyPolls(i, w, r)
-					done <- true
-				}(i)
-				p := <-ctx.proxyPolls
-				So(p.id, ShouldEqual, "ymbcCMto7KHNGYlp")
-				// nil means timeout
-				p.offerChannel <- nil
-				<-done
-				So(w.Body.String(), ShouldContainSubstring, `{"Status":"no match","Offer":"","NAT":"","NextPoll"`)
-				So(w.Body.String(), ShouldContainSubstring, `,"RelayURL":""}`)
-				So(w.Code, ShouldEqual, http.StatusOK)
-			})
-
-			Convey("with incorrect relay pattern if no AcceptedRelayPattern.", func() {
-				data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`))
-				r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-				So(err, ShouldBeNil)
-				go ctx.Broker()
-				go func(i *IPC) {
-					proxyPolls(i, w, r)
-					done <- true
-				}(i)
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				resp, _ := messages.DecodeProxyPollResponse(w.Body.Bytes())
-				So(resp.Status, ShouldEqual, "incorrect relay pattern")
-			})
-		})
-
-		Convey("Responds to proxy answers...", func() {
-			done := make(chan bool)
-			s := NewSnowflake(sid, "", NATUnrestricted, 0)
-			p := ctx.GetPool(&ProxyPoll{natType: NATUnrestricted})
-			p.Push(s)
-			ctx.idToSnowflake[s.id] = s
-			w := httptest.NewRecorder()
-
-			data, err := createProxyAnswer(rawAnswer, sid)
-			So(err, ShouldBeNil)
-
-			Convey("by passing to the client if valid.", func() {
-				r, err := http.NewRequest("POST", "snowflake.broker/answer", data)
-				So(err, ShouldBeNil)
-				go func(i *IPC) {
-					proxyAnswers(i, w, r)
-					done <- true
-				}(i)
-				answer := <-s.answerChannel
-				<-done
-				So(w.Code, ShouldEqual, http.StatusOK)
-				So(answer, ShouldResemble, rawAnswer)
-			})
-
-			Convey("with client gone status if the proxy ID is not recognized", func() {
-				data, err := createProxyAnswer(rawAnswer, "invalid")
-				r, err := http.NewRequest("POST", "snowflake.broker/answer", data)
-				So(err, ShouldBeNil)
-				proxyAnswers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusOK)
-				b, err := io.ReadAll(w.Body)
-				So(err, ShouldBeNil)
-				So(b, ShouldResemble, []byte(`{"Status":"client gone"}`))
-			})
-
-			Convey("with error if the proxy gives invalid answer", func() {
-				data := bytes.NewReader(nil)
-				r, err := http.NewRequest("POST", "snowflake.broker/answer", data)
-				So(err, ShouldBeNil)
-				proxyAnswers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusBadRequest)
-			})
-
-			Convey("with error if the proxy writes too much data", func() {
-				data := bytes.NewReader(make([]byte, 100001))
-				r, err := http.NewRequest("POST", "snowflake.broker/answer", data)
-				So(err, ShouldBeNil)
-				proxyAnswers(i, w, r)
-				So(w.Code, ShouldEqual, http.StatusBadRequest)
-			})
-
-		})
-
-	})
-
-	Convey("End-To-End", t, func() {
-		ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
-		i := &IPC{ctx}
-
-		Convey("Check for client/proxy data race", func() {
-			proxy_done := make(chan bool)
-			client_done := make(chan bool)
-
-			go ctx.Broker()
-
-			// Make proxy poll
-			wp := httptest.NewRecorder()
-			datap := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
-			So(err, ShouldBeNil)
-
-			go func(i *IPC) {
-				proxyPolls(i, wp, rp)
-				proxy_done <- true
-			}(i)
-
-			// Client offer
-			wc := httptest.NewRecorder()
-			datac, err := createClientOffer(rawOffer, NATUnknown, "")
-			So(err, ShouldBeNil)
-			rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
-			So(err, ShouldBeNil)
-
-			go func() {
-				clientOffers(i, wc, rc)
-				client_done <- true
-			}()
-
-			<-proxy_done
-			So(wp.Code, ShouldEqual, http.StatusOK)
-
-			// Proxy answers
-			wp = httptest.NewRecorder()
-			datap, err = createProxyAnswer(rawAnswer, sid)
-			So(err, ShouldBeNil)
-			rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyAnswers(i, wp, rp)
-				proxy_done <- true
-			}(i)
-
-			<-proxy_done
-			<-client_done
-
-		})
-
-		Convey("Check proxy poll interval and rate limiting", func() {
-			proxy_done := make(chan bool)
-			client_done := make(chan bool)
-
-			go ctx.Broker()
-
-			// Make proxy poll
-			wp := httptest.NewRecorder()
-			datap := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
-			rp.RemoteAddr = "foo"
-			So(err, ShouldBeNil)
-
-			go func(i *IPC) {
-				proxyPolls(i, wp, rp)
-				proxy_done <- true
-			}(i)
-
-			// Client offer
-			wc := httptest.NewRecorder()
-			datac, err := createClientOffer(rawOffer, NATUnknown, "")
-			So(err, ShouldBeNil)
-			rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
-			So(err, ShouldBeNil)
-
-			go func() {
-				clientOffers(i, wc, rc)
-				client_done <- true
-			}()
-
-			<-proxy_done
-			So(wp.Code, ShouldEqual, http.StatusOK)
-			resp, _ := messages.DecodeProxyPollResponse(wp.Body.Bytes())
-			So(resp.NextPoll > 0, ShouldBeTrue)
-
-			// Proxy answers
-			wp = httptest.NewRecorder()
-			datap, err = createProxyAnswer(rawAnswer, sid)
-			So(err, ShouldBeNil)
-			rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyAnswers(i, wp, rp)
-				proxy_done <- true
-			}(i)
-
-			<-proxy_done
-			<-client_done
-
-			wp = httptest.NewRecorder()
-			datap = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp2","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			rp, err = http.NewRequest("POST", "snowflake.broker/proxy", datap)
-			rp.RemoteAddr = "foo"
-			So(err, ShouldBeNil)
-			proxyPolls(i, wp, rp)
-			So(wp.Code, ShouldEqual, http.StatusOK)
-			resp, _ = messages.DecodeProxyPollResponse(wp.Body.Bytes())
-			So(resp.Status, ShouldEqual, "polled too soon")
-			So(resp.NextPoll > 0, ShouldBeTrue)
-
-		})
-
-		Convey("Ensure correct snowflake brokering", func() {
-			done := make(chan bool)
-			polled := make(chan bool)
-
-			// Proxy polls with its ID first...
-			dataP := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			wP := httptest.NewRecorder()
-			rP, err := http.NewRequest("POST", "snowflake.broker/proxy", dataP)
-			So(err, ShouldBeNil)
-			go func() {
-				proxyPolls(i, wP, rP)
-				polled <- true
-			}()
-
-			// Manually do the Broker goroutine action here for full control.
-			p := <-ctx.proxyPolls
-			So(p.id, ShouldEqual, "ymbcCMto7KHNGYlp")
-			s := NewSnowflake(p.id, "", NATUnrestricted, 0)
-			pool := ctx.GetPool(&ProxyPoll{natType: NATUnrestricted})
-			pool.Push(s)
-			ctx.idToSnowflake[s.id] = s
-			go func() {
-				offer := <-s.offerChannel
-				p.offerChannel <- offer
-			}()
-			So(ctx.idToSnowflake["ymbcCMto7KHNGYlp"], ShouldNotBeNil)
-
-			// Client request blocks until proxy answer arrives.
-			wC := httptest.NewRecorder()
-			dataC, err := createClientOffer(rawOffer, NATUnknown, "")
-			So(err, ShouldBeNil)
-			rC, err := http.NewRequest("POST", "snowflake.broker/client", dataC)
-			So(err, ShouldBeNil)
-			go func() {
-				clientOffers(i, wC, rC)
-				done <- true
-			}()
-
-			<-polled
-			So(wP.Code, ShouldEqual, http.StatusOK)
-			So(wP.Body.String(), ShouldContainSubstring, `{"Status":"client match","Offer":`)
-			So(wP.Body.String(), ShouldContainSubstring, `"RelayURL":"wss://snowflake.torproject.net/"}`)
-			respP, err := messages.DecodeProxyPollResponse(wP.Body.Bytes())
-			So(err, ShouldBeNil)
-			So(respP.Offer, ShouldEqual, rawOffer)
-			So(ctx.idToSnowflake[sid], ShouldNotBeNil)
-
-			// Follow up with the answer request afterwards
-			wA := httptest.NewRecorder()
-			dataA, err := createProxyAnswer(rawAnswer, sid)
-			So(err, ShouldBeNil)
-			rA, err := http.NewRequest("POST", "snowflake.broker/answer", dataA)
-			So(err, ShouldBeNil)
-			proxyAnswers(i, wA, rA)
-			So(wA.Code, ShouldEqual, http.StatusOK)
-
-			<-done
-			So(wC.Code, ShouldEqual, http.StatusOK)
-			respC, err := messages.DecodeClientPollResponse(wC.Body.Bytes())
-			So(err, ShouldBeNil)
-			So(respC.Answer, ShouldEqual, rawAnswer)
-		})
-	})
-}
-
-func TestSnowflakeHeap(t *testing.T) {
-	t.Parallel()
-
-	Convey("SnowflakeHeap", t, func() {
-		h := new(SnowflakeHeap)
-		heap.Init(h)
-		So(h.Len(), ShouldEqual, 0)
-		s1 := new(Snowflake)
-		s2 := new(Snowflake)
-		s3 := new(Snowflake)
-		s4 := new(Snowflake)
-		s1.clients = 4
-		s2.clients = 5
-		s3.clients = 3
-		s4.clients = 1
-
-		heap.Push(h, s1)
-		So(h.Len(), ShouldEqual, 1)
-		heap.Push(h, s2)
-		So(h.Len(), ShouldEqual, 2)
-		heap.Push(h, s3)
-		So(h.Len(), ShouldEqual, 3)
-		heap.Push(h, s4)
-		So(h.Len(), ShouldEqual, 4)
-
-		heap.Remove(h, 0)
-		So(h.Len(), ShouldEqual, 3)
-
-		r := heap.Pop(h).(*Snowflake)
-		So(h.Len(), ShouldEqual, 2)
-		So(r.clients, ShouldEqual, 3)
-		So(r.index, ShouldEqual, -1)
-
-		r = heap.Pop(h).(*Snowflake)
-		So(h.Len(), ShouldEqual, 1)
-		So(r.clients, ShouldEqual, 4)
-		So(r.index, ShouldEqual, -1)
-
-		r = heap.Pop(h).(*Snowflake)
-		So(h.Len(), ShouldEqual, 0)
-		So(r.clients, ShouldEqual, 5)
-		So(r.index, ShouldEqual, -1)
-	})
-}
-
-func TestInvalidGeoipFile(t *testing.T) {
-	t.Parallel()
-
-	Convey("Geoip", t, func() {
-		// Make sure things behave properly if geoip file fails to load
-		ctx := NewBrokerContext(NullLogger(), "")
-		if err := ctx.metrics.LoadGeoipDatabases("invalid_filename", "invalid_filename6"); err != nil {
-			log.Printf("loading geo ip databases returned error: %v", err)
-		}
-		ctx.metrics.UpdateProxyStats("127.0.0.1", "", NATUnrestricted)
-		So(ctx.metrics.geoipdb, ShouldBeNil)
-
-	})
-}
-
-func TestMetrics(t *testing.T) {
-	t.Parallel()
-
-	Convey("Test metrics...", t, func() {
-		done := make(chan bool)
-		buf := new(bytes.Buffer)
-		ctx := NewBrokerContext(log.New(buf, "", 0), "snowflake.torproject.net")
-		ctx.strictPool.pollInterval = time.Second
-		ctx.moderatePool.pollInterval = time.Second
-		ctx.openPool.pollInterval = time.Second
-		i := &IPC{ctx}
-
-		err := ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6")
-		So(err, ShouldBeNil)
-
-		//Test addition of proxy polls
-		Convey("for proxy polls", func() {
-			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
-			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p := <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"standalone","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.24" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p = <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"badge","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.25" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p = <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"webext","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.26" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p = <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-			ctx.metrics.printMetrics()
-
-			metricsStr := buf.String()
-			So(metricsStr, ShouldStartWith, "snowflake-stats-end "+time.Now().UTC().Format("2006-01-02 15:04:05")+" (86400 s)\nsnowflake-ips CA=4\n")
-			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-standalone 1\n")
-			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-badge 1\n")
-			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-webext 1\n")
-			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-iptproxy 0\n")
-			So(metricsStr, ShouldContainSubstring, "\nsnowflake-ips-bloco 0\n")
-			So(metricsStr, ShouldNotContainSubstring, "snowflake-ips-unknown")
-			So(metricsStr, ShouldEndWith, `snowflake-ips-total 4
+	M_PROXY_POLLS_TAIL = `snowflake-ips-total 4
 snowflake-idle-count 8
 snowflake-proxy-poll-with-relay-url-count 8
 snowflake-proxy-poll-without-relay-url-count 0
@@ -923,22 +246,9 @@ snowflake-ips-nat-unknown 4
 snowflake-ips-nat-strict 0
 snowflake-ips-nat-moderate 0
 snowflake-ips-nat-open 0
-`)
-		})
+`
 
-		//Test addition of client failures
-		Convey("for no proxies available", func() {
-			w := httptest.NewRecorder()
-			data, err := createClientOffer(rawOffer, NATUnknown, "")
-			So(err, ShouldBeNil)
-			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
-			So(err, ShouldBeNil)
-
-			clientOffers(i, w, r)
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, `client-denied-count 8
+	M_NO_PROXIES = `client-denied-count 8
 client-restricted-denied-count 0
 client-unrestricted-denied-count 0
 client-nat-strict-denied-count 0
@@ -952,19 +262,9 @@ client-http-ips CA=8
 client-ampcache-count 0
 client-ampcache-ips 
 client-sqs-count 0
-client-sqs-ips `)
+client-sqs-ips `
 
-			// Test reset
-			buf.Reset()
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips \n")
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-standalone 0\n")
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-badge 0\n")
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-webext 0\n")
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-iptproxy 0\n")
-			So(buf.String(), ShouldContainSubstring, "\nsnowflake-ips-bloco 0\n")
-			So(buf.String(), ShouldNotContainSubstring, "snowflake-ips-unknown")
-			So(buf.String(), ShouldContainSubstring, `snowflake-ips-total 0
+	M_RESET = `snowflake-ips-total 0
 snowflake-idle-count 0
 snowflake-proxy-poll-with-relay-url-count 0
 snowflake-proxy-poll-without-relay-url-count 0
@@ -990,305 +290,1059 @@ snowflake-ips-nat-unknown 0
 snowflake-ips-nat-strict 0
 snowflake-ips-nat-moderate 0
 snowflake-ips-nat-open 0
-`)
+`
+)
+
+func TestBrokerAddsSnowflake(t *testing.T) {
+	t.Parallel()
+
+	f := newBrokerFixture()
+	if got := f.ctx.openPool.h.Len(); got != 0 {
+		t.Fatalf("pool length = %d, want 0", got)
+	}
+	if got := len(f.ctx.idToSnowflake); got != 0 {
+		t.Fatalf("idToSnowflake length = %d, want 0", got)
+	}
+
+	addFakeSnowflake(f.ctx)
+	if got := f.ctx.openPool.h.Len(); got != 1 {
+		t.Errorf("pool length = %d, want 1", got)
+	}
+	if got := len(f.ctx.idToSnowflake); got != 1 {
+		t.Errorf("idToSnowflake length = %d, want 1", got)
+	}
+}
+
+func TestBrokerMatchesClientsWithProxies(t *testing.T) {
+	t.Parallel()
+
+	f := newBrokerFixture()
+	p := &ProxyPoll{
+		id:           "test",
+		natType:      "unrestricted",
+		offerChannel: make(chan *ClientOffer),
+	}
+	go func() {
+		f.ctx.proxyPolls <- p
+		close(f.ctx.proxyPolls)
+	}()
+	f.ctx.Broker()
+
+	if got := f.ctx.openPool.h.Len(); got != 1 {
+		t.Fatalf("pool length = %d, want 1", got)
+	}
+	snowflake := f.ctx.openPool.Pop()
+	snowflake.offerChannel <- &ClientOffer{sdp: []byte("test offer")}
+	offer := <-p.offerChannel
+
+	if f.ctx.idToSnowflake["test"] == nil {
+		t.Error(`idToSnowflake["test"] is nil`)
+	}
+	if !bytes.Equal(offer.sdp, []byte("test offer")) {
+		t.Errorf("offer sdp = %q, want %q", offer.sdp, "test offer")
+	}
+	if got := f.ctx.openPool.h.Len(); got != 0 {
+		t.Errorf("pool length = %d, want 0 after the match", got)
+	}
+}
+
+func TestBrokerRequestOfferFromHeap(t *testing.T) {
+	t.Parallel()
+
+	f := newBrokerFixture()
+	done := make(chan *ClientOffer)
+	go func() {
+		done <- f.ctx.RequestOffer(&ProxyPoll{
+			id:      "test",
+			natType: NATUnrestricted,
+			addr:    "foo",
 		})
-		//Test addition of client matches
-		Convey("for client-proxy match", func() {
-			w := httptest.NewRecorder()
-			data, err := createClientOffer(rawOffer, NATUnknown, "")
-			So(err, ShouldBeNil)
-			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
+	}()
 
-			// Prepare a fake proxy to respond with.
-			snowflake := addFakeSnowflake(ctx)
-			go func() {
-				clientOffers(i, w, r)
-				done <- true
-			}()
-			offer := <-snowflake.offerChannel
-			So(offer.sdp, ShouldResemble, []byte(rawOffer))
-			snowflake.answerChannel <- "fake answer"
-			<-done
+	request := <-f.ctx.proxyPolls
+	request.offerChannel <- &ClientOffer{sdp: []byte("test offer")}
+	if offer := <-done; !bytes.Equal(offer.sdp, []byte("test offer")) {
+		t.Errorf("offer sdp = %q, want %q", offer.sdp, "test offer")
+	}
+}
 
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 8")
-		})
-		//Test rounding boundary
-		Convey("binning boundary", func() {
-			w := httptest.NewRecorder()
-			data, err := createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+func TestBrokerHTTPClientOffers(t *testing.T) {
+	t.Parallel()
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+	t.Run("with error when no snowflakes are available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		clientOffers(f.ipc, w, newClientOfferRequest(t, NATUnknown))
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+		checkBody(t, w, http.StatusOK, `{"error":"no snowflake proxies currently available"}`)
+		// Ensure that denial is correctly recorded in metrics
+		f.checkMetrics(t, M_HTTP_DENIED)
+	})
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+	t.Run("with a proxy answer if available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newClientOfferRequest(t, NATUnknown)
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+		// Prepare a fake proxy to respond with.
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			clientOffers(f.ipc, w, r)
+			close(done)
+		}()
+		checkOfferSDP(t, <-snowflake.offerChannel)
+		snowflake.answerChannel <- "test answer"
+		<-done
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+		checkBody(t, w, http.StatusOK, `{"answer":"test answer"}`)
+		// Ensure that match is correctly recorded in metrics
+		f.checkMetrics(t, M_HTTP_MATCH)
+	})
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+	t.Run("with unrestricted proxy to unrestricted client if there are no restricted proxies", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newClientOfferRequest(t, NATUnrestricted)
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			clientOffers(f.ipc, w, r)
+			close(done)
+		}()
 
-			w = httptest.NewRecorder()
-			data, err = createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-			clientOffers(i, w, r)
+		select {
+		case <-snowflake.offerChannel:
+		case <-time.After(250 * time.Millisecond):
+			t.Fatal("timed out waiting for the offer to reach the unrestricted proxy")
+		}
+		snowflake.answerChannel <- "test answer"
+		<-done
 
-			buf.Reset()
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 16\nclient-restricted-denied-count 16\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\n")
-		})
+		checkBody(t, w, http.StatusOK, `{"answer":"test answer"}`)
+	})
 
-		//Test unique ip
-		Convey("proxy counts by unique ip", func() {
-			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8080" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p := <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
+	t.Run("times out when no proxy responds", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("takes a few seconds")
+		}
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newClientOfferRequest(t, NATUnknown)
 
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			if err != nil {
-				log.Printf("unable to get NewRequest with error: %v", err)
-			}
-			<-time.After(2 * time.Second)       // wait for rate limit to expire
-			r.RemoteAddr = "129.97.208.23:8080" //CA geoip
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p = <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			clientOffers(f.ipc, w, r)
+			close(done)
+		}()
+		checkOfferSDP(t, <-snowflake.offerChannel)
+		<-done
 
-			ctx.metrics.printMetrics()
-			metricsStr := buf.String()
-			So(metricsStr, ShouldContainSubstring, "snowflake-ips CA=1\n")
-			So(metricsStr, ShouldContainSubstring, "snowflake-ips-total 1\n")
-		})
-		//Test NAT types
-		Convey("proxy counts by NAT type", func() {
-			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"restricted","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23:8888" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p := <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			data = bytes.NewReader([]byte(`{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"unrestricted","AcceptedRelayPattern":"snowflake.torproject.net"}`))
-			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			if err != nil {
-				log.Printf("unable to get NewRequest with error: %v", err)
-			}
-			r.RemoteAddr = "129.97.208.24:8888" //CA geoip
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p = <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 1\nsnowflake-ips-nat-unknown 0\nsnowflake-ips-nat-strict 0\nsnowflake-ips-nat-moderate 0\nsnowflake-ips-nat-open 0")
-		})
-
-		Convey("client failures by NAT type", func() {
-			w := httptest.NewRecorder()
-			data, err := createClientOffer(rawOffer, NATRestricted, "")
-			So(err, ShouldBeNil)
-			r, err := http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-
-			clientOffers(i, w, r)
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0")
-
-			buf.Reset()
-
-			data, err = createClientOffer(rawOffer, NATUnrestricted, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-
-			clientOffers(i, w, r)
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0")
-
-			buf.Reset()
-
-			data, err = createClientOffer(rawOffer, NATUnknown, "")
-			So(err, ShouldBeNil)
-			r, err = http.NewRequest("POST", "snowflake.broker/client", data)
-			So(err, ShouldBeNil)
-
-			clientOffers(i, w, r)
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 8\nclient-snowflake-match-count 0")
-		})
-		Convey("that seen IPs map is cleared after each print", func() {
-			w := httptest.NewRecorder()
-			data := bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
-			r, err := http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.23" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p := <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips CA=1")
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
-			buf.Reset()
-
-			w = httptest.NewRecorder()
-			data = bytes.NewReader([]byte("{\"Sid\":\"ymbcCMto7KHNGYlp\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}"))
-			r, err = http.NewRequest("POST", "snowflake.broker/proxy", data)
-			r.RemoteAddr = "129.97.208.24" //CA geoip
-			So(err, ShouldBeNil)
-			go func(i *IPC) {
-				proxyPolls(i, w, r)
-				done <- true
-			}(i)
-			p = <-ctx.proxyPolls //manually unblock poll
-			p.offerChannel <- nil
-			<-done
-
-			ctx.metrics.printMetrics()
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips CA=1")
-			So(buf.String(), ShouldContainSubstring, "snowflake-ips-total 1")
-			buf.Reset()
-
-		})
+		checkBody(t, w, http.StatusOK, `{"error":"timed out waiting for answer!"}`)
 	})
 }
 
-func TestConcurrency(t *testing.T) {
-	Convey("Test concurency with", t, func() {
-		ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
-		i := &IPC{ctx}
-		Convey("multiple simultaneous polls", func(c C) {
-			go ctx.Broker()
+// newLegacyClientOfferRequest builds a pre-poll-protocol client request: the
+// body is a bare offer and the NAT type travels in a header.
+func newLegacyClientOfferRequest(t *testing.T) *http.Request {
+	t.Helper()
+	r, err := http.NewRequest("POST", "snowflake.broker/client", bytes.NewReader([]byte(rawOffer)))
+	if err != nil {
+		t.Fatalf("http.NewRequest: %v", err)
+	}
+	r.Header.Set("Snowflake-NAT-TYPE", "restricted")
+	return r
+}
 
-			var proxies sync.WaitGroup
-			var wg sync.WaitGroup
+func TestBrokerLegacyHTTPClientOffers(t *testing.T) {
+	t.Parallel()
 
-			proxies.Add(1000)
-			// Multiple proxy polls
-			for x := 0; x < 1000; x++ {
-				wp := httptest.NewRecorder()
-				buf := make([]byte, 16)
-				_, err := rand.Read(buf)
-				id := strings.TrimRight(base64.StdEncoding.EncodeToString(buf), "=")
+	t.Run("with 503 when no snowflakes are available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		clientOffers(f.ipc, w, newLegacyClientOfferRequest(t))
 
-				datap := bytes.NewReader(fmt.Appendf(nil, "{\"Sid\": \"%s\",\"Version\":\"1.0\",\"AcceptedRelayPattern\":\"snowflake.torproject.net\"}", id))
-				rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
-				rp.RemoteAddr = fmt.Sprintf("1.1.%d.%d", x/256, x%256)
-				So(err, ShouldBeNil)
-
-				go func() {
-					proxies.Done()
-					proxyPolls(i, wp, rp)
-					c.So(wp.Code, ShouldEqual, http.StatusOK)
-
-					// Proxy answers
-					wp = httptest.NewRecorder()
-					datap, err = createProxyAnswer(rawAnswer, id)
-					c.So(err, ShouldBeNil)
-					rp, err = http.NewRequest("POST", "snowflake.broker/answer", datap)
-					c.So(err, ShouldBeNil)
-					go func() {
-						proxyAnswers(i, wp, rp)
-					}()
-				}()
-			}
-			// Wait for all proxies to poll before sending client offers
-			proxies.Wait()
-
-			// Multiple client offers
-			for x := 0; x < 500; x++ {
-				wg.Add(1)
-				wc := httptest.NewRecorder()
-				datac, err := createClientOffer(rawOffer, NATUnrestricted, "")
-				So(err, ShouldBeNil)
-				rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
-				So(err, ShouldBeNil)
-
-				go func() {
-					clientOffers(i, wc, rc)
-					c.So(wc.Code, ShouldEqual, http.StatusOK)
-					respC, _ := messages.DecodeClientPollResponse(wc.Body.Bytes())
-					c.So(respC.Answer, ShouldContainSubstring, "129.97.208.23")
-					wg.Done()
-				}()
-			}
-			wg.Wait()
-		})
+		checkBody(t, w, http.StatusServiceUnavailable, "")
+		// Ensure that denial is correctly recorded in metrics
+		f.checkMetrics(t, M_LEGACY_DENIED)
 	})
+
+	t.Run("with a proxy answer if available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newLegacyClientOfferRequest(t)
+
+		// Prepare a fake proxy to respond with.
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			clientOffers(f.ipc, w, r)
+			close(done)
+		}()
+		checkOfferSDP(t, <-snowflake.offerChannel)
+		snowflake.answerChannel <- "fake answer"
+		<-done
+
+		checkBody(t, w, http.StatusOK, "fake answer")
+		// Ensure that match is correctly recorded in metrics
+		f.checkMetrics(t, M_HTTP_MATCH)
+	})
+
+	t.Run("times out when no proxy responds", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("takes a few seconds")
+		}
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newLegacyClientOfferRequest(t)
+
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			clientOffers(f.ipc, w, r)
+			close(done)
+		}()
+		checkOfferSDP(t, <-snowflake.offerChannel)
+		<-done
+
+		if w.Code != http.StatusGatewayTimeout {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusGatewayTimeout)
+		}
+	})
+}
+
+// newAMPClientOfferRequest builds a GET to the AMP cache endpoint carrying an
+// offer in the URL path.
+func newAMPClientOfferRequest(t *testing.T, natType string) *http.Request {
+	t.Helper()
+	encOffer, err := (&messages.ClientPollRequest{Offer: rawOffer, NAT: natType}).EncodeClientPollRequest()
+	if err != nil {
+		t.Fatalf("EncodeClientPollRequest: %v", err)
+	}
+	r, err := http.NewRequest("GET", "/amp/client/"+amp.EncodePath(encOffer), nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest: %v", err)
+	}
+	return r
+}
+
+func checkAMPBody(t *testing.T, w *httptest.ResponseRecorder, want string) {
+	t.Helper()
+	body, err := decodeAMPArmorToString(w.Body)
+	if err != nil {
+		t.Fatalf("decodeAMPArmorToString: %v", err)
+	}
+	if body != want {
+		t.Errorf("body = %q, want %q", body, want)
+	}
+}
+
+func TestBrokerAMPClientOffers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with status 200 when request is badly formatted", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r, err := http.NewRequest("GET", "/amp/client/bad", nil)
+		if err != nil {
+			t.Fatalf("http.NewRequest: %v", err)
+		}
+		ampClientOffers(f.ipc, w, r)
+		checkAMPBody(t, w, `{"error":"cannot decode URL path"}`)
+	})
+
+	t.Run("with error when no snowflakes are available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		ampClientOffers(f.ipc, w, newAMPClientOfferRequest(t, "unknown"))
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		checkAMPBody(t, w, `{"error":"no snowflake proxies currently available"}`)
+		// Ensure that denial is correctly recorded in metrics
+		f.checkMetrics(t, M_AMP_DENIED)
+	})
+
+	t.Run("with a proxy answer if available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newAMPClientOfferRequest(t, "unknown")
+
+		// Prepare a fake proxy to respond with.
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			ampClientOffers(f.ipc, w, r)
+			close(done)
+		}()
+		checkOfferSDP(t, <-snowflake.offerChannel)
+		snowflake.answerChannel <- "fake answer"
+		<-done
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		checkAMPBody(t, w, `{"answer":"fake answer"}`)
+		// Ensure that match is correctly recorded in metrics
+		f.checkMetrics(t, M_AMP_MATCH)
+	})
+
+	t.Run("times out when no proxy responds", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("takes a few seconds")
+		}
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newAMPClientOfferRequest(t, "unknown")
+
+		snowflake := addFakeSnowflake(f.ctx)
+		done := make(chan struct{})
+		go func() {
+			ampClientOffers(f.ipc, w, r)
+			close(done)
+		}()
+		checkOfferSDP(t, <-snowflake.offerChannel)
+		<-done
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		checkAMPBody(t, w, `{"error":"timed out waiting for answer!"}`)
+	})
+
+	t.Run("and correctly geolocates remote addr", func(t *testing.T) {
+		f := newBrokerFixture()
+		if err := f.ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6"); err != nil {
+			t.Fatalf("LoadGeoipDatabases: %v", err)
+		}
+		w := httptest.NewRecorder()
+		ampClientOffers(f.ipc, w, newAMPClientOfferRequest(t, NATUnknown))
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		checkAMPBody(t, w, `{"error":"no snowflake proxies currently available"}`)
+		f.checkMetrics(t, M_AMP_DENIED)
+	})
+}
+
+func newProxyPollRequest(t *testing.T, body string) *http.Request {
+	t.Helper()
+	r, err := http.NewRequest("POST", "snowflake.broker/proxy", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("http.NewRequest: %v", err)
+	}
+	return r
+}
+
+const proxyPollBody = `{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0", "AcceptedRelayPattern": "snowflake.torproject.net"}`
+
+func checkContains(t *testing.T, got, want string) {
+	t.Helper()
+	if !strings.Contains(got, want) {
+		t.Errorf("body %q does not contain %q", got, want)
+	}
+}
+
+func TestBrokerProxyPolls(t *testing.T) {
+	t.Parallel()
+
+	defaultBridgeValue, err := hex.DecodeString("2B280B23E1107BB62ABFC40DDCC8824814F80A72")
+	if err != nil {
+		t.Fatalf("hex.DecodeString: %v", err)
+	}
+	var defaultBridge [20]byte
+	copy(defaultBridge[:], defaultBridgeValue)
+
+	t.Run("with a client offer if available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newProxyPollRequest(t, proxyPollBody)
+
+		done := make(chan struct{})
+		go func() {
+			proxyPolls(f.ipc, w, r)
+			close(done)
+		}()
+
+		// Pass a fake client offer to this proxy
+		p := <-f.ctx.proxyPolls
+		if p.id != sid {
+			t.Errorf("poll id = %q, want %q", p.id, sid)
+		}
+		p.offerChannel <- &ClientOffer{sdp: []byte("fake offer"), fingerprint: defaultBridge[:]}
+		<-done
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		checkContains(t, w.Body.String(), `"Status":"client match","Offer":"fake offer","NAT":"",`)
+		checkContains(t, w.Body.String(), `,"RelayURL":"wss://snowflake.torproject.net/"`)
+	})
+
+	t.Run("return empty 200 OK when no client offer is available", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newProxyPollRequest(t, proxyPollBody)
+
+		done := make(chan struct{})
+		go func() {
+			proxyPolls(f.ipc, w, r)
+			close(done)
+		}()
+
+		p := <-f.ctx.proxyPolls
+		if p.id != sid {
+			t.Errorf("poll id = %q, want %q", p.id, sid)
+		}
+		// nil means timeout
+		p.offerChannel <- nil
+		<-done
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		checkContains(t, w.Body.String(), `{"Status":"no match","Offer":"","NAT":"","NextPoll"`)
+		checkContains(t, w.Body.String(), `,"RelayURL":""}`)
+	})
+
+	t.Run("with incorrect relay pattern if no AcceptedRelayPattern", func(t *testing.T) {
+		f := newBrokerFixture()
+		w := httptest.NewRecorder()
+		r := newProxyPollRequest(t, `{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0"}`)
+
+		go f.ctx.Broker()
+		done := make(chan struct{})
+		go func() {
+			proxyPolls(f.ipc, w, r)
+			close(done)
+		}()
+		<-done
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		// A non-standard status makes the decoder return an error carrying
+		// the status text, but it still fills in the response.
+		resp, _ := messages.DecodeProxyPollResponse(w.Body.Bytes())
+		if resp.Status != "incorrect relay pattern" {
+			t.Errorf("status = %q, want %q", resp.Status, "incorrect relay pattern")
+		}
+	})
+}
+
+// newBrokerFixtureWithSnowflake registers a snowflake under the well-known sid,
+// so a proxy answer for that sid has somewhere to land.
+func newBrokerFixtureWithSnowflake() (*brokerFixture, *Snowflake) {
+	f := newBrokerFixture()
+	s := NewSnowflake(sid, "", NATUnrestricted, 0)
+	f.ctx.GetPool(&ProxyPoll{natType: NATUnrestricted}).Push(s)
+	f.ctx.idToSnowflake[s.id] = s
+	return f, s
+}
+
+func newProxyAnswerRequest(t *testing.T, body io.Reader) *http.Request {
+	t.Helper()
+	r, err := http.NewRequest("POST", "snowflake.broker/answer", body)
+	if err != nil {
+		t.Fatalf("http.NewRequest: %v", err)
+	}
+	return r
+}
+
+func TestBrokerProxyAnswers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("by passing to the client if valid", func(t *testing.T) {
+		f, s := newBrokerFixtureWithSnowflake()
+		data, err := createProxyAnswer(rawAnswer, sid)
+		if err != nil {
+			t.Fatalf("createProxyAnswer: %v", err)
+		}
+		w := httptest.NewRecorder()
+		r := newProxyAnswerRequest(t, data)
+
+		done := make(chan struct{})
+		go func() {
+			proxyAnswers(f.ipc, w, r)
+			close(done)
+		}()
+		answer := <-s.answerChannel
+		<-done
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		if answer != rawAnswer {
+			t.Errorf("answer = %q, want %q", answer, rawAnswer)
+		}
+	})
+
+	t.Run("with client gone status if the proxy ID is not recognized", func(t *testing.T) {
+		f, _ := newBrokerFixtureWithSnowflake()
+		data, err := createProxyAnswer(rawAnswer, "invalid")
+		if err != nil {
+			t.Fatalf("createProxyAnswer: %v", err)
+		}
+		w := httptest.NewRecorder()
+		proxyAnswers(f.ipc, w, newProxyAnswerRequest(t, data))
+
+		checkBody(t, w, http.StatusOK, `{"Status":"client gone"}`)
+	})
+
+	t.Run("with error if the proxy gives invalid answer", func(t *testing.T) {
+		f, _ := newBrokerFixtureWithSnowflake()
+		w := httptest.NewRecorder()
+		proxyAnswers(f.ipc, w, newProxyAnswerRequest(t, bytes.NewReader(nil)))
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("with error if the proxy writes too much data", func(t *testing.T) {
+		f, _ := newBrokerFixtureWithSnowflake()
+		w := httptest.NewRecorder()
+		proxyAnswers(f.ipc, w, newProxyAnswerRequest(t, bytes.NewReader(make([]byte, 100001))))
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+}
+
+// newE2EFixture builds a broker with a NullLogger for the end-to-end cases,
+// which assert on HTTP responses rather than on metrics output.
+func newE2EFixture() *brokerFixture {
+	ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
+	return &brokerFixture{buf: new(bytes.Buffer), ctx: ctx, ipc: &IPC{ctx}}
+}
+
+const e2eProxyPollBody = `{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`
+
+func TestEndToEndClientProxyDataRace(t *testing.T) {
+	t.Parallel()
+
+	f := newE2EFixture()
+	go f.ctx.Broker()
+
+	proxyDone := make(chan struct{})
+	clientDone := make(chan struct{})
+
+	// Make proxy poll
+	wp := httptest.NewRecorder()
+	rp := newProxyPollRequest(t, e2eProxyPollBody)
+	go func() {
+		proxyPolls(f.ipc, wp, rp)
+		close(proxyDone)
+	}()
+
+	// Client offer
+	wc := httptest.NewRecorder()
+	rc := newClientOfferRequest(t, NATUnknown)
+	go func() {
+		clientOffers(f.ipc, wc, rc)
+		close(clientDone)
+	}()
+
+	<-proxyDone
+	if wp.Code != http.StatusOK {
+		t.Errorf("proxy poll status = %d, want %d", wp.Code, http.StatusOK)
+	}
+
+	// Proxy answers
+	wa := httptest.NewRecorder()
+	datap, err := createProxyAnswer(rawAnswer, sid)
+	if err != nil {
+		t.Fatalf("createProxyAnswer: %v", err)
+	}
+	answerDone := make(chan struct{})
+	ra := newProxyAnswerRequest(t, datap)
+	go func() {
+		proxyAnswers(f.ipc, wa, ra)
+		close(answerDone)
+	}()
+
+	<-answerDone
+	<-clientDone
+}
+
+func TestEndToEndProxyPollIntervalAndRateLimiting(t *testing.T) {
+	t.Parallel()
+
+	f := newE2EFixture()
+	go f.ctx.Broker()
+
+	proxyDone := make(chan struct{})
+	clientDone := make(chan struct{})
+
+	// Make proxy poll
+	wp := httptest.NewRecorder()
+	rp := newProxyPollRequest(t, e2eProxyPollBody)
+	rp.RemoteAddr = "foo"
+	go func() {
+		proxyPolls(f.ipc, wp, rp)
+		close(proxyDone)
+	}()
+
+	// Client offer
+	wc := httptest.NewRecorder()
+	rc := newClientOfferRequest(t, NATUnknown)
+	go func() {
+		clientOffers(f.ipc, wc, rc)
+		close(clientDone)
+	}()
+
+	<-proxyDone
+	if wp.Code != http.StatusOK {
+		t.Errorf("proxy poll status = %d, want %d", wp.Code, http.StatusOK)
+	}
+	resp, err := messages.DecodeProxyPollResponse(wp.Body.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeProxyPollResponse: %v", err)
+	}
+	if resp.NextPoll <= 0 {
+		t.Errorf("NextPoll = %d, want > 0", resp.NextPoll)
+	}
+
+	// Proxy answers
+	wa := httptest.NewRecorder()
+	datap, err := createProxyAnswer(rawAnswer, sid)
+	if err != nil {
+		t.Fatalf("createProxyAnswer: %v", err)
+	}
+	answerDone := make(chan struct{})
+	ra := newProxyAnswerRequest(t, datap)
+	go func() {
+		proxyAnswers(f.ipc, wa, ra)
+		close(answerDone)
+	}()
+	<-answerDone
+	<-clientDone
+
+	// A different proxy polling from the same address too soon is rate limited.
+	wp = httptest.NewRecorder()
+	rp = newProxyPollRequest(t, `{"Sid":"ymbcCMto7KHNGYlp2","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`)
+	rp.RemoteAddr = "foo"
+	proxyPolls(f.ipc, wp, rp)
+
+	if wp.Code != http.StatusOK {
+		t.Errorf("proxy poll status = %d, want %d", wp.Code, http.StatusOK)
+	}
+	resp, err = messages.DecodeProxyPollResponse(wp.Body.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeProxyPollResponse: %v", err)
+	}
+	if resp.Status != "polled too soon" {
+		t.Errorf("status = %q, want %q", resp.Status, "polled too soon")
+	}
+	if resp.NextPoll <= 0 {
+		t.Errorf("NextPoll = %d, want > 0", resp.NextPoll)
+	}
+}
+
+func TestEndToEndSnowflakeBrokering(t *testing.T) {
+	t.Parallel()
+
+	f := newE2EFixture()
+
+	// Proxy polls with its ID first...
+	wP := httptest.NewRecorder()
+	rP := newProxyPollRequest(t, e2eProxyPollBody)
+	polled := make(chan struct{})
+	go func() {
+		proxyPolls(f.ipc, wP, rP)
+		close(polled)
+	}()
+
+	// Manually do the Broker goroutine action here for full control.
+	p := <-f.ctx.proxyPolls
+	if p.id != sid {
+		t.Fatalf("poll id = %q, want %q", p.id, sid)
+	}
+	s := NewSnowflake(p.id, "", NATUnrestricted, 0)
+	f.ctx.GetPool(&ProxyPoll{natType: NATUnrestricted}).Push(s)
+	f.ctx.idToSnowflake[s.id] = s
+	go func() {
+		p.offerChannel <- <-s.offerChannel
+	}()
+	if f.ctx.idToSnowflake[sid] == nil {
+		t.Fatalf("idToSnowflake[%q] is nil", sid)
+	}
+
+	// Client request blocks until proxy answer arrives.
+	wC := httptest.NewRecorder()
+	rC := newClientOfferRequest(t, NATUnknown)
+	done := make(chan struct{})
+	go func() {
+		clientOffers(f.ipc, wC, rC)
+		close(done)
+	}()
+
+	<-polled
+	if wP.Code != http.StatusOK {
+		t.Errorf("proxy poll status = %d, want %d", wP.Code, http.StatusOK)
+	}
+	checkContains(t, wP.Body.String(), `{"Status":"client match","Offer":`)
+	checkContains(t, wP.Body.String(), `"RelayURL":"wss://snowflake.torproject.net/"}`)
+	respP, err := messages.DecodeProxyPollResponse(wP.Body.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeProxyPollResponse: %v", err)
+	}
+	if respP.Offer != rawOffer {
+		t.Errorf("offer = %q, want %q", respP.Offer, rawOffer)
+	}
+
+	// Follow up with the answer request afterwards
+	wA := httptest.NewRecorder()
+	dataA, err := createProxyAnswer(rawAnswer, sid)
+	if err != nil {
+		t.Fatalf("createProxyAnswer: %v", err)
+	}
+	proxyAnswers(f.ipc, wA, newProxyAnswerRequest(t, dataA))
+	if wA.Code != http.StatusOK {
+		t.Errorf("proxy answer status = %d, want %d", wA.Code, http.StatusOK)
+	}
+
+	<-done
+	if wC.Code != http.StatusOK {
+		t.Errorf("client status = %d, want %d", wC.Code, http.StatusOK)
+	}
+	respC, err := messages.DecodeClientPollResponse(wC.Body.Bytes())
+	if err != nil {
+		t.Fatalf("DecodeClientPollResponse: %v", err)
+	}
+	if respC.Answer != rawAnswer {
+		t.Errorf("answer = %q, want %q", respC.Answer, rawAnswer)
+	}
+}
+
+func TestSnowflakeHeap(t *testing.T) {
+	t.Parallel()
+
+	h := new(SnowflakeHeap)
+	heap.Init(h)
+	if got := h.Len(); got != 0 {
+		t.Fatalf("Len() = %d, want 0", got)
+	}
+
+	// The heap is ordered by client count, smallest first.
+	for i, clients := range []uint64{4, 5, 3, 1} {
+		s := new(Snowflake)
+		s.clients = clients
+		heap.Push(h, s)
+		if got := h.Len(); got != i+1 {
+			t.Errorf("Len() = %d, want %d", got, i+1)
+		}
+	}
+
+	// Removing index 0 drops the least-loaded snowflake (1 client).
+	heap.Remove(h, 0)
+	if got := h.Len(); got != 3 {
+		t.Fatalf("Len() = %d, want 3", got)
+	}
+
+	for i, wantClients := range []uint64{3, 4, 5} {
+		r := heap.Pop(h).(*Snowflake)
+		if got, want := h.Len(), 2-i; got != want {
+			t.Errorf("Len() = %d, want %d", got, want)
+		}
+		if r.clients != wantClients {
+			t.Errorf("popped snowflake has %d clients, want %d", r.clients, wantClients)
+		}
+		if r.index != -1 {
+			t.Errorf("popped snowflake index = %d, want -1", r.index)
+		}
+	}
+}
+
+func TestInvalidGeoipFile(t *testing.T) {
+	t.Parallel()
+
+	// Make sure things behave properly if geoip file fails to load
+	ctx := NewBrokerContext(NullLogger(), "")
+	if err := ctx.metrics.LoadGeoipDatabases("invalid_filename", "invalid_filename6"); err != nil {
+		log.Printf("loading geo ip databases returned error: %v", err)
+	}
+	ctx.metrics.UpdateProxyStats("127.0.0.1", "", NATUnrestricted)
+	if ctx.metrics.geoipdb != nil {
+		t.Error("geoipdb is non-nil after loading invalid database files")
+	}
+}
+
+// newMetricsFixture builds a broker with geoip loaded and a short poll
+// interval, so rate-limit expiry is testable.
+func newMetricsFixture(t *testing.T) *brokerFixture {
+	t.Helper()
+	f := newBrokerFixture()
+	f.ctx.strictPool.pollInterval = time.Second
+	f.ctx.moderatePool.pollInterval = time.Second
+	f.ctx.openPool.pollInterval = time.Second
+	if err := f.ctx.metrics.LoadGeoipDatabases("test_geoip", "test_geoip6"); err != nil {
+		t.Fatalf("LoadGeoipDatabases: %v", err)
+	}
+	return f
+}
+
+// pollProxyOnce runs one proxy poll to completion, unblocking it with a nil
+// offer (which the broker treats as a timeout).
+func pollProxyOnce(t *testing.T, f *brokerFixture, body, remoteAddr string) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	r := newProxyPollRequest(t, body)
+	r.RemoteAddr = remoteAddr
+
+	done := make(chan struct{})
+	go func() {
+		proxyPolls(f.ipc, w, r)
+		close(done)
+	}()
+	p := <-f.ctx.proxyPolls // manually unblock poll
+	p.offerChannel <- nil
+	<-done
+}
+
+func proxyPollBodyOfType(proxyType string) string {
+	if proxyType == "" {
+		return `{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`
+	}
+	return `{"Sid":"ymbcCMto7KHNGYlp","Version":"1.0","Type":"` + proxyType + `","AcceptedRelayPattern":"snowflake.torproject.net"}`
+}
+
+func TestMetricsForProxyPolls(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	// Four distinct CA addresses, one per proxy type.
+	for i, proxyType := range []string{"", "standalone", "badge", "webext"} {
+		pollProxyOnce(t, f, proxyPollBodyOfType(proxyType), fmt.Sprintf("129.97.208.%d", 23+i))
+	}
+	f.ctx.metrics.printMetrics()
+
+	metricsStr := f.buf.String()
+	wantPrefix := "snowflake-stats-end " + time.Now().UTC().Format("2006-01-02 15:04:05") + " (86400 s)\nsnowflake-ips CA=4\n"
+	if !strings.HasPrefix(metricsStr, wantPrefix) {
+		t.Errorf("metrics do not start with %q; got:\n%s", wantPrefix, metricsStr)
+	}
+	for _, want := range []string{
+		"\nsnowflake-ips-standalone 1\n",
+		"\nsnowflake-ips-badge 1\n",
+		"\nsnowflake-ips-webext 1\n",
+		"\nsnowflake-ips-iptproxy 0\n",
+		"\nsnowflake-ips-bloco 0\n",
+	} {
+		checkContains(t, metricsStr, want)
+	}
+	if strings.Contains(metricsStr, "snowflake-ips-unknown") {
+		t.Errorf("metrics unexpectedly contain snowflake-ips-unknown:\n%s", metricsStr)
+	}
+	if !strings.HasSuffix(metricsStr, M_PROXY_POLLS_TAIL) {
+		t.Errorf("metrics do not end with\n%s\ngot:\n%s", M_PROXY_POLLS_TAIL, metricsStr)
+	}
+}
+
+func TestMetricsForNoProxiesAvailable(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	w := httptest.NewRecorder()
+	r := newClientOfferRequest(t, NATUnknown)
+	r.RemoteAddr = "129.97.208.23:8888" // CA geoip
+	clientOffers(f.ipc, w, r)
+
+	f.checkMetrics(t, M_NO_PROXIES)
+
+	// Test reset
+	f.buf.Reset()
+	f.ctx.metrics.printMetrics()
+	for _, want := range []string{
+		"\nsnowflake-ips \n",
+		"\nsnowflake-ips-standalone 0\n",
+		"\nsnowflake-ips-badge 0\n",
+		"\nsnowflake-ips-webext 0\n",
+		"\nsnowflake-ips-iptproxy 0\n",
+		"\nsnowflake-ips-bloco 0\n",
+		M_RESET,
+	} {
+		checkContains(t, f.buf.String(), want)
+	}
+	if strings.Contains(f.buf.String(), "snowflake-ips-unknown") {
+		t.Errorf("metrics unexpectedly contain snowflake-ips-unknown:\n%s", f.buf.String())
+	}
+}
+
+func TestMetricsForClientProxyMatch(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	w := httptest.NewRecorder()
+	r := newClientOfferRequest(t, NATUnknown)
+
+	// Prepare a fake proxy to respond with.
+	snowflake := addFakeSnowflake(f.ctx)
+	done := make(chan struct{})
+	go func() {
+		clientOffers(f.ipc, w, r)
+		close(done)
+	}()
+	checkOfferSDP(t, <-snowflake.offerChannel)
+	snowflake.answerChannel <- "fake answer"
+	<-done
+
+	f.checkMetrics(t, "client-denied-count 0\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 8")
+}
+
+// Counts are reported binned to multiples of 8, so 9 denials round up to 16.
+func TestMetricsBinningBoundary(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	for i := 0; i < 9; i++ {
+		clientOffers(f.ipc, httptest.NewRecorder(), newClientOfferRequest(t, NATRestricted))
+	}
+
+	f.buf.Reset()
+	f.checkMetrics(t, "client-denied-count 16\nclient-restricted-denied-count 16\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\n")
+}
+
+func TestMetricsProxyCountsByUniqueIP(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	body := proxyPollBodyOfType("")
+	pollProxyOnce(t, f, body, "129.97.208.23:8080") // CA geoip
+	<-time.After(2 * time.Second)                   // wait for rate limit to expire
+	pollProxyOnce(t, f, body, "129.97.208.23:8080") // same IP, so still one proxy
+
+	f.ctx.metrics.printMetrics()
+	checkContains(t, f.buf.String(), "snowflake-ips CA=1\n")
+	checkContains(t, f.buf.String(), "snowflake-ips-total 1\n")
+}
+
+func TestMetricsProxyCountsByNATType(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	for i, natType := range []string{"restricted", "unrestricted"} {
+		body := `{"Sid":"ymbcCMto7KHNGYlp","Version":"1.2","Type":"unknown","NAT":"` + natType + `","AcceptedRelayPattern":"snowflake.torproject.net"}`
+		pollProxyOnce(t, f, body, fmt.Sprintf("129.97.208.%d:8888", 23+i)) // CA geoip
+	}
+
+	f.checkMetrics(t, "snowflake-ips-nat-restricted 1\nsnowflake-ips-nat-unrestricted 1\nsnowflake-ips-nat-unknown 0\nsnowflake-ips-nat-strict 0\nsnowflake-ips-nat-moderate 0\nsnowflake-ips-nat-open 0")
+}
+
+func TestMetricsClientFailuresByNATType(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		natType string
+		want    string
+	}{
+		{NATRestricted, "client-denied-count 8\nclient-restricted-denied-count 8\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0"},
+		{NATUnrestricted, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 8\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 0\nclient-snowflake-match-count 0"},
+		{NATUnknown, "client-denied-count 8\nclient-restricted-denied-count 0\nclient-unrestricted-denied-count 0\nclient-nat-strict-denied-count 0\nclient-nat-moderate-denied-count 0\nclient-nat-open-denied-count 0\nclient-nat-unknown-denied-count 8\nclient-snowflake-match-count 0"},
+	} {
+		t.Run(tc.natType, func(t *testing.T) {
+			f := newMetricsFixture(t)
+			clientOffers(f.ipc, httptest.NewRecorder(), newClientOfferRequest(t, tc.natType))
+			f.checkMetrics(t, tc.want)
+		})
+	}
+}
+
+// The set of IPs seen is per reporting interval: printing must clear it, so a
+// different proxy in the next interval is still counted as one.
+func TestMetricsSeenIPsClearedAfterPrint(t *testing.T) {
+	t.Parallel()
+
+	f := newMetricsFixture(t)
+	body := proxyPollBodyOfType("")
+	for _, addr := range []string{"129.97.208.23", "129.97.208.24"} {
+		pollProxyOnce(t, f, body, addr) // CA geoip
+		f.ctx.metrics.printMetrics()
+		checkContains(t, f.buf.String(), "snowflake-ips CA=1")
+		checkContains(t, f.buf.String(), "snowflake-ips-total 1")
+		f.buf.Reset()
+	}
+}
+
+func TestConcurrency(t *testing.T) {
+	ctx := NewBrokerContext(NullLogger(), "snowflake.torproject.net")
+	i := &IPC{ctx}
+	go ctx.Broker()
+
+	var proxies sync.WaitGroup
+	var wg sync.WaitGroup
+
+	proxies.Add(1000)
+	// Multiple proxy polls
+	for x := 0; x < 1000; x++ {
+		buf := make([]byte, 16)
+		if _, err := rand.Read(buf); err != nil {
+			t.Fatalf("rand.Read: %v", err)
+		}
+		id := strings.TrimRight(base64.StdEncoding.EncodeToString(buf), "=")
+
+		wp := httptest.NewRecorder()
+		datap := bytes.NewReader(fmt.Appendf(nil, `{"Sid": "%s","Version":"1.0","AcceptedRelayPattern":"snowflake.torproject.net"}`, id))
+		rp, err := http.NewRequest("POST", "snowflake.broker/proxy", datap)
+		if err != nil {
+			t.Fatalf("http.NewRequest: %v", err)
+		}
+		rp.RemoteAddr = fmt.Sprintf("1.1.%d.%d", x/256, x%256)
+
+		go func() {
+			proxies.Done()
+			proxyPolls(i, wp, rp)
+			if wp.Code != http.StatusOK {
+				t.Errorf("proxy poll status = %d, want %d", wp.Code, http.StatusOK)
+			}
+
+			// Proxy answers
+			wa := httptest.NewRecorder()
+			dataa, err := createProxyAnswer(rawAnswer, id)
+			if err != nil {
+				t.Errorf("createProxyAnswer: %v", err)
+				return
+			}
+			ra, err := http.NewRequest("POST", "snowflake.broker/answer", dataa)
+			if err != nil {
+				t.Errorf("http.NewRequest: %v", err)
+				return
+			}
+			go proxyAnswers(i, wa, ra)
+		}()
+	}
+	// Wait for all proxies to poll before sending client offers
+	proxies.Wait()
+
+	// Multiple client offers
+	for x := 0; x < 500; x++ {
+		wg.Add(1)
+		wc := httptest.NewRecorder()
+		datac, err := createClientOffer(rawOffer, NATUnrestricted, "")
+		if err != nil {
+			t.Fatalf("createClientOffer: %v", err)
+		}
+		rc, err := http.NewRequest("POST", "snowflake.broker/client", datac)
+		if err != nil {
+			t.Fatalf("http.NewRequest: %v", err)
+		}
+
+		go func() {
+			defer wg.Done()
+			clientOffers(i, wc, rc)
+			if wc.Code != http.StatusOK {
+				t.Errorf("client status = %d, want %d", wc.Code, http.StatusOK)
+			}
+			respC, _ := messages.DecodeClientPollResponse(wc.Body.Bytes())
+			if !strings.Contains(respC.Answer, "129.97.208.23") {
+				t.Errorf("answer %q does not contain %q", respC.Answer, "129.97.208.23")
+			}
+		}()
+	}
+	wg.Wait()
 }

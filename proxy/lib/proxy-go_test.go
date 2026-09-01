@@ -2,6 +2,7 @@ package snowflake_proxy
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -11,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/pion/webrtc/v4"
-	. "github.com/smartystreets/goconvey/convey"
 	"tgragnato.it/snowflake/common/messages"
 	"tgragnato.it/snowflake/common/util"
 )
@@ -252,341 +252,374 @@ c=IN IP7 1.2.3.4
 	}
 }
 
-func TestSessionDescriptions(t *testing.T) {
+func TestSessionDescriptionDeserialization(t *testing.T) {
 	t.Parallel()
 
-	Convey("Session description deserialization", t, func() {
-		for _, test := range []struct {
-			msg string
-			ret *webrtc.SessionDescription
-		}{
-			{
-				"test",
-				nil,
-			},
-			{
-				`{"type":"answer"}`,
-				nil,
-			},
-			{
-				`{"sdp":"test"}`,
-				nil,
-			},
-			{
-				`{"type":"test", "sdp":"test"}`,
-				nil,
-			},
-			{
-				`{"type":"answer", "sdp":"test"}`,
-				&webrtc.SessionDescription{
-					Type: webrtc.SDPTypeAnswer,
-					SDP:  "test",
-				},
-			},
-			{
-				`{"type":"pranswer", "sdp":"test"}`,
-				&webrtc.SessionDescription{
-					Type: webrtc.SDPTypePranswer,
-					SDP:  "test",
-				},
-			},
-			{
-				`{"type":"rollback", "sdp":"test"}`,
-				&webrtc.SessionDescription{
-					Type: webrtc.SDPTypeRollback,
-					SDP:  "test",
-				},
-			},
-			{
-				`{"type":"offer", "sdp":"test"}`,
-				&webrtc.SessionDescription{
-					Type: webrtc.SDPTypeOffer,
-					SDP:  "test",
-				},
-			},
-		} {
-			desc, _ := util.DeserializeSessionDescription(test.msg)
-			So(desc, ShouldResemble, test.ret)
+	for _, test := range []struct {
+		msg string
+		ret *webrtc.SessionDescription
+	}{
+		{"test", nil},
+		{`{"type":"answer"}`, nil},
+		{`{"sdp":"test"}`, nil},
+		{`{"type":"test", "sdp":"test"}`, nil},
+		{
+			`{"type":"answer", "sdp":"test"}`,
+			&webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: "test"},
+		},
+		{
+			`{"type":"pranswer", "sdp":"test"}`,
+			&webrtc.SessionDescription{Type: webrtc.SDPTypePranswer, SDP: "test"},
+		},
+		{
+			`{"type":"rollback", "sdp":"test"}`,
+			&webrtc.SessionDescription{Type: webrtc.SDPTypeRollback, SDP: "test"},
+		},
+		{
+			`{"type":"offer", "sdp":"test"}`,
+			&webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "test"},
+		},
+	} {
+		desc, _ := util.DeserializeSessionDescription(test.msg)
+		switch {
+		case test.ret == nil:
+			if desc != nil {
+				t.Errorf("DeserializeSessionDescription(%s) = %+v, want nil", test.msg, desc)
+			}
+		case desc == nil:
+			t.Errorf("DeserializeSessionDescription(%s) = nil, want %+v", test.msg, test.ret)
+		case *desc != *test.ret:
+			t.Errorf("DeserializeSessionDescription(%s) = %+v, want %+v", test.msg, desc, test.ret)
 		}
-	})
-	Convey("Session description serialization", t, func() {
-		for _, test := range []struct {
-			desc *webrtc.SessionDescription
-			ret  string
-		}{
-			{
-				&webrtc.SessionDescription{
-					Type: webrtc.SDPTypeOffer,
-					SDP:  "test",
-				},
-				`{"type":"offer","sdp":"test"}`,
-			},
-		} {
-			msg, err := util.SerializeSessionDescription(test.desc)
-			So(msg, ShouldResemble, test.ret)
-			So(err, ShouldBeNil)
-		}
-	})
+	}
+}
+
+func TestSessionDescriptionSerialization(t *testing.T) {
+	t.Parallel()
+
+	desc := &webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "test"}
+	const want = `{"type":"offer","sdp":"test"}`
+	msg, err := util.SerializeSessionDescription(desc)
+	if err != nil {
+		t.Fatalf("SerializeSessionDescription: %v", err)
+	}
+	if msg != want {
+		t.Errorf("SerializeSessionDescription() = %q, want %q", msg, want)
+	}
+}
+
+const sampleSDP = `"v=0\r\no=- 4358805017720277108 2 IN IP4 8.8.8.8\r\ns=-\r\nt=0 0\r\na=group:BUNDLE data\r\na=msid-semantic: WMS\r\nm=application 56688 DTLS/SCTP 5000\r\nc=IN IP4 8.8.8.8\r\na=candidate:3769337065 1 udp 2122260223 8.8.8.8 56688 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:2921887769 1 tcp 1518280447 8.8.8.8 35441 typ host tcptype passive generation 0 network-id 1 network-cost 50\r\na=ice-ufrag:aMAZ\r\na=ice-pwd:jcHb08Jjgrazp2dzjdrvPPvV\r\na=ice-options:trickle\r\na=fingerprint:sha-256 C8:88:EE:B9:E7:02:2E:21:37:ED:7A:D1:EB:2B:A3:15:A2:3B:5B:1C:3D:D4:D5:1F:06:CF:52:40:03:F8:DD:66\r\na=setup:actpass\r\na=mid:data\r\na=sctpmap:5000 webrtc-datachannel 1024\r\n"`
+
+const sampleOffer = `{"type":"offer","sdp":` + sampleSDP + `}`
+const sampleAnswer = `{"type":"answer","sdp":` + sampleSDP + `}`
+
+// setupBrokerTest resets the package-level signaling state and returns a peer
+// connection with a local description already set. The subtests that use it run
+// sequentially, since they share those globals.
+func setupBrokerTest(t *testing.T) *webrtc.PeerConnection {
+	t.Helper()
+
+	var err error
+	broker, err = newSignalingServer("localhost")
+	if err != nil {
+		t.Fatalf("newSignalingServer: %v", err)
+	}
+	tokens = 0
+
+	// Mock peerConnection
+	config = webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{URLs: []string{"stun:stun.l.google.com:19302"}},
+		},
+	}
+	pc, err := webrtc.NewPeerConnection(config)
+	if err != nil {
+		t.Fatalf("NewPeerConnection: %v", err)
+	}
+	offer, err := util.DeserializeSessionDescription(sampleOffer)
+	if err != nil {
+		t.Fatalf("DeserializeSessionDescription: %v", err)
+	}
+	if err := pc.SetRemoteDescription(*offer); err != nil {
+		t.Fatalf("SetRemoteDescription: %v", err)
+	}
+	answer, err := pc.CreateAnswer(nil)
+	if err != nil {
+		t.Fatalf("CreateAnswer: %v", err)
+	}
+	if err := pc.SetLocalDescription(answer); err != nil {
+		t.Fatalf("SetLocalDescription: %v", err)
+	}
+	return pc
 }
 
 func TestBrokerInteractions(t *testing.T) {
 	t.Parallel()
 
-	const sampleSDP = `"v=0\r\no=- 4358805017720277108 2 IN IP4 8.8.8.8\r\ns=-\r\nt=0 0\r\na=group:BUNDLE data\r\na=msid-semantic: WMS\r\nm=application 56688 DTLS/SCTP 5000\r\nc=IN IP4 8.8.8.8\r\na=candidate:3769337065 1 udp 2122260223 8.8.8.8 56688 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:2921887769 1 tcp 1518280447 8.8.8.8 35441 typ host tcptype passive generation 0 network-id 1 network-cost 50\r\na=ice-ufrag:aMAZ\r\na=ice-pwd:jcHb08Jjgrazp2dzjdrvPPvV\r\na=ice-options:trickle\r\na=fingerprint:sha-256 C8:88:EE:B9:E7:02:2E:21:37:ED:7A:D1:EB:2B:A3:15:A2:3B:5B:1C:3D:D4:D5:1F:06:CF:52:40:03:F8:DD:66\r\na=setup:actpass\r\na=mid:data\r\na=sctpmap:5000 webrtc-datachannel 1024\r\n"`
+	// These subtests share package-level signaling state, so they must not
+	// run in parallel with each other.
+	t.Run("polls broker correctly", func(t *testing.T) {
+		setupBrokerTest(t)
 
-	const sampleOffer = `{"type":"offer","sdp":` + sampleSDP + `}`
-	const sampleAnswer = `{"type":"answer","sdp":` + sampleSDP + `}`
-
-	Convey("Proxy connections to broker", t, func() {
-		var err error
-		broker, err = newSignalingServer("localhost")
-		So(err, ShouldBeNil)
-		tokens = 0
-
-		//Mock peerConnection
-		config = webrtc.Configuration{
-			ICEServers: []webrtc.ICEServer{
-				{
-					URLs: []string{"stun:stun.l.google.com:19302"},
-				},
-			},
+		resp := messages.ProxyPollResponse{
+			Offer:  sampleOffer,
+			Status: messages.ProxyClientMatch,
 		}
-		pc, _ := webrtc.NewPeerConnection(config)
-		offer, _ := util.DeserializeSessionDescription(sampleOffer)
-		pc.SetRemoteDescription(*offer)
-		answer, _ := pc.CreateAnswer(nil)
-		pc.SetLocalDescription(answer)
+		b, err := resp.Encode()
+		if err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+		broker.transport = &MockTransport{http.StatusOK, b}
 
-		Convey("polls broker correctly", func() {
-			var err error
+		pollResp, err := broker.pollOffer(sampleOffer, DefaultProxyType, "")
+		if err != nil {
+			t.Fatalf("pollOffer: %v", err)
+		}
+		sdp, err := util.DeserializeSessionDescription(pollResp.Offer)
+		if err != nil {
+			t.Fatalf("DeserializeSessionDescription: %v", err)
+		}
+		expectedSDP, err := strconv.Unquote(sampleSDP)
+		if err != nil {
+			t.Fatalf("strconv.Unquote: %v", err)
+		}
+		if sdp.SDP != expectedSDP {
+			t.Errorf("SDP = %q, want %q", sdp.SDP, expectedSDP)
+		}
+	})
 
-			resp := messages.ProxyPollResponse{
-				Offer:  sampleOffer,
-				Status: messages.ProxyClientMatch,
+	t.Run("handles poll error", func(t *testing.T) {
+		setupBrokerTest(t)
+
+		// An unparseable broker response must not yield an offer.
+		broker.transport = &MockTransport{http.StatusOK, []byte("test")}
+		if sdp, _ := broker.pollOffer(sampleOffer, DefaultProxyType, ""); sdp != nil {
+			t.Errorf("pollOffer() = %+v, want nil", sdp)
+		}
+	})
+
+	t.Run("sends answer to broker", func(t *testing.T) {
+		pc := setupBrokerTest(t)
+
+		b, err := messages.EncodeAnswerResponse(true)
+		if err != nil {
+			t.Fatalf("EncodeAnswerResponse: %v", err)
+		}
+		broker.transport = &MockTransport{http.StatusOK, b}
+		if err := broker.sendAnswer(sampleAnswer, pc); err != nil &&
+			err.Error() != "local description should not be nil" {
+			t.Errorf("sendAnswer: %v", err)
+		}
+
+		// A "false" answer response means the client is gone.
+		b, err = messages.EncodeAnswerResponse(false)
+		if err != nil {
+			t.Fatalf("EncodeAnswerResponse: %v", err)
+		}
+		broker.transport = &MockTransport{http.StatusOK, b}
+		if err := broker.sendAnswer(sampleAnswer, pc); err == nil {
+			t.Error("sendAnswer succeeded on a rejected answer, want error")
+		}
+	})
+
+	t.Run("handles answer error", func(t *testing.T) {
+		pc := setupBrokerTest(t)
+
+		// Error if faulty transport
+		broker.transport = &FaultyTransport{}
+		if err := broker.sendAnswer(sampleAnswer, pc); err == nil {
+			t.Error("sendAnswer succeeded with a faulty transport, want error")
+		}
+
+		// Error if status code is not ok
+		broker.transport = &MockTransport{http.StatusGone, []byte("")}
+		err := broker.sendAnswer("test", pc)
+		if err == nil {
+			t.Fatal("sendAnswer succeeded on HTTP 410, want error")
+		}
+		if err.Error() != "local description should not be nil" {
+			const want = "error sending answer to broker: remote returned status code 410"
+			if err.Error() != want {
+				t.Errorf("err = %q, want %q", err, want)
 			}
-			b, err := resp.Encode()
-			So(err, ShouldBeNil)
-			broker.transport = &MockTransport{
-				http.StatusOK,
-				b,
-			}
+		}
 
-			pollResp, _ := broker.pollOffer(sampleOffer, DefaultProxyType, "")
-			sdp, err := util.DeserializeSessionDescription(pollResp.Offer)
-			So(err, ShouldBeNil)
-			expectedSDP, _ := strconv.Unquote(sampleSDP)
-			So(sdp.SDP, ShouldResemble, expectedSDP)
-		})
-		Convey("handles poll error", func() {
-			var err error
+		// Error if we can't parse broker message
+		broker.transport = &MockTransport{http.StatusOK, []byte("test")}
+		if err := broker.sendAnswer("test", pc); err == nil {
+			t.Error("sendAnswer succeeded on an unparseable response, want error")
+		}
 
-			b := []byte("test")
-			So(err, ShouldBeNil)
-			broker.transport = &MockTransport{
-				http.StatusOK,
-				b,
-			}
-
-			sdp, _ := broker.pollOffer(sampleOffer, DefaultProxyType, "")
-			So(sdp, ShouldBeNil)
-		})
-		Convey("sends answer to broker", func() {
-			var err error
-
-			b, err := messages.EncodeAnswerResponse(true)
-			So(err, ShouldBeNil)
-			broker.transport = &MockTransport{
-				http.StatusOK,
-				b,
-			}
-
-			err = broker.sendAnswer(sampleAnswer, pc)
-			if err != nil {
-				So(err.Error(), ShouldResemble, "local description should not be nil")
-			}
-
-			b, err = messages.EncodeAnswerResponse(false)
-			So(err, ShouldBeNil)
-			broker.transport = &MockTransport{
-				http.StatusOK,
-				b,
-			}
-
-			err = broker.sendAnswer(sampleAnswer, pc)
-			So(err, ShouldNotBeNil)
-		})
-		Convey("handles answer error", func() {
-			//Error if faulty transport
-			broker.transport = &FaultyTransport{}
-			err := broker.sendAnswer(sampleAnswer, pc)
-			So(err, ShouldNotBeNil)
-
-			//Error if status code is not ok
-			broker.transport = &MockTransport{
-				http.StatusGone,
-				[]byte(""),
-			}
-			err = broker.sendAnswer("test", pc)
-			So(err, ShouldNotEqual, nil)
-			if err.Error() != "local description should not be nil" {
-				So(err.Error(), ShouldResemble,
-					"error sending answer to broker: remote returned status code 410")
-			}
-
-			//Error if we can't parse broker message
-			broker.transport = &MockTransport{
-				http.StatusOK,
-				[]byte("test"),
-			}
-			err = broker.sendAnswer("test", pc)
-			So(err, ShouldNotBeNil)
-
-			//Error if broker message surpasses read limit
-			broker.transport = &MockTransport{
-				http.StatusOK,
-				make([]byte, 100001),
-			}
-			err = broker.sendAnswer("test", pc)
-			So(err, ShouldNotBeNil)
-		})
+		// Error if broker message surpasses read limit
+		broker.transport = &MockTransport{http.StatusOK, make([]byte, 100001)}
+		if err := broker.sendAnswer("test", pc); err == nil {
+			t.Error("sendAnswer succeeded on an oversized response, want error")
+		}
 	})
 }
 
-func TestUtilityFuncs(t *testing.T) {
+func TestLimitedRead(t *testing.T) {
 	t.Parallel()
 
-	Convey("LimitedRead", t, func() {
+	t.Run("successful read", func(t *testing.T) {
 		c, s := net.Pipe()
-		Convey("Successful read", func() {
-			go func() {
-				bytes := make([]byte, 50)
-				c.Write(bytes)
-				c.Close()
-			}()
-			bytes, err := limitedRead(s, 60)
-			So(len(bytes), ShouldEqual, 50)
-			So(err, ShouldBeNil)
-		})
-		Convey("Large read", func() {
-			go func() {
-				bytes := make([]byte, 50)
-				c.Write(bytes)
-				c.Close()
-			}()
-			bytes, err := limitedRead(s, 49)
-			So(len(bytes), ShouldEqual, 49)
-			So(err, ShouldEqual, io.ErrUnexpectedEOF)
-		})
-		Convey("Failed read", func() {
-			s.Close()
-			bytes, err := limitedRead(s, 49)
-			So(len(bytes), ShouldEqual, 0)
-			So(err, ShouldEqual, io.ErrClosedPipe)
-		})
-	})
-	Convey("SessionID Generation", t, func() {
-		sid1 := genSessionID()
-		sid2 := genSessionID()
-		So(sid1, ShouldNotEqual, sid2)
-	})
-	Convey("CopyLoop", t, func() {
-		c1, s1 := net.Pipe()
-		c2, s2 := net.Pipe()
-		go copyLoop(s1, s2, nil)
 		go func() {
-			bytes := []byte("Hello!")
-			c1.Write(bytes)
+			c.Write(make([]byte, 50))
+			c.Close()
 		}()
-		bytes := make([]byte, 6)
-		n, err := c2.Read(bytes)
-		So(n, ShouldEqual, 6)
-		So(err, ShouldBeNil)
-		So(bytes, ShouldResemble, []byte("Hello!"))
-		s1.Close()
-
-		//Check that copy loop has closed other connection
-		_, err = s2.Write(bytes)
-		So(err, ShouldNotBeNil)
-	})
-	Convey("isRelayURLAcceptable", t, func() {
-		testingVector := []struct {
-			pattern               string
-			allowPrivateAddresses bool
-			allowNonTLS           bool
-			targetURL             string
-			expects               error
-		}{
-			// These are copied from `TestMatchMember`.
-			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
-			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-01-snowflake.torproject.net", expects: nil},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-aaa-snowflake.torproject.net", expects: nil},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-aaa-snowflake.faketorproject.net", expects: fmt.Errorf("")},
-
-			{pattern: "^torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
-			// Yes, this is how it works if there is no "^".
-			{pattern: "torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: nil},
-
-			// NonTLS
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ws://snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ws://snowflake.torproject.net", expects: nil},
-
-			// Sneaky attempt to use path
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://evil.com/snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://evil.com/?test=snowflake.torproject.net", expects: fmt.Errorf("")},
-
-			// IP address
-			{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://1.1.1.1/test?test=test#test", expects: nil},
-			{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: fmt.Errorf("")},
-			{pattern: "1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: nil},
-			// Private IP address
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://192.168.1.1", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://127.0.0.1", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://[fc00::]/", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://[::1]/", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://0.0.0.0/", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://169.254.1.1/", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "ws://100.111.1.1/", expects: fmt.Errorf("")},
-			{pattern: "192.168.1.100$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://192.168.1.100/test?test=test", expects: nil},
-			{pattern: "localhost$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://localhost/test?test=test", expects: nil},
-			{pattern: "::1$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://[::1]/test?test=test", expects: nil},
-			// Multicast IP address. `checkIsRelayURLAcceptable` allows it,
-			// but it's not valid in the context of WebSocket
-			{pattern: "255.255.255.255$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://255.255.255.255/test?test=test", expects: nil},
-
-			// Port
-			{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:8080/test?test=test#test", expects: nil},
-			// This currently doesn't work as we only check hostname.
-			// {pattern: "^snowflake.torproject.net:443$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:443", expects: nil},
-			// {pattern: "^snowflake.torproject.net:443$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:9999", expects: fmt.Errorf("")},
-
-			// Any URL
-			{pattern: "$", allowNonTLS: false, targetURL: "wss://any.com/test?test=test#test", expects: nil},
-			{pattern: "$", allowNonTLS: false, targetURL: "wss://1.1.1.1/test?test=test#test", expects: nil},
-
-			// Weird / invalid / ambiguous URL
-			{pattern: "$", allowNonTLS: true, targetURL: "snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "//snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "/path", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "wss://snowflake.torproject .net", expects: fmt.Errorf("")},
-			{pattern: "$", allowNonTLS: true, targetURL: "wss://😀", expects: nil},
-			{pattern: "$", allowNonTLS: true, targetURL: "wss://пример.рф", expects: nil},
-
-			// Non-websocket protocols
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
-			{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
+		b, err := limitedRead(s, 60)
+		if err != nil {
+			t.Fatalf("limitedRead: %v", err)
 		}
-		for _, v := range testingVector {
-			err := checkIsRelayURLAcceptable(v.pattern, v.allowPrivateAddresses, v.allowNonTLS, v.targetURL)
-			if v.expects != nil {
-				So(err, ShouldNotBeNil)
-			} else {
-				So(err, ShouldBeNil)
-			}
+		if len(b) != 50 {
+			t.Errorf("read %d bytes, want 50", len(b))
 		}
 	})
+
+	t.Run("large read", func(t *testing.T) {
+		c, s := net.Pipe()
+		go func() {
+			c.Write(make([]byte, 50))
+			c.Close()
+		}()
+		b, err := limitedRead(s, 49)
+		if !errors.Is(err, io.ErrUnexpectedEOF) {
+			t.Errorf("err = %v, want %v", err, io.ErrUnexpectedEOF)
+		}
+		if len(b) != 49 {
+			t.Errorf("read %d bytes, want 49", len(b))
+		}
+	})
+
+	t.Run("failed read", func(t *testing.T) {
+		_, s := net.Pipe()
+		s.Close()
+		b, err := limitedRead(s, 49)
+		if !errors.Is(err, io.ErrClosedPipe) {
+			t.Errorf("err = %v, want %v", err, io.ErrClosedPipe)
+		}
+		if len(b) != 0 {
+			t.Errorf("read %d bytes, want 0", len(b))
+		}
+	})
+}
+
+func TestSessionIDGeneration(t *testing.T) {
+	t.Parallel()
+
+	if sid1, sid2 := genSessionID(), genSessionID(); sid1 == sid2 {
+		t.Errorf("genSessionID() returned %q twice in a row", sid1)
+	}
+}
+
+func TestCopyLoop(t *testing.T) {
+	t.Parallel()
+
+	c1, s1 := net.Pipe()
+	c2, s2 := net.Pipe()
+	go copyLoop(s1, s2, nil)
+	go func() {
+		c1.Write([]byte("Hello!"))
+	}()
+
+	b := make([]byte, 6)
+	n, err := c2.Read(b)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if n != 6 {
+		t.Errorf("read %d bytes, want 6", n)
+	}
+	if !bytes.Equal(b, []byte("Hello!")) {
+		t.Errorf("read %q, want %q", b, "Hello!")
+	}
+
+	// Check that the copy loop has closed the other connection.
+	s1.Close()
+	if _, err = s2.Write(b); err == nil {
+		t.Error("write to s2 succeeded, want the copy loop to have closed it")
+	}
+}
+
+func TestIsRelayURLAcceptable(t *testing.T) {
+	t.Parallel()
+
+	testingVector := []struct {
+		pattern               string
+		allowPrivateAddresses bool
+		allowNonTLS           bool
+		targetURL             string
+		expects               error
+	}{
+		// These are copied from `TestMatchMember`.
+		{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
+		{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net", expects: nil},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-01-snowflake.torproject.net", expects: nil},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-aaa-snowflake.torproject.net", expects: nil},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://imaginary-aaa-snowflake.faketorproject.net", expects: fmt.Errorf("")},
+
+		{pattern: "^torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: fmt.Errorf("")},
+		// Yes, this is how it works if there is no "^".
+		{pattern: "torproject.net$", allowNonTLS: false, targetURL: "wss://faketorproject.net", expects: nil},
+
+		// NonTLS
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ws://snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ws://snowflake.torproject.net", expects: nil},
+
+		// Sneaky attempt to use path
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://evil.com/snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://evil.com/?test=snowflake.torproject.net", expects: fmt.Errorf("")},
+
+		// IP address
+		{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://1.1.1.1/test?test=test#test", expects: nil},
+		{pattern: "^1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: fmt.Errorf("")},
+		{pattern: "1.1.1.1$", allowNonTLS: true, targetURL: "ws://231.1.1.1/test?test=test#test", expects: nil},
+		// Private IP address
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://192.168.1.1", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://127.0.0.1", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://[fc00::]/", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://[::1]/", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://0.0.0.0/", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://169.254.1.1/", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "ws://100.111.1.1/", expects: fmt.Errorf("")},
+		{pattern: "192.168.1.100$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://192.168.1.100/test?test=test", expects: nil},
+		{pattern: "localhost$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://localhost/test?test=test", expects: nil},
+		{pattern: "::1$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://[::1]/test?test=test", expects: nil},
+		// Multicast IP address. `checkIsRelayURLAcceptable` allows it,
+		// but it's not valid in the context of WebSocket
+		{pattern: "255.255.255.255$", allowPrivateAddresses: true, allowNonTLS: true, targetURL: "ws://255.255.255.255/test?test=test", expects: nil},
+
+		// Port
+		{pattern: "^snowflake.torproject.net$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:8080/test?test=test#test", expects: nil},
+		// This currently doesn't work as we only check hostname.
+		// {pattern: "^snowflake.torproject.net:443$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:443", expects: nil},
+		// {pattern: "^snowflake.torproject.net:443$", allowNonTLS: false, targetURL: "wss://snowflake.torproject.net:9999", expects: fmt.Errorf("")},
+
+		// Any URL
+		{pattern: "$", allowNonTLS: false, targetURL: "wss://any.com/test?test=test#test", expects: nil},
+		{pattern: "$", allowNonTLS: false, targetURL: "wss://1.1.1.1/test?test=test#test", expects: nil},
+
+		// Weird / invalid / ambiguous URL
+		{pattern: "$", allowNonTLS: true, targetURL: "snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "//snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "/path", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "wss://snowflake.torproject .net", expects: fmt.Errorf("")},
+		{pattern: "$", allowNonTLS: true, targetURL: "wss://😀", expects: nil},
+		{pattern: "$", allowNonTLS: true, targetURL: "wss://пример.рф", expects: nil},
+
+		// Non-websocket protocols
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: false, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "https://snowflake.torproject.net", expects: fmt.Errorf("")},
+		{pattern: "snowflake.torproject.net$", allowNonTLS: true, targetURL: "ftp://snowflake.torproject.net", expects: fmt.Errorf("")},
+	}
+	for _, v := range testingVector {
+		err := checkIsRelayURLAcceptable(v.pattern, v.allowPrivateAddresses, v.allowNonTLS, v.targetURL)
+		if (err != nil) != (v.expects != nil) {
+			t.Errorf("checkIsRelayURLAcceptable(%q, %v, %v, %q) = %v, want error: %v",
+				v.pattern, v.allowPrivateAddresses, v.allowNonTLS, v.targetURL, err, v.expects != nil)
+		}
+	}
 }

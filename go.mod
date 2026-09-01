@@ -9,7 +9,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.48.1
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/coder/websocket v1.8.15
-	github.com/golang/mock v1.6.0
 	github.com/miekg/dns v1.1.73
 	github.com/pion/ice/v4 v4.4.1
 	github.com/pion/sdp/v3 v3.0.19
@@ -19,7 +18,6 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.8.2
-	github.com/smartystreets/goconvey v1.8.1
 	github.com/txthinking/socks5 v0.0.0-20260601051520-339b044ab0eb
 	github.com/xtaci/kcp-go/v5 v5.6.72
 	github.com/xtaci/smux v1.5.57
@@ -47,8 +45,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gopherjs/gopherjs v1.21.0 // indirect
-	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/reedsolomon v1.14.2 // indirect
@@ -69,7 +65,6 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
-	github.com/smarty/assertions v1.16.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20250224021307-5864ffeb65ae // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect

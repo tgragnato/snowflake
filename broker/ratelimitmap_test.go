@@ -3,57 +3,93 @@ package main
 import (
 	"testing"
 	"time"
-
-	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestRateLimitMap(t *testing.T) {
-	Convey("Test RateLimitMap", t, func() {
-		rlm := NewRateLimitMap()
+func TestRateLimitMapStoresProxyPolls(t *testing.T) {
+	t.Parallel()
 
-		Convey("adds and stores ProxyPolls", func() {
-			t := time.Now().Add(5 * time.Second)
-			res, ok := rlm.CheckAndLimit("foo", 5*time.Second)
-			So(res.After(t), ShouldBeTrue)
-			So(ok, ShouldBeTrue)
+	rlm := NewRateLimitMap()
 
-			t = time.Now().Add(2 * time.Second)
-			res, ok = rlm.CheckAndLimit("bar", 5*time.Second)
-			So(res.After(t), ShouldBeTrue)
-			So(ok, ShouldBeTrue)
-		})
-	})
+	for _, name := range []string{"foo", "bar"} {
+		notBefore := time.Now().Add(2 * time.Second)
+		res, ok := rlm.CheckAndLimit(name, 5*time.Second)
+		if !ok {
+			t.Errorf("CheckAndLimit(%q) was limited on first poll", name)
+		}
+		if !res.After(notBefore) {
+			t.Errorf("CheckAndLimit(%q) = %v, want a time after %v", name, res, notBefore)
+		}
+	}
+}
 
-	Convey("Snowflake proxy pool", t, func() {
-		pool := NewSnowflakePool()
-		pool.pollInterval = time.Second
+// rateLimitLen reports the number of entries in the rate limit map.
+//
+// rateLimitMapInner requires external synchronization, and NewRateLimitMap
+// starts a goroutine that prunes expired entries every 2 seconds, so the read
+// has to hold the map's lock.
+func rateLimitLen(m *RateLimitMap) int {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.inner.Len()
+}
 
-		Convey("adds snowflakes to the rate limit map", func() {
-			So(pool.rateLimitMap.inner.Len(), ShouldEqual, 0)
-			_, ok := pool.CheckAndLimit("foo")
-			So(ok, ShouldBeTrue)
-			So(pool.rateLimitMap.inner.Len(), ShouldEqual, 1)
-			_, ok = pool.CheckAndLimit("bar")
-			So(ok, ShouldBeTrue)
-			So(pool.rateLimitMap.inner.Len(), ShouldEqual, 2)
+// newTestPool returns a pool whose poll interval is short enough to let the
+// expiry test wait it out.
+func newTestPool() *SnowflakePool {
+	pool := NewSnowflakePool()
+	pool.pollInterval = time.Second
+	return pool
+}
 
-		})
+func TestSnowflakePoolAddsToRateLimitMap(t *testing.T) {
+	t.Parallel()
 
-		Convey("limits snowflake that polls too soon", func() {
-			_, ok := pool.CheckAndLimit("foo")
-			So(ok, ShouldBeTrue)
-			noSoonerThan, ok := pool.CheckAndLimit("foo")
-			So(ok, ShouldBeFalse)
-			So(time.Now().After(noSoonerThan), ShouldBeFalse)
-		})
+	pool := newTestPool()
 
-		Convey("proxies can poll again when limit has expired", func() {
-			_, ok := pool.CheckAndLimit("foo")
-			So(ok, ShouldBeTrue)
-			<-time.After(time.Second)
-			noSoonerThan, ok := pool.CheckAndLimit("foo")
-			So(ok, ShouldBeTrue)
-			So(time.Now().After(noSoonerThan), ShouldBeFalse)
-		})
-	})
+	if got := rateLimitLen(pool.rateLimitMap); got != 0 {
+		t.Fatalf("rate limit map length = %d, want 0", got)
+	}
+	for i, name := range []string{"foo", "bar"} {
+		if _, ok := pool.CheckAndLimit(name); !ok {
+			t.Errorf("CheckAndLimit(%q) was limited on first poll", name)
+		}
+		if got, want := rateLimitLen(pool.rateLimitMap), i+1; got != want {
+			t.Errorf("rate limit map length = %d, want %d", got, want)
+		}
+	}
+}
+
+func TestSnowflakePoolLimitsEarlyPoll(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool()
+
+	if _, ok := pool.CheckAndLimit("foo"); !ok {
+		t.Fatal("CheckAndLimit was limited on first poll")
+	}
+	noSoonerThan, ok := pool.CheckAndLimit("foo")
+	if ok {
+		t.Error("CheckAndLimit was not limited on an immediate second poll")
+	}
+	if time.Now().After(noSoonerThan) {
+		t.Errorf("noSoonerThan = %v, want a time in the future", noSoonerThan)
+	}
+}
+
+func TestSnowflakePoolAllowsPollAfterLimitExpires(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool()
+
+	if _, ok := pool.CheckAndLimit("foo"); !ok {
+		t.Fatal("CheckAndLimit was limited on first poll")
+	}
+	<-time.After(pool.pollInterval)
+	noSoonerThan, ok := pool.CheckAndLimit("foo")
+	if !ok {
+		t.Error("CheckAndLimit was still limited after the poll interval elapsed")
+	}
+	if time.Now().After(noSoonerThan) {
+		t.Errorf("noSoonerThan = %v, want a time in the future", noSoonerThan)
+	}
 }

@@ -6,8 +6,6 @@ import (
 	"io"
 	"testing"
 	"time"
-
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 type writerStub struct {
@@ -19,19 +17,20 @@ func (w writerStub) Sync() error {
 }
 
 func TestSinkWriter(t *testing.T) {
+	t.Parallel()
 
-	Convey("Context", t, func() {
-		buffer := bytes.NewBuffer(nil)
-		writerStubInst := &writerStub{buffer}
-		var key [32]byte
-		if n, err := rand.Read(key[:]); (n < 32) || (err != nil) {
-			panic(err)
-		}
-		clusterWriter := NewClusterWriter(map[string]WriteSyncer{
-			"demo": writerStubInst,
-		}, key, time.Minute)
-		clusterWriter.AddIPToSet("demo", "1")
-		clusterWriter.WriteIPSetToDisk()
-		So(buffer.Bytes(), ShouldNotBeNil)
-	})
+	buffer := bytes.NewBuffer(nil)
+	writerStubInst := &writerStub{buffer}
+	var key [32]byte
+	if n, err := rand.Read(key[:]); (n < 32) || (err != nil) {
+		t.Fatalf("rand.Read: read %d bytes: %v", n, err)
+	}
+	clusterWriter := NewClusterWriter(map[string]WriteSyncer{
+		"demo": writerStubInst,
+	}, key, time.Minute)
+	clusterWriter.AddIPToSet("demo", "1")
+	clusterWriter.WriteIPSetToDisk()
+	if buffer.Len() == 0 {
+		t.Error("WriteIPSetToDisk wrote nothing")
+	}
 }

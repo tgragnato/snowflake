@@ -251,8 +251,8 @@ type WebRTCDialer struct {
 	webrtcConfig *webrtc.Configuration
 	max          int
 
-	eventLogger      event.SnowflakeEventReceiver
-	proxy            *url.URL
+	eventLogger event.SnowflakeEventReceiver
+	proxy       *url.URL
 }
 
 // Deprecated: Use NewWebRTCDialerWithNatPolicyAndEventsAndProxy instead
@@ -302,8 +302,8 @@ func NewWebRTCDialerWithNatPolicyAndEventsAndProxy(
 		webrtcConfig:  &config,
 		max:           max,
 
-		eventLogger:      eventLogger,
-		proxy:            proxy,
+		eventLogger: eventLogger,
+		proxy:       proxy,
 	}
 }
 

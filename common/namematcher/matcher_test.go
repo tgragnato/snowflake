@@ -2,8 +2,6 @@ package namematcher
 
 import (
 	"testing"
-
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestMatchMember(t *testing.T) {
@@ -25,10 +23,10 @@ func TestMatchMember(t *testing.T) {
 	}
 	for _, v := range testingVector {
 		t.Run(v.matcher+"<>"+v.target, func(t *testing.T) {
-			Convey("test", t, func() {
-				matcher := NewNameMatcher(v.matcher)
-				So(matcher.IsMember(v.target), ShouldEqual, v.expects)
-			})
+			matcher := NewNameMatcher(v.matcher)
+			if got := matcher.IsMember(v.target); got != v.expects {
+				t.Errorf("IsMember(%q) = %v, want %v", v.target, got, v.expects)
+			}
 		})
 	}
 }
@@ -51,11 +49,11 @@ func TestMatchSubset(t *testing.T) {
 	}
 	for _, v := range testingVector {
 		t.Run(v.matcher+"<>"+v.target, func(t *testing.T) {
-			Convey("test", t, func() {
-				matcher := NewNameMatcher(v.matcher)
-				target := NewNameMatcher(v.target)
-				So(matcher.IsSupersetOf(target), ShouldEqual, v.expects)
-			})
+			matcher := NewNameMatcher(v.matcher)
+			target := NewNameMatcher(v.target)
+			if got := matcher.IsSupersetOf(target); got != v.expects {
+				t.Errorf("IsSupersetOf(%q) = %v, want %v", v.target, got, v.expects)
+			}
 		})
 	}
 }

@@ -3,10 +3,10 @@ package snowflake_client
 import (
 	"fmt"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
-	. "github.com/smartystreets/goconvey/convey"
 	"tgragnato.it/snowflake/common/event"
 )
 
@@ -34,193 +34,272 @@ func (f *FakeSocksConn) Reject() error {
 }
 func (f *FakeSocksConn) Grant(addr *net.TCPAddr) error { return nil }
 
-func TestSnowflakeClient(t *testing.T) {
-	t.Parallel()
-
-	Convey("Peers", t, func() {
-		Convey("Can construct", func() {
-			d := &FakeDialer{max: 1}
-			p, _ := NewPeers(d)
-			So(p.Tongue.GetMax(), ShouldEqual, 1)
-			So(p.snowflakeChan, ShouldNotBeNil)
-			So(cap(p.snowflakeChan), ShouldEqual, 1)
-		})
-
-		Convey("Collecting a Snowflake requires a Tongue.", func() {
-			_, err := NewPeers(nil)
-			So(err, ShouldNotBeNil)
-			// Set the dialer so that collection is possible.
-			d := &FakeDialer{max: 1}
-			p, _ := NewPeers(d)
-			_, err = p.Collect()
-			So(err, ShouldBeNil)
-			So(p.Count(), ShouldEqual, 1)
-			// S
-			_, _ = p.Collect()
-		})
-
-		Convey("Collection continues until capacity.", func() {
-			c := 5
-			p, _ := NewPeers(FakeDialer{max: c})
-			// Fill up to capacity.
-			for i := 0; i < c; i++ {
-				fmt.Println("Adding snowflake ", i)
-				_, err := p.Collect()
-				So(err, ShouldBeNil)
-				So(p.Count(), ShouldEqual, i+1)
-			}
-			// But adding another gives an error.
-			So(p.Count(), ShouldEqual, c)
-			_, err := p.Collect()
-			So(err, ShouldNotBeNil)
-			So(p.Count(), ShouldEqual, c)
-
-			// But popping allows it to continue.
-			s := p.Pop()
-			s.Close()
-			So(s, ShouldNotBeNil)
-			So(p.Count(), ShouldEqual, c-1)
-
-			_, err = p.Collect()
-			So(err, ShouldBeNil)
-			So(p.Count(), ShouldEqual, c)
-		})
-
-		Convey("Count correctly purges peers marked for deletion.", func() {
-			p, _ := NewPeers(FakeDialer{max: 5})
-			p.Collect()
-			p.Collect()
-			p.Collect()
-			p.Collect()
-			So(p.Count(), ShouldEqual, 4)
-			s := p.Pop()
-			s.Close()
-			So(p.Count(), ShouldEqual, 3)
-			s = p.Pop()
-			s.Close()
-			So(p.Count(), ShouldEqual, 2)
-		})
-
-		Convey("End Closes all peers.", func() {
-			cnt := 5
-			p, _ := NewPeers(FakeDialer{max: cnt})
-			for i := 0; i < cnt; i++ {
-				p.activePeers.PushBack(&WebRTCPeer{closed: make(chan struct{})})
-			}
-			So(p.Count(), ShouldEqual, cnt)
-			p.End()
-			<-p.Melted()
-			So(p.Count(), ShouldEqual, 0)
-		})
-
-		Convey("Pop skips over closed peers.", func() {
-			p, _ := NewPeers(FakeDialer{max: 4})
-			wc1, _ := p.Collect()
-			wc2, _ := p.Collect()
-			wc3, _ := p.Collect()
-			So(wc1, ShouldNotBeNil)
-			So(wc2, ShouldNotBeNil)
-			So(wc3, ShouldNotBeNil)
-			wc1.Close()
-			r := p.Pop()
-			So(p.Count(), ShouldEqual, 2)
-			So(r, ShouldEqual, wc2)
-			wc4, _ := p.Collect()
-			wc2.Close()
-			wc3.Close()
-			r = p.Pop()
-			So(r, ShouldEqual, wc4)
-		})
-
-		Convey("Terminate Connect() loop", func() {
-			p, _ := NewPeers(FakeDialer{max: 4})
-			go func() {
-				for {
-					p.Collect()
-					select {
-					case <-p.Melted():
-						return
-					default:
-					}
-				}
-			}()
-			<-time.After(10 * time.Second)
-
-			p.End()
-			<-p.Melted()
-			So(p.Count(), ShouldEqual, 0)
-		})
-
-	})
-
-	Convey("Dialers", t, func() {
-		Convey("Can construct WebRTCDialer.", func() {
-			broker := &BrokerChannel{}
-			d := NewWebRTCDialer(broker, nil, 1)
-			So(d, ShouldNotBeNil)
-			So(d.BrokerChannel, ShouldNotBeNil)
-		})
-		SkipConvey("WebRTCDialer can Catch a snowflake.", func() {
-			broker := &BrokerChannel{}
-			d := NewWebRTCDialer(broker, nil, 1)
-			conn, err := d.Catch()
-			So(conn, ShouldBeNil)
-			So(err, ShouldNotBeNil)
-		})
-	})
-
+// newTestPeers builds a Peers backed by a FakeDialer with the given capacity.
+func newTestPeers(t *testing.T, max int) *Peers {
+	t.Helper()
+	p, err := NewPeers(FakeDialer{max: max})
+	if err != nil {
+		t.Fatalf("NewPeers: %v", err)
+	}
+	return p
 }
 
-func TestWebRTCPeer(t *testing.T) {
+func TestPeersConstruction(t *testing.T) {
 	t.Parallel()
 
-	Convey("WebRTCPeer", t, func(c C) {
-		p := &WebRTCPeer{closed: make(chan struct{}),
-			eventsLogger: event.NewSnowflakeEventDispatcher()}
-		Convey("checks for staleness", func() {
-			go p.checkForStaleness(time.Second)
-			<-time.After(2 * time.Second)
-			So(p.Closed(), ShouldEqual, true)
-		})
-	})
+	p := newTestPeers(t, 1)
+	if got := p.Tongue.GetMax(); got != 1 {
+		t.Errorf("GetMax() = %d, want 1", got)
+	}
+	if p.snowflakeChan == nil {
+		t.Fatal("snowflakeChan is nil")
+	}
+	if got := cap(p.snowflakeChan); got != 1 {
+		t.Errorf("cap(snowflakeChan) = %d, want 1", got)
+	}
+}
+
+func TestPeersRequireTongue(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewPeers(nil); err == nil {
+		t.Fatal("NewPeers(nil) succeeded, want error")
+	}
+
+	// Set the dialer so that collection is possible.
+	p := newTestPeers(t, 1)
+	if _, err := p.Collect(); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if got := p.Count(); got != 1 {
+		t.Errorf("Count() = %d, want 1", got)
+	}
+}
+
+func TestPeersCollectUntilCapacity(t *testing.T) {
+	t.Parallel()
+
+	const c = 5
+	p := newTestPeers(t, c)
+
+	// Fill up to capacity.
+	for i := 0; i < c; i++ {
+		if _, err := p.Collect(); err != nil {
+			t.Fatalf("Collect %d: %v", i, err)
+		}
+		if got := p.Count(); got != i+1 {
+			t.Errorf("Count() = %d, want %d", got, i+1)
+		}
+	}
+
+	// But adding another gives an error.
+	if _, err := p.Collect(); err == nil {
+		t.Error("Collect beyond capacity succeeded, want error")
+	}
+	if got := p.Count(); got != c {
+		t.Errorf("Count() = %d, want %d", got, c)
+	}
+
+	// But popping allows it to continue.
+	s := p.Pop()
+	if s == nil {
+		t.Fatal("Pop() = nil")
+	}
+	s.Close()
+	if got := p.Count(); got != c-1 {
+		t.Errorf("Count() = %d, want %d", got, c-1)
+	}
+
+	if _, err := p.Collect(); err != nil {
+		t.Fatalf("Collect after Pop: %v", err)
+	}
+	if got := p.Count(); got != c {
+		t.Errorf("Count() = %d, want %d", got, c)
+	}
+}
+
+func TestPeersCountPurgesClosedPeers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPeers(t, 5)
+	for i := 0; i < 4; i++ {
+		if _, err := p.Collect(); err != nil {
+			t.Fatalf("Collect %d: %v", i, err)
+		}
+	}
+	if got := p.Count(); got != 4 {
+		t.Fatalf("Count() = %d, want 4", got)
+	}
+
+	// Count is what purges peers marked for deletion.
+	for want := 3; want >= 2; want-- {
+		p.Pop().Close()
+		if got := p.Count(); got != want {
+			t.Errorf("Count() = %d, want %d", got, want)
+		}
+	}
+}
+
+func TestPeersEndClosesAllPeers(t *testing.T) {
+	t.Parallel()
+
+	const cnt = 5
+	p := newTestPeers(t, cnt)
+	for i := 0; i < cnt; i++ {
+		p.activePeers.PushBack(&WebRTCPeer{closed: make(chan struct{})})
+	}
+	if got := p.Count(); got != cnt {
+		t.Fatalf("Count() = %d, want %d", got, cnt)
+	}
+
+	p.End()
+	<-p.Melted()
+	if got := p.Count(); got != 0 {
+		t.Errorf("Count() = %d, want 0 after End()", got)
+	}
+}
+
+func TestPeersPopSkipsClosedPeers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPeers(t, 4)
+	wc1, err := p.Collect()
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	wc2, err := p.Collect()
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	wc3, err := p.Collect()
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if wc1 == nil || wc2 == nil || wc3 == nil {
+		t.Fatal("Collect returned a nil peer")
+	}
+
+	wc1.Close()
+	if got := p.Pop(); got != wc2 {
+		t.Errorf("Pop() = %v, want the first peer that is still open", got)
+	}
+	if got := p.Count(); got != 2 {
+		t.Errorf("Count() = %d, want 2", got)
+	}
+
+	wc4, err := p.Collect()
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	wc2.Close()
+	wc3.Close()
+	if got := p.Pop(); got != wc4 {
+		t.Errorf("Pop() = %v, want the only remaining open peer", got)
+	}
+}
+
+func TestPeersTerminateConnectLoop(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPeers(t, 4)
+	go func() {
+		for {
+			p.Collect()
+			select {
+			case <-p.Melted():
+				return
+			default:
+			}
+		}
+	}()
+	<-time.After(10 * time.Second)
+
+	p.End()
+	<-p.Melted()
+	if got := p.Count(); got != 0 {
+		t.Errorf("Count() = %d, want 0 after End()", got)
+	}
+}
+
+func TestWebRTCDialerConstruction(t *testing.T) {
+	t.Parallel()
+
+	broker := &BrokerChannel{}
+	d := NewWebRTCDialer(broker, nil, 1)
+	if d == nil {
+		t.Fatal("NewWebRTCDialer returned nil")
+	}
+	if d.BrokerChannel == nil {
+		t.Error("BrokerChannel is nil")
+	}
+}
+
+func TestWebRTCDialerCatch(t *testing.T) {
+	t.Skip("disabled: Catch against an empty BrokerChannel blocks")
+
+	broker := &BrokerChannel{}
+	d := NewWebRTCDialer(broker, nil, 1)
+	conn, err := d.Catch()
+	if conn != nil {
+		t.Errorf("Catch() = %v, want nil", conn)
+	}
+	if err == nil {
+		t.Error("Catch() succeeded, want error")
+	}
+}
+
+func TestWebRTCPeerStaleness(t *testing.T) {
+	t.Parallel()
+
+	p := &WebRTCPeer{
+		closed:       make(chan struct{}),
+		eventsLogger: event.NewSnowflakeEventDispatcher(),
+	}
+	go p.checkForStaleness(time.Second)
+	<-time.After(2 * time.Second)
+	if !p.Closed() {
+		t.Error("peer was not closed after the staleness timeout elapsed")
+	}
 }
 
 func TestICEServerParser(t *testing.T) {
 	t.Parallel()
 
-	Convey("Test parsing of ICE servers", t, func() {
-		for _, test := range []struct {
-			input  []string
-			urls   [][]string
-			length int
-		}{
-			{
-				[]string{"stun:stun.l.google.com:19302", "stun:stun.ekiga.net"},
-				[][]string{{"stun:stun.l.google.com:19302"}, {"stun:stun.ekiga.net:3478"}},
-				2,
-			},
-			{
-				[]string{"stun:stun1.l.google.com:19302", "stun.ekiga.net", "stun:stun.example.com:1234/path?query",
-					"https://example.com", "turn:relay.metered.ca:80?transport=udp"},
-				[][]string{{"stun:stun1.l.google.com:19302"}},
-				1,
-			},
-		} {
-			servers := parseIceServers(test.input)
+	for _, test := range []struct {
+		input  []string
+		urls   [][]string
+		length int
+	}{
+		{
+			[]string{"stun:stun.l.google.com:19302", "stun:stun.ekiga.net"},
+			[][]string{{"stun:stun.l.google.com:19302"}, {"stun:stun.ekiga.net:3478"}},
+			2,
+		},
+		{
+			// Only well-formed stun: URLs are kept; the rest are dropped.
+			[]string{"stun:stun1.l.google.com:19302", "stun.ekiga.net", "stun:stun.example.com:1234/path?query",
+				"https://example.com", "turn:relay.metered.ca:80?transport=udp"},
+			[][]string{{"stun:stun1.l.google.com:19302"}},
+			1,
+		},
+	} {
+		servers := parseIceServers(test.input)
 
-			if test.urls == nil {
-				So(servers, ShouldBeNil)
-			} else {
-				So(servers, ShouldNotBeNil)
-			}
-
-			So(len(servers), ShouldEqual, test.length)
-
-			for _, server := range servers {
-				So(test.urls, ShouldContain, server.URLs)
-			}
-
+		if test.urls == nil && servers != nil {
+			t.Errorf("parseIceServers(%v) = %v, want nil", test.input, servers)
 		}
-
-	})
+		if test.urls != nil && servers == nil {
+			t.Errorf("parseIceServers(%v) = nil, want non-nil", test.input)
+		}
+		if got := len(servers); got != test.length {
+			t.Errorf("parseIceServers(%v) returned %d servers, want %d", test.input, got, test.length)
+		}
+		for _, server := range servers {
+			if !slices.ContainsFunc(test.urls, func(urls []string) bool {
+				return slices.Equal(urls, server.URLs)
+			}) {
+				t.Errorf("parseIceServers(%v) returned unexpected URLs %v", test.input, server.URLs)
+			}
+		}
+	}
 }
