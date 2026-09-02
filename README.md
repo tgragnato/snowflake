@@ -10,23 +10,27 @@ Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by 
 
 ![Schematic](docs/schematic.png)
 
-- golang 1.26+ & bumped dependencies
-- custom transport for broker negotiation (TLS 1.3 with selected ciphersuites & groups, MultiPath TCP)
-- custom DTLS fingerprint, different from any popular WebRTC implementation
-- use the Setting Engine to reduce MulticastDNS noise
-- use a context aware io.Reader that closes on errors in copyLoop
-- extremely simple token handling
-- client padding to evade TLS in DTLS detection
-- introduction of a proxy option to force the NAT type as unrestricted
-- coder/websocket in place of gorilla/websocket
+This fork differs from upstream Snowflake in the following ways:
+
+- Requires Go 1.26 or later, with updated dependencies.
+- Uses a custom transport for broker negotiation: TLS 1.3 with a selected set of cipher suites and groups, over MultiPath TCP.
+- Ships a custom DTLS fingerprint, different from any popular WebRTC implementation.
+- Uses pion's Setting Engine to reduce MulticastDNS noise.
+- Uses a context-aware `io.Reader` in `copyLoop` that closes on errors.
+- Keeps token handling extremely simple.
+- Pads client traffic to evade TLS-in-DTLS detection.
+- Adds a proxy option to force the NAT type to unrestricted.
+- Uses `coder/websocket` in place of `gorilla/websocket`.
 
 **Table of Contents**
 
+- [Custom fork](#custom-fork)
 - [Structure of this Repository](#structure-of-this-repository)
 - [Usage](#usage)
   - [Using Snowflake with Tor](#using-snowflake-with-tor)
   - [Running a Snowflake Proxy](#running-a-snowflake-proxy)
   - [Using the Snowflake Library with Other Applications](#using-the-snowflake-library-with-other-applications)
+- [uTLS settings](#utls-settings)
 - [Development](#development)
 - [FAQ](#faq)
 - [More info and links](#more-info-and-links)
@@ -59,6 +63,16 @@ You can contribute to Snowflake by running a Snowflake proxy. We have the option
 
 Snowflake can be used as a Go API, and adheres to the [v2.1 pluggable transports specification](https://github.com/Pluggable-Transports/Pluggable-Transports-spec/blob/master/releases/PTSpecV2.1/Pluggable%20Transport%20Specification%20v2.1%20-%20Go%20Transport%20API.pdf). For more information on using the Snowflake Go library, see the [Snowflake library documentation](docs/using-the-snowflake-library.md).
 
+### uTLS settings
+
+The client reaches the broker, which acts as the signaling server, over a domain-fronted TLS connection. Without further configuration, that connection is identifiable by the ClientHello fingerprint of the Go TLS stack.
+
+uTLS is a library that imitates the ClientHello fingerprint of browsers and other widely deployed TLS stacks, so that a censor cannot single out Snowflake traffic by its fingerprint alone. Select a fingerprint to imitate with `-utls-imitate`, and run the client with `-version` to list the supported values.
+
+Not every fingerprint works against every server: some extensions are not fully implemented, so the result depends on both the client and the server configuration.
+
+You can also drop the SNI (Server Name Indication) extension from the ClientHello with `-utls-nosni`. Not all servers accept connections without it.
+
 ### Development
 
 Build with `go build -v ./...` and test with `CGO_ENABLED=1 go test -race ./...`. See the
@@ -73,14 +87,14 @@ compatibility) that changes must preserve.
 In the Tor use-case:
 
 1. Volunteers visit websites that host the 'snowflake' proxy, run a snowflake [web extension](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake-webext), or use a standalone proxy.
-2. Tor clients automatically find available browser proxies via the Broker
-(the domain fronted signaling channel).
-3. Tor client and browser proxy establish a WebRTC peer connection.
-4. Proxy connects to some relay.
-5. Tor occurs.
+2. Tor clients automatically find available proxies through the broker, the domain-fronted signaling channel.
+3. The Tor client and the proxy establish a WebRTC peer connection.
+4. The proxy connects to a relay.
+5. The client bootstraps Tor over that connection.
 
-More detailed information about how clients, snowflake proxies, and the Broker
-fit together on the way...
+For how clients, proxies, the broker and the server fit together, see the
+[broker](docs/broker.md), [client](docs/client.md), [proxy](docs/proxy.md) and
+[server](docs/server.md) documentation.
 
 **Q: What are the benefits of this PT compared with other PTs?**
 
@@ -103,13 +117,3 @@ abundance of ephemeral and short-lived (and special!) volunteer proxies...
 ### More info and links
 
 We have more documentation in the [Snowflake wiki](https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/wikis/home) and at https://snowflake.torproject.org/.
-
-##### uTLS Settings
-
-Snowflake communicate with broker that serves as signaling server with TLS based domain fronting connection, which may be identified by its usage of Go language TLS stack.
-
-uTLS is a software library designed to initiate the TLS Client Hello fingerprint of browsers or other popular software's TLS stack to evade censorship based on TLS client hello fingerprint with `-utls-imitate` . You can use `-version` to see a list of supported values.
-
-Depending on client and server configuration, it may not always work as expected as not all extensions are correctly implemented.
-
-You can also remove SNI (Server Name Indication) from client hello to evade censorship with `-utls-nosni`, not all servers supports this.

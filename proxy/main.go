@@ -22,9 +22,9 @@ const minPollInterval = 2 * time.Second
 
 func main() {
 	pollInterval := flag.Duration("poll-interval", sf.DefaultPollInterval,
-		fmt.Sprint("a deprecated fallback value for often to ask the broker for a new client. Proxies will dynamically change their poll interval based on broker recommendation. Minumum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
+		fmt.Sprint("a deprecated fallback value for how often to ask the broker for a new client. Proxies will dynamically change their poll interval based on broker recommendation. Minimum value is ", minPollInterval, ". Valid time units are \"ms\", \"s\", \"m\", \"h\"."))
 	capacity := flag.Uint("capacity", 0, "maximum concurrent clients (default is to accept an unlimited number of clients)")
-	stunURL := flag.String("stun", sf.DefaultSTUNURL, "Comma-separated STUN server `URL`s that this proxy will use will use to, among some other things, determine its public IP address")
+	stunURL := flag.String("stun", sf.DefaultSTUNURL, "Comma-separated STUN server `URL`s that this proxy will use to determine its public IP address, among other things")
 	logFilename := flag.String("log", "", "log `filename`. If not specified, logs will be output to stderr (console).")
 	rawBrokerURL := flag.String("broker", sf.DefaultBrokerURL, "The `URL` of the broker server that the proxy will be using to find clients")
 	unsafeLogging := flag.Bool("unsafe-logging", false, "keep IP addresses and other sensitive info in the logs")
@@ -38,7 +38,7 @@ func main() {
 	allowNonTLSRelay := flag.Bool("allow-non-tls-relay", false, "allow this proxy to pass client's data to the relay in an unencrypted form.\nThis is only useful if the relay doesn't support encryption, e.g. for testing / development purposes.")
 	NATTypeForceUnrestricted := flag.Bool("nat-type-force-unrestricted", false, "force the NAT type as unrestricted")
 	NATTypeMeasurementInterval := flag.Duration("nat-retest-interval", time.Hour*24,
-		"the time interval between NAT type is retests (see \"nat-probe-server\"). 0s disables retest. Valid time units are \"s\", \"m\", \"h\".")
+		"the time interval between NAT type retests (see \"nat-probe-server\"). 0s disables retesting. Valid time units are \"s\", \"m\", \"h\".")
 	summaryInterval := flag.Duration("summary-interval", time.Hour,
 		"the time interval between summary log outputs, 0s disables summaries. Valid time units are \"s\", \"m\", \"h\".")
 	disableStatsLogger := flag.Bool("disable-stats-logger", false, "disable the exposing mechanism for stats using logs")

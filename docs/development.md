@@ -16,7 +16,7 @@ The Go module path is `tgragnato.it/snowflake` and the minimum Go version is 1.2
 - `broker/` — the broker (rendezvous / signaling server), including the SQS rendezvous method.
 - `client/` — the Tor pluggable-transport client (`client/snowflake.go`, where the
   command-line flags and per-bridge `torrc` args are parsed) and the client library
-  (`client/lib/`). The example `torrc` and `torrc.localhost` live here.
+  (`client/lib/`). The example `torrc` configurations live in [`client.md`](client.md).
 - `common/` — libraries shared by several components: turbotunnel/KCP session persistence,
   SDP encapsulation, NAT type handling, event logging, bridge fingerprints, safe logging.
 - `proxy/` — the standalone Go proxy: `proxy/main.go` for the flags, `proxy/lib/` for the logic.
