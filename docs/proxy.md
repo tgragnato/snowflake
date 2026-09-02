@@ -93,3 +93,96 @@ Usage of ./proxy:
 ```
 
 For more information on how to run a Snowflake proxy in deployment, see our [community documentation](https://community.torproject.org/relay/setup/snowflake/standalone/).
+
+## Systemd
+
+The Snowflake proxy can be run as a systemd service. Here is an example unit file:
+
+```
+[Unit]
+Description=Snowflake Proxy Daemon
+Wants=network-online.target
+After=network.target network-online.target
+
+[Service]
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+ProtectProc=invisible
+SystemCallArchitectures=native
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+UMask=777
+ProtectHostname=yes
+RestrictNamespaces=yes
+ProcSubset=pid
+CapabilityBoundingSet=
+PrivateTmp=yes
+RestrictSUIDSGID=true
+NoNewPrivileges=true
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallFilter=~@resources @privileged
+IPAddressDeny=link-local multicast
+DevicePolicy=closed
+User=proxy
+Group=proxy
+LimitNOFILE=32768
+ExecStart=/usr/bin/snowflake -unsafe-logging
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+To enable and start the service:
+
+```bash
+sudo systemctl enable snowflake-proxy
+sudo systemctl start snowflake-proxy
+```
+
+## OpenBSD
+
+On OpenBSD, the Snowflake proxy can be managed using the `rc.d` system. Here is an example rc script:
+
+```
+#!/bin/ksh
+
+daemon="/usr/local/bin/snowflake"
+daemon_logger="daemon.info"
+daemon_user="nobody"
+
+. /etc/rc.d/rc.subr
+
+rc_bg=YES
+rc_reload=NO
+
+rc_cmd $1
+```
+
+To use this script, save it as `/etc/rc.d/snowflake-proxy` and make it executable:
+
+```bash
+chmod +x /etc/rc.d/snowflake-proxy
+```
+
+To start the proxy:
+
+```bash
+sudo /etc/rc.d/snowflake-proxy start
+```
+
+To stop the proxy:
+
+```bash
+sudo /etc/rc.d/snowflake-proxy stop
+```

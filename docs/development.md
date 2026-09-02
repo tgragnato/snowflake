@@ -25,8 +25,7 @@ The Go module path is `tgragnato.it/snowflake` and the minimum Go version is 1.2
 - `probetest/` — the NAT / interactive-connectivity probe-testing service.
 - `dtls/` — the forked DTLS stack that carries this fork's custom handshake fingerprint.
 - `distinctcounter/` — cardinality counting used for broker metrics.
-- `docs/` — documentation, manpages (`snowflake-client.1`, `snowflake-proxy.1`), the systemd
-  unit, the OpenBSD rc script, and `schematic.png`.
+- `docs/` — documentation and `schematic.png`.
 
 ### Build, test, lint
 
