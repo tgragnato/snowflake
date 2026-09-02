@@ -191,7 +191,12 @@ func (c *WebRTCPeer) connect(
 	log.Println(c.id, " connecting...")
 
 	err := c.preparePeerConnection(config, broker.keepLocalAddresses)
-	localDescription := c.pc.LocalDescription()
+	// preparePeerConnection can fail before the PeerConnection exists, for
+	// example when the configured proxy speaks a protocol we don't support.
+	var localDescription *webrtc.SessionDescription
+	if c.pc != nil {
+		localDescription = c.pc.LocalDescription()
+	}
 	c.eventsLogger.OnNewSnowflakeEvent(event.EventOnOfferCreated{
 		WebRTCLocalDescription: localDescription,
 		Error:                  err,
