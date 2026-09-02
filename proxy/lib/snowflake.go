@@ -815,6 +815,11 @@ func checkIsRelayURLAcceptable(
 func (sf *SnowflakeProxy) Start() error {
 	var err error
 
+	// The dispatcher is optional for library users, so it has to be filled in
+	// before the first event is emitted.
+	if sf.EventDispatcher == nil {
+		sf.EventDispatcher = event.NewSnowflakeEventDispatcher()
+	}
 	sf.EventDispatcher.OnNewSnowflakeEvent(event.EventOnProxyStarting{})
 	sf.shutdown = make(chan struct{})
 
@@ -839,9 +844,6 @@ func (sf *SnowflakeProxy) Start() error {
 	}
 	if sf.ProxyType == "" {
 		sf.ProxyType = DefaultProxyType
-	}
-	if sf.EventDispatcher == nil {
-		sf.EventDispatcher = event.NewSnowflakeEventDispatcher()
 	}
 
 	sf.bytesLogger = newBytesSyncLogger()
