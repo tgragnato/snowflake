@@ -280,7 +280,8 @@ func (s *SignalingServer) Post(path string, payload io.Reader) ([]byte, error) {
 func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayPattern string) (*messages.ProxyPollResponse, error) {
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
-	numClients := (tokens / 8) * 8 // Round down to 8
+	// tokens is updated atomically by the connection handlers.
+	numClients := (atomic.LoadUint64(&tokens) / 8) * 8 // Round down to 8
 	currentNATTypeLoaded := getCurrentNATType()
 	req := messages.ProxyPollRequest{
 		Sid:                  sid,
@@ -902,7 +903,7 @@ func (sf *SnowflakeProxy) Start() error {
 			},
 		},
 	}
-	tokens = 0
+	atomic.StoreUint64(&tokens, 0)
 
 	if sf.NATTypeForceUnrestricted {
 		setCurrentNATType(NATUnrestricted)

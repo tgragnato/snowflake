@@ -665,6 +665,27 @@ func TestStartPollsUntilStopped(t *testing.T) {
 	}
 }
 
+// newTimeoutTestConn builds a webRTCConn with a short inactivity timeout and
+// starts its timeout loop, the way newWebRTCConn does with the production one.
+func newTimeoutTestConn(t *testing.T, pc *webrtc.PeerConnection, pr *io.PipeReader, timeout time.Duration) *webRTCConn {
+	t.Helper()
+
+	conn := &webRTCConn{
+		pc:                pc,
+		pr:                pr,
+		bytesLogger:       &stubBytesLogger{},
+		activity:          make(chan struct{}, 100),
+		sendMoreCh:        make(chan struct{}, 1),
+		inactivityTimeout: timeout,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	conn.cancelTimeoutLoop = cancel
+	t.Cleanup(cancel)
+	go conn.timeoutLoop(ctx)
+
+	return conn
+}
+
 // The connection is dropped when nothing has been exchanged for a while, so
 // that a vanished client does not hold a slot forever.
 func TestWebRTCConnClosesOnInactivity(t *testing.T) {
@@ -678,14 +699,10 @@ func TestWebRTCConnClosesOnInactivity(t *testing.T) {
 	pr, pw := io.Pipe()
 	defer pw.Close()
 
-	conn := newWebRTCConn(pc, nil, pr, &stubBytesLogger{})
-	// Replace the 30 second production timeout with one the test can wait for.
-	conn.cancelTimeoutLoop()
-	conn.inactivityTimeout = 50 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	conn.cancelTimeoutLoop = cancel
-	go conn.timeoutLoop(ctx)
+	// Built by hand rather than with newWebRTCConn, so that the production
+	// 30 second timeout can be replaced with one the test can wait for before
+	// the loop starts reading it.
+	conn := newTimeoutTestConn(t, pc, pr, 50*time.Millisecond)
 
 	// Reads fail once the timeout closes the pipe.
 	buf := make([]byte, 1)
@@ -710,13 +727,7 @@ func TestWebRTCConnInactivityTimerIsReset(t *testing.T) {
 	pr, pw := io.Pipe()
 	defer pw.Close()
 
-	conn := newWebRTCConn(pc, nil, pr, &stubBytesLogger{})
-	conn.cancelTimeoutLoop()
-	conn.inactivityTimeout = 200 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	conn.cancelTimeoutLoop = cancel
-	go conn.timeoutLoop(ctx)
+	conn := newTimeoutTestConn(t, pc, pr, 200*time.Millisecond)
 
 	for range 5 {
 		conn.activity <- struct{}{}
