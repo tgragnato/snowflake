@@ -65,7 +65,7 @@ var (
 	ErrInvalidCertificateSignatureAlgorithm = errInvalidCertificateSignatureAlg
 	ErrKeySignatureMismatch                 = stderrors.New("expected and actual key signature do not match")
 	ErrInvalidCertificateOID                = errInvalidCertificateOID
-	ErrNilNextConn                          = stderrors.New("Conn can not be created with a nil nextConn")
+	ErrNilNextConn                          = stderrors.New("conn can not be created with a nil nextConn")
 	ErrNoAvailableCipherSuites              = errNoAvailableCipherSuites
 	ErrNoAvailablePSKCipherSuite            = errNoAvailablePSKCipherSuite
 	ErrNoAvailableCertificateCipherSuite    = errNoAvailableCertificateSuite

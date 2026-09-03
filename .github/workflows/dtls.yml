@@ -1,0 +1,73 @@
+name: DTLS
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "dtls/**"
+      - ".github/workflows/dtls.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "dtls/**"
+      - ".github/workflows/dtls.yml"
+
+jobs:
+
+  build:
+
+    name: Build
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: read
+      pull-requests: read
+
+    strategy:
+      matrix:
+        go-version: [ '1.26', '1.27' ]
+
+    defaults:
+      run:
+        working-directory: dtls
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v7
+
+    - name: Set up Go ${{ matrix.go-version }}
+      uses: actions/setup-go@v7
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      run: CGO_ENABLED=1 go test -v -race $(go list ./... | grep -v '/e2e')
+      if: ${{ matrix.go-version == '1.26' }}
+
+    - name: Test
+      run: CGO_ENABLED=1 go test -v -race $(go list ./... | grep -v '/e2e') -covermode=atomic -coverprofile=coverage.out
+      if: ${{ matrix.go-version == '1.27' }}
+
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v7
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      with:
+        files: ./dtls/coverage.out
+        flags: unittests-dtls
+        verbose: true
+      if: ${{ matrix.go-version == '1.27' }}
+
+    - name: GoLang CI Lint
+      uses: golangci/golangci-lint-action@v9
+      with:
+        version: latest
+        working-directory: dtls
+      if: ${{ matrix.go-version == '1.27' }}

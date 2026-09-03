@@ -418,10 +418,7 @@ func flight4Generate(
 			// an appropriate certificate to give to us.
 			var certificateAuthorities [][]byte
 			if cfg.ClientCAs != nil {
-				// ignoring tlsCert.RootCAs.Subjects is deprecated ERR
-				// because cert does not come from SystemCertPool and it's ok if certificate
-				// authorities is empty.
-				certificateAuthorities = cfg.ClientCAs.Subjects()
+				certificateAuthorities = cfg.ClientCAs.Subjects() //nolint:staticcheck // Needed to include CA subject hints in CertificateRequest.
 			}
 
 			certReq := &handshake.MessageCertificateRequest{

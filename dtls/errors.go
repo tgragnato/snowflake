@@ -41,7 +41,7 @@ type alertError struct {
 }
 
 func (e *alertError) Error() string {
-	return fmt.Sprintf("alert: %s", e.Alert.String())
+	return fmt.Sprintf("alert: %s", e.String())
 }
 
 func (e *alertError) IsFatalOrCloseNotify() bool {

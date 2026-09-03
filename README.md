@@ -1,6 +1,7 @@
 # Snowflake
 
 [![Go](https://github.com/tgragnato/snowflake/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/go.yml)
+[![DTLS](https://github.com/tgragnato/snowflake/actions/workflows/dtls.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/dtls.yml)
 [![CodeQL](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/tgragnato/snowflake/branch/main/graph/badge.svg)](https://codecov.io/gh/tgragnato/snowflake)
 
