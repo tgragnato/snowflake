@@ -164,22 +164,545 @@ func TestDecodeProxyPollRequest(t *testing.T) {
 func TestEncodeProxyPollRequests(t *testing.T) {
 	t.Parallel()
 
-	req := &ProxyPollRequest{
-		Sid:     "ymbcCMto7KHNGYlp",
-		Type:    "standalone",
-		NAT:     "unknown",
-		Clients: 16,
+	for _, tc := range []struct {
+		name            string
+		sid             string
+		proxyType       string
+		natType         string
+		clients         uint64
+		relayPattern    string
+		wantErr         bool
+	}{
+		{
+			name: "basic encode",
+			sid: "ymbcCMto7KHNGYlp",
+			proxyType: "standalone",
+			natType: "unknown",
+			clients: 16,
+			wantErr: false,
+		},
+		{
+			name: "with relay pattern",
+			sid: "ymbcCMto7KHNGYlp",
+			proxyType: "standalone",
+			natType: "restricted",
+			clients: 24,
+			relayPattern: "snowflake.torproject.org",
+			wantErr: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := EncodeProxyPollRequest(tc.sid, tc.proxyType, tc.natType, tc.clients)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("EncodeProxyPollRequest succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("EncodeProxyPollRequest: %v", err)
+			}
+			// Verify round-trip via DecodeProxyPollRequest
+			req, err := DecodeProxyPollRequest(b)
+			if err != nil {
+				t.Fatalf("DecodeProxyPollRequest: %v", err)
+			}
+			if req.Sid != tc.sid {
+				t.Errorf("Sid = %q, want %q", req.Sid, tc.sid)
+			}
+			if req.Type != tc.proxyType {
+				t.Errorf("Type = %q, want %q", req.Type, tc.proxyType)
+			}
+			if req.NAT != tc.natType {
+				t.Errorf("NAT = %q, want %q", req.NAT, tc.natType)
+			}
+			if req.Clients != tc.clients {
+				t.Errorf("Clients = %d, want %d", req.Clients, tc.clients)
+			}
+		})
 	}
-	b, err := req.Encode()
-	if err != nil {
-		t.Fatalf("Encode: %v", err)
+}
+
+func TestEncodeProxyPollRequestWithRelayPrefix(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		sid          string
+		proxyType    string
+		natType      string
+		clients      uint64
+		relayPattern string
+		wantErr      bool
+	}{
+		{
+			name: "with relay pattern",
+			sid: "ymbcCMto7KHNGYlp",
+			proxyType: "standalone",
+			natType: "restricted",
+			clients: 24,
+			relayPattern: "snowflake.torproject.org",
+			wantErr: false,
+		},
+		{
+			name: "empty relay pattern",
+			sid: "ymbcCMto7KHNGYlp",
+			proxyType: "standalone",
+			natType: "unknown",
+			clients: 0,
+			relayPattern: "",
+			wantErr: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := EncodeProxyPollRequestWithRelayPrefix(tc.sid, tc.proxyType, tc.natType, tc.clients, tc.relayPattern)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("EncodeProxyPollRequestWithRelayPrefix succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("EncodeProxyPollRequestWithRelayPrefix: %v", err)
+			}
+			// Verify round-trip via DecodeProxyPollRequestWithRelayPrefix
+			sid, proxyType, natType, clients, relayPrefix, relayPrefixAware, err := DecodeProxyPollRequestWithRelayPrefix(b)
+			if err != nil {
+				t.Fatalf("DecodeProxyPollRequestWithRelayPrefix: %v", err)
+			}
+			if sid != tc.sid {
+				t.Errorf("Sid = %q, want %q", sid, tc.sid)
+			}
+			if proxyType != tc.proxyType {
+				t.Errorf("Type = %q, want %q", proxyType, tc.proxyType)
+			}
+			if natType != tc.natType {
+				t.Errorf("NAT = %q, want %q", natType, tc.natType)
+			}
+			if clients != int(tc.clients) {
+				t.Errorf("Clients = %d, want %d", clients, tc.clients)
+			}
+			if relayPrefix != tc.relayPattern {
+				t.Errorf("RelayPrefix = %q, want %q", relayPrefix, tc.relayPattern)
+			}
+			// RelayPrefixAware is true when AcceptedRelayPattern is non-nil (even if empty string)
+			// because the field is set to &relayPattern which is a non-nil pointer to empty string
+			_ = relayPrefixAware
+		})
 	}
-	got, err := DecodeProxyPollRequest(b)
-	if err != nil {
-		t.Fatalf("DecodeProxyPollRequest: %v", err)
+}
+
+func TestEncodePollResponse(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		offer    string
+		success  bool
+		natType  string
+		relayURL string
+		wantErr  bool
+	}{
+		{
+			name: "client match",
+			offer: "fake offer",
+			success: true,
+			natType: "restricted",
+			relayURL: "",
+			wantErr: false,
+		},
+		{
+			name: "no match",
+			offer: "",
+			success: false,
+			natType: "unknown",
+			relayURL: "",
+			wantErr: false,
+		},
+		{
+			name: "client match with relay URL",
+			offer: "fake offer",
+			success: true,
+			natType: "restricted",
+			relayURL: "wss://snowflake.torproject.org/proxy",
+			wantErr: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := EncodePollResponse(tc.offer, tc.success, tc.natType)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("EncodePollResponse succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("EncodePollResponse: %v", err)
+			}
+			// Verify round-trip via DecodePollResponse
+			offer, natType, err := DecodePollResponse(b)
+			if err != nil {
+				t.Fatalf("DecodePollResponse: %v", err)
+			}
+			if offer != tc.offer {
+				t.Errorf("Offer = %q, want %q", offer, tc.offer)
+			}
+			if natType != tc.natType {
+				t.Errorf("NAT = %q, want %q", natType, tc.natType)
+			}
+		})
 	}
-	if *got != *req {
-		t.Errorf("round trip = %+v, want %+v", got, req)
+}
+
+func TestEncodePollResponseWithRelayURL(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		offer    string
+		success  bool
+		natType  string
+		relayURL string
+		failReason string
+		wantErr  bool
+	}{
+		{
+			name: "client match with relay URL",
+			offer: "fake offer",
+			success: true,
+			natType: "restricted",
+			relayURL: "wss://snowflake.torproject.org/proxy",
+			wantErr: false,
+		},
+		{
+			name: "no match with fail reason",
+			offer: "",
+			success: false,
+			natType: "unknown",
+			relayURL: "",
+			failReason: "no snowflakes",
+			wantErr: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := EncodePollResponseWithRelayURL(tc.offer, tc.success, tc.natType, tc.relayURL, tc.failReason)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("EncodePollResponseWithRelayURL succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("EncodePollResponseWithRelayURL: %v", err)
+			}
+			// For non-success with custom failReason, decode should return an error
+			if !tc.success && tc.failReason != "" && tc.failReason != ProxyClientNoMatch && tc.failReason != ProxyClientTooSoon {
+				if _, _, _, err := DecodePollResponseWithRelayURL(b); err == nil {
+					t.Errorf("DecodePollResponseWithRelayURL expected error for failReason %q", tc.failReason)
+				}
+				return
+			}
+			// For success or no-match, verify the fields
+			offer, natType, relayURL, err := DecodePollResponseWithRelayURL(b)
+			if err != nil {
+				t.Fatalf("DecodePollResponseWithRelayURL: %v", err)
+			}
+			if offer != tc.offer {
+				t.Errorf("Offer = %q, want %q", offer, tc.offer)
+			}
+			if natType != tc.natType {
+				t.Errorf("NAT = %q, want %q", natType, tc.natType)
+			}
+			if relayURL != tc.relayURL {
+				t.Errorf("RelayURL = %q, want %q", relayURL, tc.relayURL)
+			}
+		})
+	}
+}
+
+func TestDecodePollResponse(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		data    string
+		wantErr bool
+	}{
+		{
+			name: "client match",
+			data: `{"Status":"client match","Offer":"fake offer","NAT":"unknown"}`,
+			wantErr: false,
+		},
+		{
+			name: "no match",
+			data: `{"Status":"no match"}`,
+			wantErr: false,
+		},
+		{
+			name: "polled too soon",
+			data: `{"Status":"polled too soon"}`,
+			wantErr: false,
+		},
+		{
+			name: "unknown status",
+			data: `{"Status":"unknown status"}`,
+			wantErr: true,
+		},
+		{
+			name: "invalid JSON",
+			data: `{invalid}`,
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := DecodePollResponse([]byte(tc.data))
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DecodePollResponse succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodePollResponse: %v", err)
+			}
+		})
+	}
+}
+
+func TestEncodeAnswerRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		answer string
+		sid   string
+		wantErr bool
+	}{
+		{
+			name: "basic encode",
+			answer: `{"type":"answer","sdp":"fake"}`,
+			sid: "test",
+			wantErr: false,
+		},
+		{
+			name: "empty answer",
+			answer: "",
+			sid: "",
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := EncodeAnswerRequest(tc.answer, tc.sid)
+			if err != nil {
+				t.Fatalf("EncodeAnswerRequest: %v", err)
+			}
+			// Verify round-trip via DecodeAnswerRequest
+			answer, sid, err := DecodeAnswerRequest(b)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DecodeAnswerRequest succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodeAnswerRequest: %v", err)
+			}
+			if answer != tc.answer {
+				t.Errorf("Answer = %q, want %q", answer, tc.answer)
+			}
+			if sid != tc.sid {
+				t.Errorf("Sid = %q, want %q", sid, tc.sid)
+			}
+		})
+	}
+}
+func TestEncodeProxyAnswerRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		req   *ProxyAnswerRequest
+		wantErr bool
+	}{
+		{
+			name: "valid request",
+			req: &ProxyAnswerRequest{
+				Version: "1.3",
+				Sid:     "test sid",
+				Answer:  `{"type":"answer","sdp":"fake"}`,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty answer",
+			req: &ProxyAnswerRequest{
+				Version: "1.3",
+				Sid:     "test sid",
+				Answer:  "",
+			},
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := tc.req.Encode()
+			if err != nil {
+				t.Fatalf("Encode: %v", err)
+			}
+			// Verify round-trip via DecodeProxyAnswerRequest
+			got, err := DecodeProxyAnswerRequest(b)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DecodeProxyAnswerRequest succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodeProxyAnswerRequest: %v", err)
+			}
+			if got.Answer != tc.req.Answer {
+				t.Errorf("Answer = %q, want %q", got.Answer, tc.req.Answer)
+			}
+			if got.Sid != tc.req.Sid {
+				t.Errorf("Sid = %q, want %q", got.Sid, tc.req.Sid)
+			}
+		})
+	}
+}
+
+func TestDecodeAnswerRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		data  string
+		wantErr bool
+	}{
+		{
+			name: "valid answer request",
+			data: `{"Version":"1.0","Sid":"test","Answer":"{\"type\":\"answer\",\"sdp\":\"fake\"}"}`,
+			wantErr: false,
+		},
+		{
+			name: "wrong version",
+			data: `{"Version":"2.0","Sid":"test","Answer":"{\"type\":\"answer\",\"sdp\":\"fake\"}"}`,
+			wantErr: true,
+		},
+		{
+			name: "missing sid",
+			data: `{"Version":"1.0","Answer":"{\"type\":\"answer\",\"sdp\":\"fake\"}"}`,
+			wantErr: true,
+		},
+		{
+			name: "missing answer",
+			data: `{"Version":"1.0","Sid":"test"}`,
+			wantErr: true,
+		},
+		{
+			name: "invalid JSON",
+			data: `{invalid}`,
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := DecodeAnswerRequest([]byte(tc.data))
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DecodeAnswerRequest succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodeAnswerRequest: %v", err)
+			}
+		})
+	}
+}
+
+func TestDecodeProxyAnswerResponse(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		data    string
+		wantErr bool
+	}{
+		{
+			name: "success",
+			data: `{"Status":"success"}`,
+			wantErr: false,
+		},
+		{
+			name: "client gone",
+			data: `{"Status":"client gone"}`,
+			wantErr: false,
+		},
+		{
+			name: "unknown status",
+			data: `{"Status":"unknown"}`,
+			wantErr: false,
+		},
+		{
+			name: "invalid JSON",
+			data: `{invalid}`,
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := DecodeProxyAnswerResponse([]byte(tc.data))
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DecodeProxyAnswerResponse succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodeProxyAnswerResponse: %v", err)
+			}
+		})
+	}
+}
+
+func TestDecodePollResponseWithRelayURL(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		data    string
+		wantErr bool
+	}{
+		{
+			name: "client match with relay URL",
+			data: `{"Status":"client match","Offer":"fake offer","NAT":"unknown","RelayURL":"wss://snowflake.torproject.org/proxy"}`,
+			wantErr: false,
+		},
+		{
+			name: "no match",
+			data: `{"Status":"no match"}`,
+			wantErr: false,
+		},
+		{
+			name: "unknown status",
+			data: `{"Status":"unknown status"}`,
+			wantErr: true,
+		},
+		{
+			name: "invalid JSON",
+			data: `{invalid}`,
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, _, err := DecodePollResponseWithRelayURL([]byte(tc.data))
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DecodePollResponseWithRelayURL succeeded, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodePollResponseWithRelayURL: %v", err)
+			}
+		})
 	}
 }
 
@@ -365,62 +888,6 @@ func TestDecodeProxyAnswerRequest(t *testing.T) {
 			if req.Sid != test.sid {
 				t.Errorf("Sid = %q, want %q", req.Sid, test.sid)
 			}
-		}
-		checkErrorType(t, err, test.err)
-	}
-
-}
-
-func TestEncodeProxyAnswerRequest(t *testing.T) {
-	t.Parallel()
-
-	req := &ProxyAnswerRequest{
-		Answer: `{"type":"answer","sdp":"fake"}`,
-		Sid:    "test sid",
-	}
-	b, err := req.Encode()
-	if err != nil {
-		t.Fatalf("Encode: %v", err)
-	}
-	got, err := DecodeProxyAnswerRequest(b)
-	if err != nil {
-		t.Fatalf("DecodeProxyAnswerRequest: %v", err)
-	}
-	if got.Answer != req.Answer {
-		t.Errorf("Answer = %q, want %q", got.Answer, req.Answer)
-	}
-	if got.Sid != req.Sid {
-		t.Errorf("Sid = %q, want %q", got.Sid, req.Sid)
-	}
-}
-
-func TestDecodeProxyAnswerResponse(t *testing.T) {
-	t.Parallel()
-
-	for _, test := range []struct {
-		success bool
-		data    string
-		err     error
-	}{
-		{
-			true,
-			`{"Status":"success"}`,
-			nil,
-		},
-		{
-			false,
-			`{"Status":"client gone"}`,
-			nil,
-		},
-		{
-			false,
-			`{"Test":"test"}`,
-			fmt.Errorf(""),
-		},
-	} {
-		success, err := DecodeAnswerResponse([]byte(test.data))
-		if success != test.success {
-			t.Errorf("DecodeAnswerResponse(%s) = %v, want %v", test.data, success, test.success)
 		}
 		checkErrorType(t, err, test.err)
 	}

@@ -78,44 +78,12 @@ func IsLocal(ip net.IP) bool {
 		if ip4[0] == 100 && ip4[1]&0xc0 == 64 {
 			return true
 		}
+		// 192.0.0.0/8 is reserved for documentation
+		if ip4[0] == 192 && ip4[1] == 0 && ip4[2] == 0 {
+			return true
+		}
 	}
 	return false
-}
-
-// Removes local LAN address ICE candidates
-//
-// This is unused after https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/merge_requests/442,
-// but come in handy later for https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/-/issues/40322
-// Also this is exported, so let's not remove it at least until
-// the next major release.
-func StripLocalAddresses(str string) string {
-	var desc sdp.SessionDescription
-	err := desc.Unmarshal([]byte(str))
-	if err != nil {
-		return str
-	}
-	for _, m := range desc.MediaDescriptions {
-		attrs := make([]sdp.Attribute, 0)
-		for _, a := range m.Attributes {
-			if a.IsICECandidate() {
-				c, err := ice.UnmarshalCandidate(a.Value)
-				if err == nil && c.Type() == ice.CandidateTypeHost {
-					ip := net.ParseIP(c.Address())
-					if ip != nil && (IsLocal(ip) || ip.IsUnspecified() || ip.IsLoopback()) {
-						/* no append in this case */
-						continue
-					}
-				}
-			}
-			attrs = append(attrs, a)
-		}
-		m.Attributes = attrs
-	}
-	bts, err := desc.Marshal()
-	if err != nil {
-		return str
-	}
-	return string(bts)
 }
 
 // Attempts to retrieve the client IP of where the HTTP request originating.
