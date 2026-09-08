@@ -142,7 +142,7 @@ func main() {
 	flag.Parse()
 
 	if versionFlag {
-		fmt.Fprintf(os.Stderr, "snowflake-server %s", version.ConstructResult())
+		fmt.Fprintf(os.Stderr, "snowflake-server %s", version.GetVersion())
 		os.Exit(0)
 	}
 

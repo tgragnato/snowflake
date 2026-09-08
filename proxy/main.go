@@ -56,7 +56,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Fprintf(os.Stderr, "snowflake-proxy %s", version.ConstructResult())
+		fmt.Fprintf(os.Stderr, "snowflake-proxy %s", version.GetVersion())
 		os.Exit(0)
 	}
 

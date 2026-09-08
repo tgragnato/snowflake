@@ -30,3 +30,9 @@ var version = func() string {
 func GetVersion() string {
 	return version
 }
+
+func AddVersionDetail(detail string) {}
+
+func GetVersionDetail() string {
+	return ""
+}
