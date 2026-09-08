@@ -324,7 +324,7 @@ func setupBrokerTest(t *testing.T) *webrtc.PeerConnection {
 	if err != nil {
 		t.Fatalf("newSignalingServer: %v", err)
 	}
-	tokens = 0
+	tokens.Store(0)
 
 	// Mock peerConnection
 	config = webrtc.Configuration{

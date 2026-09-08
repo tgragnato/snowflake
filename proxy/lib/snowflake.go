@@ -97,7 +97,7 @@ var (
 	broker               *SignalingServer
 	currentNATType       = NATUnknown
 	currentNATTypeAccess = &sync.RWMutex{}
-	tokens               uint64
+	tokens               atomic.Uint64
 	config               webrtc.Configuration
 	customtransport      = &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -281,7 +281,7 @@ func (s *SignalingServer) pollOffer(sid string, proxyType string, acceptedRelayP
 	brokerPath := s.url.ResolveReference(&url.URL{Path: "proxy"})
 
 	// tokens is updated atomically by the connection handlers.
-	numClients := (atomic.LoadUint64(&tokens) / 8) * 8 // Round down to 8
+	numClients := (tokens.Load() / 8) * 8 // Round down to 8
 	currentNATTypeLoaded := getCurrentNATType()
 	req := messages.ProxyPollRequest{
 		Sid:                  sid,
@@ -388,8 +388,8 @@ func copyLoop(c1 io.ReadWriteCloser, c2 io.ReadWriteCloser, shutdown chan struct
 // otherwise occurs inside conn.pc.RemoteDescription() (called by RemoteAddr).
 // https://bugs.torproject.org/18628#comment:8
 func (sf *SnowflakeProxy) datachannelHandler(conn *webRTCConn, remoteIP net.IP, relayURL string) {
-	atomic.AddUint64(&tokens, 1)
-	defer atomic.AddUint64(&tokens, ^uint64(0))
+	tokens.Add(1)
+	defer tokens.Add(^uint64(0))
 	defer conn.Close()
 
 	if relayURL == "" {
@@ -696,7 +696,7 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 	connectedToClient := false
 	defer func() {
 		if !connectedToClient {
-			atomic.AddUint64(&tokens, ^uint64(0))
+			tokens.Add(^uint64(0))
 		}
 		// Otherwise we'll `tokens.ret()` when the connection finishes.
 	}()
@@ -903,7 +903,7 @@ func (sf *SnowflakeProxy) Start() error {
 			},
 		},
 	}
-	atomic.StoreUint64(&tokens, 0)
+	tokens.Store(0)
 
 	if sf.NATTypeForceUnrestricted {
 		setCurrentNATType(NATUnrestricted)
@@ -964,7 +964,7 @@ func (sf *SnowflakeProxy) Start() error {
 			return nil
 		default:
 			if sf.relayReachable {
-				atomic.AddUint64(&tokens, 1)
+				tokens.Add(1)
 				sessionID := genSessionID()
 				sf.runSession(sessionID)
 			}
