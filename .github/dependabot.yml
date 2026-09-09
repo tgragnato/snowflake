@@ -13,6 +13,11 @@ updates:
     commit-message:
       prefix: "build"
       include: "scope"
+    groups:
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2"
+          - "github.com/aws/aws-sdk-go-v2/*"
 
   - package-ecosystem: "gomod"
     directory: "/dtls"
