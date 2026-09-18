@@ -51,7 +51,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pion/datachannel v1.6.2 // indirect
-	github.com/pion/dtls/v3 v3.1.8 // indirect
+	github.com/pion/dtls/v3 v3.1.9 // indirect
 	github.com/pion/interceptor v0.1.48 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/mdns/v2 v2.2.0 // indirect
@@ -60,7 +60,8 @@ require (
 	github.com/pion/rtp v1.10.5 // indirect
 	github.com/pion/sctp v1.11.1 // indirect
 	github.com/pion/srtp/v3 v3.0.15 // indirect
-	github.com/pion/stun/v4 v4.0.0 // indirect
+	github.com/pion/stun/v4 v4.0.1 // indirect
+	github.com/pion/transport/v5 v5.0.0 // indirect
 	github.com/pion/turn/v5 v5.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
