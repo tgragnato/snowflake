@@ -10,7 +10,7 @@ require (
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/coder/websocket v1.8.15
 	github.com/miekg/dns v1.1.73
-	github.com/pion/ice/v4 v4.4.2
+	github.com/pion/ice/v4 v4.4.3
 	github.com/pion/sdp/v3 v3.0.19
 	github.com/pion/stun/v3 v3.1.7
 	github.com/pion/transport/v4 v4.1.0
@@ -62,7 +62,7 @@ require (
 	github.com/pion/srtp/v3 v3.0.15 // indirect
 	github.com/pion/stun/v4 v4.0.1 // indirect
 	github.com/pion/transport/v5 v5.0.0 // indirect
-	github.com/pion/turn/v5 v5.1.1 // indirect
+	github.com/pion/turn/v5 v5.1.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.71.0 // indirect
