@@ -117,8 +117,8 @@ github.com/pion/transport/v4 v4.1.0 h1:8S+nF2reM2cJuqC6g78OVy2BBgmbdns+acx3jA97B
 github.com/pion/transport/v4 v4.1.0/go.mod h1:06hFI+jCFcok2X2MekVufNZ/uzNZXivGBPfviSVcjgM=
 github.com/pion/transport/v5 v5.0.0 h1:XWdfCnG6oLaTp07Sr4lbyWVs+MXuaD3eggUsSn6LK90=
 github.com/pion/transport/v5 v5.0.0/go.mod h1:Qxw6fCEjFWQkRDZOhS4Vf+neJBcihauvA3uyEa1J1F0=
-github.com/pion/turn/v5 v5.1.1 h1:TyjEaXx9gRGydE5YQPx37thjty+Zu5meyUiR4qNjcvs=
-github.com/pion/turn/v5 v5.1.1/go.mod h1:6HJQO7UAe7pEPMrTtBrmj+tTfp+Ai8KAV2+GXHFi1nQ=
+github.com/pion/turn/v5 v5.1.2 h1:acEOO+D5txJ52vKfcilmSMItfP23Q9K6pJ1LM5P2VV0=
+github.com/pion/turn/v5 v5.1.2/go.mod h1:57Oadc8fHnac15VFyCd6nEaBTVZBxQe2POUMD4lsHRA=
 github.com/pion/webrtc/v4 v4.2.20 h1:NYiNhBTFArA8aoP18a30y4LN0dyqSrF65HxU7KnhNOo=
 github.com/pion/webrtc/v4 v4.2.20/go.mod h1:aLGXbekuN0tHOu7IPX1o9Y/uN29Ovfjaaz4bL2P9ND8=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
