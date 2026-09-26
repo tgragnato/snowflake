@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -77,13 +76,6 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 		dtlsElliptic.P384,
 	)
 
-	settingsEngine.SetIPFilter(func(ip net.IP) (keep bool) {
-		// `IsLoopback()` and `IsUnspecified` are likely not neded here,
-		// but let's keep them just in case.
-		// FYI there is similar code in other files in this project.
-		keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
-		return
-	})
 	// FYI this is `false` by default anyway as of pion/webrtc@4
 	settingsEngine.SetIncludeLoopbackCandidate(false)
 
@@ -164,7 +156,7 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request,
 	strictSocks5ProxyURL string,
 	moderateSocks5ProxyURL string) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	var removeLocalCandidate bool
+	var removeAllCandidates bool
 	var socks5proxy *url.URL
 	interactiveConnectivitySimulationKind := r.URL.Query().Get("InCoSim")
 	switch interactiveConnectivitySimulationKind {
@@ -179,7 +171,7 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request,
 	case "strict":
 		fallthrough
 	default:
-		removeLocalCandidate = true
+		removeAllCandidates = true
 		var err error
 		socks5proxy, err = url.Parse(strictSocks5ProxyURL)
 		if err != nil {
@@ -236,12 +228,17 @@ func probeHandler(stunURL string, w http.ResponseWriter, r *http.Request,
 	}()
 
 	localSDP := pc.LocalDescription()
-	if removeLocalCandidate {
+	if removeAllCandidates {
 		localSDP, err = removeCandidatesFromSessionDescription(localSDP)
 		if err != nil {
 			log.Printf("Error removing candidates from session description: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
+		}
+	} else {
+		localSDP = &webrtc.SessionDescription{
+			Type: localSDP.Type,
+			SDP:  util.StripLocalAddresses(localSDP.SDP),
 		}
 	}
 

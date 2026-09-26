@@ -130,6 +130,13 @@ func (bc *BrokerChannel) Negotiate(
 ) (
 	*webrtc.SessionDescription, error,
 ) {
+	if !bc.keepLocalAddresses {
+		offer = &webrtc.SessionDescription{
+			Type: offer.Type,
+			SDP:  util.StripLocalAddresses(offer.SDP),
+		}
+	}
+
 	encReq, err := preparePollRequest(offer, natTypeToSend, bc.BridgeFingerprint)
 	if err != nil {
 		return nil, err

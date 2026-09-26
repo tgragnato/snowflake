@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/proxy"
-	"tgragnato.it/snowflake/common/util"
 )
 
 // WebRTCPeer represents a WebRTC connection to a remote snowflake proxy.
@@ -280,13 +278,6 @@ func (c *WebRTCPeer) preparePeerConnection(
 	)
 
 	if !keepLocalAddresses {
-		s.SetIPFilter(func(ip net.IP) (keep bool) {
-			// `IsLoopback()` and `IsUnspecified` are likely not neded here,
-			// but let's keep them just in case.
-			// FYI there is similar code in other files in this project.
-			keep = !util.IsLocal(ip) && !ip.IsLoopback() && !ip.IsUnspecified()
-			return
-		})
 		s.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 	}
 	s.SetIncludeLoopbackCandidate(keepLocalAddresses)

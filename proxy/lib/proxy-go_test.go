@@ -320,7 +320,7 @@ func setupBrokerTest(t *testing.T) *webrtc.PeerConnection {
 	t.Helper()
 
 	var err error
-	broker, err = newSignalingServer("localhost")
+	broker, err = newSignalingServer("localhost", true)
 	if err != nil {
 		t.Fatalf("newSignalingServer: %v", err)
 	}

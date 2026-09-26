@@ -86,6 +86,38 @@ func IsLocal(ip net.IP) bool {
 	return false
 }
 
+// Removes local LAN address ICE candidates
+func StripLocalAddresses(str string) string {
+	var desc sdp.SessionDescription
+	err := desc.Unmarshal([]byte(str))
+	if err != nil {
+		return str
+	}
+	for _, m := range desc.MediaDescriptions {
+		attrs := make([]sdp.Attribute, 0)
+		for _, a := range m.Attributes {
+			if a.IsICECandidate() {
+				c, err := ice.UnmarshalCandidate(a.Value)
+				if err == nil && c.Type() == ice.CandidateTypeHost {
+					ip := net.ParseIP(c.Address())
+					if ip != nil && (IsLocal(ip) || ip.IsUnspecified() || ip.IsLoopback()) {
+						/* no append in this case */
+						log.Printf("Removed candidate %v", a)
+						continue
+					}
+				}
+			}
+			attrs = append(attrs, a)
+		}
+		m.Attributes = attrs
+	}
+	bts, err := desc.Marshal()
+	if err != nil {
+		return str
+	}
+	return string(bts)
+}
+
 // Attempts to retrieve the client IP of where the HTTP request originating.
 // There is no standard way to do this since the original client IP can be included in a number of different headers,
 // depending on the proxies and load balancers between the client and the server. We attempt to check as many of these
