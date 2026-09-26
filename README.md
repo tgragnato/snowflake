@@ -1,8 +1,10 @@
 # Snowflake
 
 [![Go](https://github.com/tgragnato/snowflake/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/go.yml)
+[![Test Cross Compilation without CGo](https://github.com/tgragnato/snowflake/actions/workflows/cross.yml/badge.svg)](https://github.com/tgragnato/snowflake/actions/workflows/cross.yml)
 [![CodeQL](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/tgragnato/snowflake/branch/main/graph/badge.svg)](https://codecov.io/gh/tgragnato/snowflake)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tgragnato/snowflake)
 
 Snowflake is a censorship-evasion pluggable transport using WebRTC, inspired by Flashproxy.
 
