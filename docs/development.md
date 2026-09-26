@@ -23,7 +23,6 @@ The Go module path is `tgragnato.it/snowflake` and the minimum Go version is 1.2
 - `server/` — the Tor pluggable-transport server (`server/server.go`) and server library
   (`server/lib/`).
 - `probetest/` — the NAT / interactive-connectivity probe-testing service.
-- `dtls/` — the forked DTLS stack that carries this fork's custom handshake fingerprint.
 - `distinctcounter/` — cardinality counting used for broker metrics.
 - `docs/` — documentation and `schematic.png`.
 
@@ -89,8 +88,9 @@ statistics interface.
 
 **Fingerprinting resistance.** The point of this fork is that its TLS, DTLS and WebRTC
 fingerprints differ from popular implementations: a custom broker transport (TLS 1.3 with a
-selected cipher suite and group list, MultiPath TCP), a custom DTLS fingerprint, reduced
-MulticastDNS noise via pion's `SettingEngine`, and client padding to defeat TLS-in-DTLS
+selected cipher suite and group list, MultiPath TCP), cryptographic restrictions applied
+natively via pion's `SettingEngine` (`SetDTLSCipherSuites`, `SetDTLSEllipticCurves`),
+reduced MulticastDNS noise, and client padding to defeat TLS-in-DTLS
 detection. Any change to handshake parameters, cipher suite or curve lists, extension order,
 padding, or ICE/`SettingEngine` behaviour changes the distinguisher surface. Call such changes
 out explicitly; never make them incidentally while doing something else.

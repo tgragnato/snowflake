@@ -19,21 +19,6 @@ updates:
           - "github.com/aws/aws-sdk-go-v2"
           - "github.com/aws/aws-sdk-go-v2/*"
 
-  - package-ecosystem: "gomod"
-    directory: "/dtls"
-    schedule:
-      interval: "daily"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    labels:
-      - "dependencies"
-      - "go"
-      - "dtls"
-    commit-message:
-      prefix: "build"
-      include: "scope"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

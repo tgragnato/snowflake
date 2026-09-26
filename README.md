@@ -1,7 +1,6 @@
 # Snowflake
 
 [![Go](https://github.com/tgragnato/snowflake/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/go.yml)
-[![DTLS](https://github.com/tgragnato/snowflake/actions/workflows/dtls.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/dtls.yml)
 [![CodeQL](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tgragnato/snowflake/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/tgragnato/snowflake/branch/main/graph/badge.svg)](https://codecov.io/gh/tgragnato/snowflake)
 
@@ -15,7 +14,7 @@ This fork differs from upstream Snowflake in the following ways:
 
 - Requires Go 1.26 or later, with updated dependencies.
 - Uses a custom transport for broker negotiation: TLS 1.3 with a selected set of cipher suites and groups, over MultiPath TCP.
-- Ships a custom DTLS fingerprint, different from any popular WebRTC implementation.
+- Uses upstream `github.com/pion/webrtc/v4` and `github.com/pion/dtls/v3` and applies cryptographic restrictions natively via `webrtc.SettingEngine` (`SetDTLSCipherSuites`, `SetDTLSEllipticCurves`).
 - Uses pion's Setting Engine to reduce MulticastDNS noise.
 - Uses a context-aware `io.Reader` in `copyLoop` that closes on errors.
 - Keeps token handling extremely simple.
@@ -43,7 +42,6 @@ This fork differs from upstream Snowflake in the following ways:
 - `common/` contains generic libraries used by multiple pieces of Snowflake
 - `distinctcounter/` contains the cardinality counting used for broker metrics
 - `docs/` contains Snowflake documentation and manpages
-- `dtls/` contains the forked DTLS stack carrying this fork's custom handshake fingerprint
 - `probetest/` contains code for a NAT probetesting service
 - `proxy/` contains code for the Go standalone Snowflake proxy
 - `server/` contains the Tor pluggable transport server and server library code

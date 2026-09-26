@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/pion/stun/v3"
+	"github.com/pion/stun/v4"
 	"tgragnato.it/snowflake/common/proxy"
 )
 

@@ -38,7 +38,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pion/stun/v3"
+	"github.com/pion/stun/v4"
 	"github.com/pion/webrtc/v4"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"

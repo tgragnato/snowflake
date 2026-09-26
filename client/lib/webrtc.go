@@ -11,9 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pion/dtls/v3"
+	dtlsElliptic "github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/ice/v4"
-	"github.com/pion/transport/v4"
-	"github.com/pion/transport/v4/stdnet"
+	"github.com/pion/transport/v5"
+	"github.com/pion/transport/v5/stdnet"
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/proxy"
@@ -264,6 +266,18 @@ func (c *WebRTCPeer) preparePeerConnection(
 	keepLocalAddresses bool,
 ) error {
 	s := webrtc.SettingEngine{}
+
+	s.SetDTLSCipherSuites(
+		dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		dtls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+		dtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
+		dtls.TLS_PSK_WITH_CHACHA20_POLY1305_SHA256,
+	)
+
+	s.SetDTLSEllipticCurves(
+		dtlsElliptic.X25519,
+		dtlsElliptic.P384,
+	)
 
 	if !keepLocalAddresses {
 		s.SetIPFilter(func(ip net.IP) (keep bool) {

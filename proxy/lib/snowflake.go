@@ -44,8 +44,10 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/pion/dtls/v3"
+	dtlsElliptic "github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/ice/v4"
-	"github.com/pion/transport/v4/stdnet"
+	"github.com/pion/transport/v5/stdnet"
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/constants"
 	"tgragnato.it/snowflake/common/event"
@@ -443,6 +445,18 @@ func (d dataChannelHandlerWithRelayURL) datachannelHandler(conn *webRTCConn, rem
 
 func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 	settingsEngine := webrtc.SettingEngine{}
+
+	settingsEngine.SetDTLSCipherSuites(
+		dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		dtls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+		dtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
+		dtls.TLS_PSK_WITH_CHACHA20_POLY1305_SHA256,
+	)
+
+	settingsEngine.SetDTLSEllipticCurves(
+		dtlsElliptic.X25519,
+		dtlsElliptic.P384,
+	)
 
 	if !sf.KeepLocalAddresses {
 		settingsEngine.SetIPFilter(func(ip net.IP) (keep bool) {

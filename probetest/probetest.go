@@ -21,9 +21,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pion/dtls/v3"
+	dtlsElliptic "github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/sdp/v3"
-	"github.com/pion/transport/v4"
-	"github.com/pion/transport/v4/stdnet"
+	"github.com/pion/transport/v5"
+	"github.com/pion/transport/v5/stdnet"
 	"github.com/pion/webrtc/v4"
 	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog"
 	"golang.org/x/crypto/acme/autocert"
@@ -62,6 +64,18 @@ func makePeerConnectionFromOffer(stunURL string, sdp *webrtc.SessionDescription,
 	socks5proxy *url.URL) (*webrtc.PeerConnection, error) {
 
 	settingsEngine := webrtc.SettingEngine{}
+
+	settingsEngine.SetDTLSCipherSuites(
+		dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		dtls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+		dtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
+		dtls.TLS_PSK_WITH_CHACHA20_POLY1305_SHA256,
+	)
+
+	settingsEngine.SetDTLSEllipticCurves(
+		dtlsElliptic.X25519,
+		dtlsElliptic.P384,
+	)
 
 	settingsEngine.SetIPFilter(func(ip net.IP) (keep bool) {
 		// `IsLoopback()` and `IsUnspecified` are likely not neded here,

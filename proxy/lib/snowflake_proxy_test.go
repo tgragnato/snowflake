@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/pion/dtls/v3"
+	dtlsElliptic "github.com/pion/dtls/v3/pkg/crypto/elliptic"
 	"github.com/pion/webrtc/v4"
 	"tgragnato.it/snowflake/common/event"
 	"tgragnato.it/snowflake/common/messages"
@@ -163,6 +165,19 @@ func makeClientOffer(t *testing.T) (*webrtc.PeerConnection, *webrtc.DataChannel,
 	t.Helper()
 
 	settings := webrtc.SettingEngine{}
+
+	settings.SetDTLSCipherSuites(
+		dtls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		dtls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+		dtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
+		dtls.TLS_PSK_WITH_CHACHA20_POLY1305_SHA256,
+	)
+
+	settings.SetDTLSEllipticCurves(
+		dtlsElliptic.X25519,
+		dtlsElliptic.P384,
+	)
+
 	settings.SetIncludeLoopbackCandidate(true)
 	pc, err := webrtc.NewAPI(webrtc.WithSettingEngine(settings)).NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
