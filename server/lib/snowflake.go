@@ -46,7 +46,6 @@ import (
 
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
-	"golang.org/x/net/http2"
 	"tgragnato.it/snowflake/common/turbotunnel"
 )
 
@@ -88,18 +87,8 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 		Handler:     handler,
 		ReadTimeout: requestTimeout,
 	}
-	// We need to override server.TLSConfig.GetCertificate--but first
-	// server.TLSConfig needs to be non-nil. If we just create our own new
-	// &tls.Config, it will lack the default settings that the net/http
-	// package sets up for things like HTTP/2. Therefore we first call
-	// http2.ConfigureServer for its side effect of initializing
-	// server.TLSConfig properly. An alternative would be to make a dummy
-	// net.Listener, call Serve on it, and let it return.
-	// https://github.com/golang/go/issues/16588#issuecomment-237386446
-	err := http2.ConfigureServer(server, nil)
-	if err != nil {
-		return nil, err
-	}
+	server.Protocols.SetHTTP1(false)
+	server.Protocols.SetHTTP2(true)
 	server.TLSConfig.GetCertificate = t.getCertificate
 
 	// Another unfortunate effect of the inseparable net/http ListenAndServe
