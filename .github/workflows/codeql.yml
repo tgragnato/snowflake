@@ -20,7 +20,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['go']
+        - language: actions
+          build-mode: none
+        - language: go
+          build-mode: auto
 
     steps:
 
@@ -28,19 +31,21 @@ jobs:
       uses: actions/checkout@v7
 
     - name: Set up Go
+      if: matrix.language == 'go'
       uses: actions/setup-go@v7
       with:
         go-version: '1.27'
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4.38.1
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v4.38.1
+      if: matrix.build-mode == 'auto'
+      uses: github/codeql-action/autobuild@v4
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4.38.1
+      uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
