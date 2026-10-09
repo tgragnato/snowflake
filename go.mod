@@ -13,7 +13,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/miekg/dns v1.1.73
 	github.com/pion/dtls/v3 v3.1.10
-	github.com/pion/ice/v4 v4.4.5
+	github.com/pion/ice/v4 v4.4.6
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/stun/v4 v4.0.1
 	github.com/pion/transport/v5 v5.1.1
