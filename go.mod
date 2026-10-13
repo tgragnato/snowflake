@@ -18,7 +18,7 @@ require (
 	github.com/pion/stun/v4 v4.0.1
 	github.com/pion/transport/v5 v5.1.1
 	github.com/pion/webrtc/v4 v4.2.22
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/txthinking/socks5 v0.0.0-20260601051520-339b044ab0eb
