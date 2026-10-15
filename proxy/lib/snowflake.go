@@ -168,6 +168,8 @@ type SnowflakeProxy struct {
 	// that this proxy will forward client connections to,
 	// in case the broker itself did not specify the said URL
 	RelayURL string
+	// The name of the network interface to use for ICE candidates. If not specified, all interfaces will be used.
+	Interface string
 	// OutboundAddress specify an IP address to use as SDP host candidate
 	OutboundAddress string
 	// EphemeralMinPort and EphemeralMaxPort limit the range of ports that
@@ -469,6 +471,12 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 
 	settingsEngine.SetIncludeLoopbackCandidate(sf.KeepLocalAddresses)
 
+	if sf.Interface != "" {
+		settingsEngine.SetInterfaceFilter(func(name string) bool {
+			return name == sf.Interface
+		})
+	}
+
 	// Use the SetNet setting https://pkg.go.dev/github.com/pion/webrtc/v3#SettingEngine.SetNet
 	// to get snowflake working in shadow (where the AF_NETLINK family is not implemented).
 	// These two lines of code functionally revert a new change in pion by silently ignoring
@@ -489,6 +497,13 @@ func (sf *SnowflakeProxy) makeWebRTCAPI() *webrtc.API {
 		if err := settingsEngine.SetICEAddressRewriteRules(webrtc.ICEAddressRewriteRule{
 			External:        []string{sf.OutboundAddress},
 			AsCandidateType: webrtc.ICECandidateTypeHost,
+			Mode:            webrtc.ICEAddressRewriteReplace,
+		}); err != nil {
+			log.Fatalf("Failed to set ICE address rewrite rules: %s", err)
+		}
+		if err := settingsEngine.SetICEAddressRewriteRules(webrtc.ICEAddressRewriteRule{
+			External:        []string{sf.OutboundAddress},
+			AsCandidateType: webrtc.ICECandidateTypeSrflx,
 			Mode:            webrtc.ICEAddressRewriteReplace,
 		}); err != nil {
 			log.Fatalf("Failed to set ICE address rewrite rules: %s", err)
@@ -517,7 +532,16 @@ func (sf *SnowflakeProxy) makePeerConnectionFromOffer(
 		return nil, fmt.Errorf("accept: NewPeerConnection: %s", err)
 	}
 
+	var acceptDataChannelOnce sync.Once
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		firstDataChannel := false
+		acceptDataChannelOnce.Do(func() {
+			firstDataChannel = true
+		})
+		if !firstDataChannel {
+			log.Printf("Discarded Subsequent Data Channel %s-%d:%v\n", dc.Label(), dc.ID(), dc.Close())
+			return
+		}
 		log.Printf("New Data Channel %s-%d\n", dc.Label(), dc.ID())
 		close(dataChan)
 
