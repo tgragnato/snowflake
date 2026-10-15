@@ -98,7 +98,12 @@ func TestWebRTCConnWriteCountsInboundTraffic(t *testing.T) {
 func TestWebRTCConnWriteSignalsActivity(t *testing.T) {
 	t.Parallel()
 
-	conn, _, _ := newTestWebRTCConn(t)
+	// No timeoutLoop here: it would drain the activity channel concurrently.
+	conn := &webRTCConn{
+		activity:    make(chan struct{}, 100),
+		sendMoreCh:  make(chan struct{}, 1),
+		bytesLogger: &stubBytesLogger{},
+	}
 
 	if _, err := conn.Write([]byte("x")); err != nil {
 		t.Fatalf("writing: %v", err)
