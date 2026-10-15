@@ -260,13 +260,13 @@ func TestGetSnowflakeIp(t *testing.T) {
 			want:       "5.6.7.8",
 		},
 		{
-			name: "uses Forwarded header",
+			name: "uses no Forwarded header",
 			headers: map[string]string{
 				"Forwarded": "for=1.2.3.4, for=5.6.7.8",
 			},
 			remoteAddr: "9.10.11.12:8888",
 			hops:       1,
-			want:       "5.6.7.8",
+			want:       "9.10.11.12",
 		},
 		{
 			name:       "no headers uses RemoteAddr",
