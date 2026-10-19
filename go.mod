@@ -12,12 +12,12 @@ require (
 	github.com/clarkduvall/hyperloglog v0.0.0-20171127014514-a0107a5d8004
 	github.com/coder/websocket v1.8.15
 	github.com/miekg/dns v1.1.73
-	github.com/pion/dtls/v3 v3.1.11
+	github.com/pion/dtls/v3 v3.1.13
 	github.com/pion/ice/v4 v4.4.7
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/stun/v4 v4.0.1
 	github.com/pion/transport/v5 v5.1.1
-	github.com/pion/webrtc/v4 v4.2.23
+	github.com/pion/webrtc/v4 v4.2.24
 	github.com/prometheus/client_golang v1.25.0
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.8.2
