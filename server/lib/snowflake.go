@@ -118,8 +118,9 @@ func (t *Transport) Listen(addr net.Addr, numKCPInstances int) (*SnowflakeListen
 		}
 	}()
 	select {
-	case <-errChan:
-		break
+	case err := <-errChan:
+		// Already logged by the goroutine.
+		_ = err
 	case <-time.After(listenAndServeErrorTimeout):
 		break
 	}
