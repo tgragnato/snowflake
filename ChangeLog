@@ -1,3 +1,8 @@
+Changes in version v2.15.2 - 2026-10-20
+- Issue 40380: Proxy: Apply outbound address filter to srflx candidates
+- Fix file permissions on man files
+- Bump minimum required version of Go to 1.26.10
+
 Changes in version v2.15.1 - 2026-10-07
 - CI: Update generate_tarball image to use go v1.25
 
