@@ -237,6 +237,16 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 			}
 			return err
 		}
+
+		/* limit max cocurrent stream to 2
+		   as in client/lib/snowflake.go!(*Transport)Dial() a regular client never creates more than one smux streams
+		   this limit is set to 2 for a little margin but a value of 1 should work fine as well
+		*/
+		if sess.NumStreams() > 2 {
+			stream.Close()
+			continue
+		}
+
 		l.queueConn(&SnowflakeClientConn{stream: stream, address: addr})
 	}
 }
