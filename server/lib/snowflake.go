@@ -217,6 +217,7 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 		// We store "" in the map in the absence of client_ip. This log
 		// message means you should increase clientIDAddrMapCapacity.
 		log.Printf("no address in clientID-to-IP map (capacity %d)", clientIDAddrMapCapacity)
+		addr = clientAddr("")
 	}
 
 	smuxConfig := smux.DefaultConfig()
