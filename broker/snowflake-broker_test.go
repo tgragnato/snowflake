@@ -1232,9 +1232,11 @@ func TestConcurrency(t *testing.T) {
 			go ctx.Broker()
 
 			var proxies sync.WaitGroup
+			var clients sync.WaitGroup
 			var wg sync.WaitGroup
 
 			proxies.Add(1000)
+			clients.Add(1)
 			// Multiple proxy polls
 			for x := 0; x < 1000; x++ {
 				wp := httptest.NewRecorder()
@@ -1251,6 +1253,8 @@ func TestConcurrency(t *testing.T) {
 					proxies.Done()
 					proxyPolls(i, wp, rp)
 					c.So(wp.Code, ShouldEqual, http.StatusOK)
+
+					clients.Wait()
 
 					// Proxy answers
 					wp = httptest.NewRecorder()
@@ -1283,6 +1287,7 @@ func TestConcurrency(t *testing.T) {
 					wg.Done()
 				}()
 			}
+			clients.Done()
 			wg.Wait()
 		})
 	})
