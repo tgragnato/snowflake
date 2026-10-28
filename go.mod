@@ -22,7 +22,7 @@ require (
 	github.com/realclientip/realclientip-go v1.0.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/txthinking/socks5 v0.0.0-20260601051520-339b044ab0eb
-	github.com/xtaci/kcp-go/v5 v5.6.72
+	github.com/xtaci/kcp-go/v5 v5.7.1
 	github.com/xtaci/smux v1.5.57
 	gitlab.torproject.org/tpo/anti-censorship/geoip v0.0.0-20210928150955-7ce4b3d98d01
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib v1.6.0
