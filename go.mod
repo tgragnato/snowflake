@@ -16,7 +16,7 @@ require (
 	github.com/pion/ice/v4 v4.4.8
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/stun/v4 v4.0.1
-	github.com/pion/transport/v5 v5.1.2
+	github.com/pion/transport/v5 v5.1.4
 	github.com/pion/webrtc/v4 v4.2.25
 	github.com/prometheus/client_golang v1.25.0
 	github.com/realclientip/realclientip-go v1.0.0
