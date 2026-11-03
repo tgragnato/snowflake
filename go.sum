@@ -126,8 +126,8 @@ github.com/prometheus/client_golang v1.25.0/go.mod h1:j2X/4/kaQHLPnmyEU8zjmkndo1
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/prometheus/client_model v0.6.3 h1:O0jaTVAYNxTHYInEPFJt5I3+sN8zqBtVMPTB1qyxiEo=
 github.com/prometheus/client_model v0.6.3/go.mod h1:gpN5P9S7Rr6Yr92PiQ+Ixvhf6JZEkF1dnxsYL2aPBEM=
-github.com/prometheus/common v0.73.0 h1:NGIOmVi8jrgiiPQgXxD6rP0FfxFsuZxnMQkel0qBy/g=
-github.com/prometheus/common v0.73.0/go.mod h1:Nt+CsVkf/mj4wDAmtSwq1HTPohHSX6fMr6+/f9B5UqM=
+github.com/prometheus/common v0.73.1 h1:SZWh/j4AvhCdhX8jvYSnxvPxhWlC9QZkjJ+tOrEr7kU=
+github.com/prometheus/common v0.73.1/go.mod h1:I9aA/Ukz9s1olOobh8KtCkU7B1mQPQsB9UvQPsUQ1Dk=
 github.com/prometheus/procfs v0.23.0 h1:ad+S6FTkzwaMgacKLM5h6bNKExS+DMH0YiUwXItH/o4=
 github.com/prometheus/procfs v0.23.0/go.mod h1:3AVXO0FqLafyYFU/V/IQRZlC8Rgqz8Dm/x6pKLK+RIk=
 github.com/realclientip/realclientip-go v1.0.0 h1:+yPxeC0mEaJzq1BfCt2h4BxlyrvIIBzR6suDc3BEF1U=
