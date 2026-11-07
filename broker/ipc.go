@@ -314,7 +314,11 @@ func (i *IPC) ProxyAnswers(arg messages.Arg, response *[]byte) error {
 
 	if success {
 		i.ctx.metrics.promMetrics.ProxyAnswerTotal.With(prometheus.Labels{"type": snowflake.proxyType, "status": "success"}).Inc()
-		snowflake.answerChannel <- req.Answer
+		select {
+		case snowflake.answerChannel <- req.Answer:
+		default:
+			log.Printf("received snowflake answer while not listening on answer channel")
+		}
 	}
 
 	return nil

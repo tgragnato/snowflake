@@ -731,14 +731,6 @@ func (sf *SnowflakeProxy) makeNewPeerConnection(
 }
 
 func (sf *SnowflakeProxy) runSession(sid string) {
-	connectedToClient := false
-	defer func() {
-		if !connectedToClient {
-			tokens.Add(^uint64(0))
-		}
-		// Otherwise we'll `tokens.ret()` when the connection finishes.
-	}()
-
 	pollResponse, err := broker.pollOffer(sid, sf.ProxyType, sf.RelayDomainNamePattern)
 	if err != nil {
 		log.Printf("Error polling broker: %s", err.Error())
@@ -790,7 +782,6 @@ func (sf *SnowflakeProxy) runSession(sid string) {
 		select {
 		case <-dataChan:
 			log.Println("Connection successful")
-			connectedToClient = true
 		case <-time.After(dataChannelTimeout):
 			log.Println("Timed out waiting for client to open data channel.")
 			sf.EventDispatcher.OnNewSnowflakeEvent(
@@ -1002,7 +993,6 @@ func (sf *SnowflakeProxy) Start() error {
 			return nil
 		default:
 			if sf.relayReachable {
-				tokens.Add(1)
 				sessionID := genSessionID()
 				sf.runSession(sessionID)
 			}
