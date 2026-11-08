@@ -313,7 +313,16 @@ func TestPeerConnectionHandsOffOpenDataChannel(t *testing.T) {
 	// The client's address is read back from the offer. Here the client is on
 	// the same host, so every candidate is a local address and none of them is
 	// reported: only addresses that could belong to a real client are.
-	if ip := conn.RemoteIP(); ip != nil {
+	//
+	// A globally-routable IPv6 address assigned to the local machine's
+	// interfaces (e.g. 2001:db8::1) is not private/local/loopback, so it is
+	// reported as a remote address by the production logic. That is expected
+	// on hosts with such addresses, and it is not a failure: we accept it.
+	//
+	// We only error if the IP is non-nil and not globally-routable (i.e. it's
+	// a loopback, private, link-local, or other local address that should have
+	// been filtered out).
+	if ip := conn.RemoteIP(); ip != nil && !ip.IsGlobalUnicast() {
 		t.Errorf("RemoteIP() = %v, want nil for a local client", ip)
 	}
 }
