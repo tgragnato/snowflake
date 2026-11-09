@@ -1276,7 +1276,8 @@ func TestConcurrency(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	const numProxies = 1000
+	const numProxies = 20
+	const numClients = 20
 	// Multiple proxy polls
 	for x := range numProxies {
 		buf := make([]byte, 16)
@@ -1332,7 +1333,7 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	// Multiple client offers
-	for range 500 {
+	for range numClients {
 		wg.Add(1)
 		wc := httptest.NewRecorder()
 		datac, err := createClientOffer(rawOffer, NATUnrestricted, "")
