@@ -251,11 +251,11 @@ func (conn *SnowflakeConn) Close() error {
 	var err error
 	log.Printf("---- SnowflakeConn: closed stream %v ---", conn.ID())
 	err = conn.Stream.Close()
-	log.Printf("---- SnowflakeConn: end collecting snowflakes ---")
-	conn.snowflakes.End()
 	if inerr := conn.pconn.Close(); err == nil {
 		err = inerr
 	}
+	log.Printf("---- SnowflakeConn: end collecting snowflakes ---")
+	conn.snowflakes.End()
 	log.Printf("---- SnowflakeConn: discarding finished session ---")
 	if inerr := conn.sess.Close(); err == nil {
 		err = inerr
