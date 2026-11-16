@@ -201,6 +201,7 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 		// We store "" in the map in the absence of client_ip. This log
 		// message means you should increase clientIDAddrMapCapacity.
 		log.Printf("no address in clientID-to-IP map (capacity %d)", clientIDAddrMapCapacity)
+		addr = clientAddr("")
 	}
 
 	smuxConfig := smux.DefaultConfig()
@@ -217,6 +218,16 @@ func (l *SnowflakeListener) acceptStreams(conn *kcp.UDPSession) error {
 		if err != nil {
 			return err
 		}
+
+		/* limit max cocurrent stream to 2
+		   as in client/lib/snowflake.go!(*Transport)Dial() a regular client never creates more than one smux streams
+		   this limit is set to 2 for a little margin but a value of 1 should work fine as well
+		*/
+		if sess.NumStreams() > 2 {
+			stream.Close()
+			continue
+		}
+
 		l.queueConn(&SnowflakeClientConn{stream: stream, address: addr})
 	}
 }
