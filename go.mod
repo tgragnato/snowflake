@@ -16,7 +16,7 @@ require (
 	github.com/pion/ice/v4 v4.4.9
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/stun/v4 v4.0.1
-	github.com/pion/transport/v5 v5.1.5
+	github.com/pion/transport/v5 v5.1.6
 	github.com/pion/webrtc/v4 v4.2.29
 	github.com/prometheus/client_golang v1.25.0
 	github.com/realclientip/realclientip-go v1.0.0
@@ -53,7 +53,7 @@ require (
 	github.com/klauspost/compress v1.20.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.2 // indirect
 	github.com/klauspost/reedsolomon v1.14.2 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
@@ -72,7 +72,6 @@ require (
 	github.com/prometheus/common v0.74.0 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/txthinking/runnergroup v0.0.0-20250224021307-5864ffeb65ae // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.14.1 // indirect
